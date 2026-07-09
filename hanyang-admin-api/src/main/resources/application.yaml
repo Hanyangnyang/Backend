@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: hanyang-admin-api
+  
+  config:
+    import:
+      - optional:classpath:/application-core.yaml
+
+cors:
+  allowed-origins:
+    - http://localhost:3000
+
+server:
+  port: 8081
+
+

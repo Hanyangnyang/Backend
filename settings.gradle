@@ -1,0 +1,9 @@
+pluginManagement {
+    plugins {
+        id 'org.jetbrains.kotlin.jvm' version '2.0.21'
+    }
+}
+rootProject.name = 'backend'
+include 'hanyang-core'
+include 'hanyang-user-api'
+include 'hanyang-admin-api'

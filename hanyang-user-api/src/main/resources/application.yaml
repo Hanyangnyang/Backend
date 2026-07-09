@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: hanyang-user-api
+  
+  config:
+    import:
+      - optional:classpath:/application-core.yaml
+
+# CORS 허용 도메인 목록 설정
+cors:
+  allowed-origins:
+    - http://localhost:3000
+
+server:
+  port: 8080

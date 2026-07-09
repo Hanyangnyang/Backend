@@ -1,0 +1,38 @@
+# 빌드 결과물 및 임시 파일
+/build/
+.gradle/
+out/
+bin/
+
+# 임시 로그 파일 (보안 및 노이즈 방지)
+build_error.log
+*.log
+
+# OS 관련 임시 파일
+.DS_Store
+Thumbs.db
+
+# IDE 설정 및 캐시 (IntelliJ / VS Code 등)
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+
+# Gradle Wrapper (Jar만 제외하고 래퍼 실행 스크립트는 형상 관리되도록 설정)
+!gradle/wrapper/gradle-wrapper.jar
+
+# 프로젝트 도움말 및 STS 임시 캐시
+HELP.md
+.apt_generated
+.springBeans
+.sts4-cache
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
