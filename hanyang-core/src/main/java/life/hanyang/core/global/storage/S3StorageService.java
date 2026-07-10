@@ -41,6 +41,7 @@ public class S3StorageService implements StorageService{
                     .bucket(bucket)
                     .key(fileName)
                     .contentType(file.getContentType())
+                    .cacheControl("public, max-age=2592000")
                     .build();
 
             // 3. 파일 바이너리 스트림 전송
