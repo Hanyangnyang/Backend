@@ -7,7 +7,7 @@ services:
       dockerfile: hanyang-user-api/Dockerfile
     container_name: hanyang-user-api
     ports:
-      - "8080:8080" # 외부 8080 포트를 유저 API로 매핑
+      - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
     env_file:
@@ -19,8 +19,31 @@ services:
       dockerfile: hanyang-admin-api/Dockerfile
     container_name: hanyang-admin-api
     ports:
-      - "8081:8081" # 외부 8081 포트를 어드민 API로 매핑
+      - "8081:8081"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
     env_file:
       - .env
+
+  nginx:
+    image: nginx:1.30-alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    depends_on:
+      - hanyang-user-api
+      - hanyang-admin-api
+    restart: always
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done'"
