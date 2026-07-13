@@ -36,3 +36,5 @@ HELP.md
 /dist/
 /nbdist/
 /.nb-gradle/
+.agent
+.env

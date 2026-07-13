@@ -1,0 +1,66 @@
+name: Hanyang Backend CD (Auto Deployment)
+
+on:
+  push:
+    branches:
+      - main # main 브랜치에 코드가 push 되었을 때 작동
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 깃허브 코드 체크아웃
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. JDK 17 설정
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # 3. Gradle 빌드 (테스트 건너뛰고 실행 가능한 jar 파일 생성)
+      - name: Build with Gradle
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bootJar -x test
+
+      # 4. EC2 서버로 소스코드 및 빌드 아티팩트 전송 (SCP 사용)
+      # docker-compose.yml 및 빌드된 jar 파일들을 원격 EC2로 복사합니다.
+      - name: Transfer Files to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml,hanyang-user-api/build/libs/*.jar,hanyang-admin-api/build/libs/*.jar,hanyang-user-api/Dockerfile,hanyang-admin-api/Dockerfile"
+          target: "/home/ubuntu/app"
+
+      # 5. EC2 원격 서버에서 배포 스크립트 실행 (SSH 접속)
+      - name: SSH Deploy and Run Containers
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/app
+            
+            # 💡 [실무 정석] GitHub Secrets 기반으로 .env 보안 주입 파일 실시간 동적 생성
+            echo "SUPABASE_DB_HOST=${{ secrets.SUPABASE_DB_HOST }}" > .env
+            echo "SUPABASE_DB_USER=${{ secrets.SUPABASE_DB_USER }}" >> .env
+            echo "SUPABASE_DB_PASSWORD=${{ secrets.SUPABASE_DB_PASSWORD }}" >> .env
+            echo "SUPABASE_S3_ENDPOINT=${{ secrets.SUPABASE_S3_ENDPOINT }}" >> .env
+            echo "SUPABASE_S3_ACCESS_KEY=${{ secrets.SUPABASE_S3_ACCESS_KEY }}" >> .env
+            echo "SUPABASE_S3_SECRET_KEY=${{ secrets.SUPABASE_S3_SECRET_KEY }}" >> .env
+            
+            # 구버전 컨테이너 중지 및 찌꺼기 삭제
+            docker-compose down
+            
+            # 새 도커 이미지 빌드 후 컨테이너 백그라운드 무중단/동시 가동
+            docker-compose up -d --build
+            
+            # 미사용 도커 찌꺼기 용량 정리
+            docker image prune -f

@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  hanyang-user-api:
+    build:
+      context: .
+      dockerfile: hanyang-user-api/Dockerfile
+    container_name: hanyang-user-api
+    ports:
+      - "8080:8080" # 외부 8080 포트를 유저 API로 매핑
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+    env_file:
+      - .env
+
+  hanyang-admin-api:
+    build:
+      context: .
+      dockerfile: hanyang-admin-api/Dockerfile
+    container_name: hanyang-admin-api
+    ports:
+      - "8081:8081" # 외부 8081 포트를 어드민 API로 매핑
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+    env_file:
+      - .env
