@@ -1,0 +1,6 @@
+# 도커 빌드 시 컨텍스트 전송 대상에서 제외할 목록 정의
+# 용량 최적화 및 Let's Encrypt root 폴더 권한 충돌 방지 목적
+data/
+.git/
+.gradle/
+build/
