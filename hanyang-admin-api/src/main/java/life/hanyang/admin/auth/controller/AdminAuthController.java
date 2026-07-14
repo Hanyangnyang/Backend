@@ -1,5 +1,7 @@
 package life.hanyang.admin.auth.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import life.hanyang.admin.auth.dto.LoginRequest;
 import life.hanyang.admin.auth.dto.TokenResponse;
 import life.hanyang.admin.config.security.AdminAuthProperties;
@@ -17,12 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/auth")
 @RequiredArgsConstructor
+@Tag(name = "(관리자용) 인증 API")
 public class AdminAuthController {
 
     private final AuthenticationManager authenticationManager;
     private final JwtProvider jwtProvider;
     private final AdminAuthProperties adminAuthProperties;
 
+    @Operation(summary = "로그인을 완료하고 JWT 토큰을 발급받습니다.")
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest request) {
         UsernamePasswordAuthenticationToken authenticationToken =
