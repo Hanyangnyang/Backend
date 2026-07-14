@@ -1,23 +1,11 @@
 spring:
   application:
     name: hanyang-user-api
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   config:
     import:
       - optional:classpath:/application-core.yaml
-
-# 1. 기본 프로파일 (Local 개발 환경용)
-cors:
-  allowed-origins: http://localhost:3000
-
-server:
-  port: 8080
-
----
-# 2. 배포 프로파일 (Production 환경용)
-spring:
-  config:
-    activate:
-      on-profile: prod
 
 cors:
   allowed-origins: https://hanyang.life,https://admin.hanyang.life
