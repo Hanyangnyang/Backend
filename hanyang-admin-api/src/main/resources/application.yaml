@@ -5,24 +5,19 @@ spring:
     import:
       - optional:classpath:/application-core.yaml
 
-# 1. 기본 프로파일 (Local 개발 환경용)
-cors:
-  allowed-origins: http://localhost:3000
-
-server:
-  port: 8081
-
----
-# 2. 배포 프로파일 (Production 환경용)
-spring:
-  config:
-    activate:
-      on-profile: prod
+admin:
+  auth:
+    jwt:
+      secret: ${ADMIN_JWT_SECRET}
+      expiration-ms: ${ADMIN_JWT_EXPIRATION:3600000}
+    accounts:
+      - username: ${ADMIN_ID_1}
+        password: ${ADMIN_PASSWORD_1}
+      - username: ${ADMIN_ID_2}
+        password: ${ADMIN_PASSWORD_2}
 
 cors:
   allowed-origins: https://hanyang.life,https://admin.hanyang.life
 
 server:
   port: 8081
-
-

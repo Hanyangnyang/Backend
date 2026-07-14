@@ -38,3 +38,7 @@ HELP.md
 /.nb-gradle/
 .agent
 .env
+
+# Local development secrets
+**/application-local.yaml
+**/application-core-local.yaml
