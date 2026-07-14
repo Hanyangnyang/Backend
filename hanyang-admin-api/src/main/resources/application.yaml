@@ -11,10 +11,8 @@ admin:
       secret: ${ADMIN_JWT_SECRET}
       expiration-ms: ${ADMIN_JWT_EXPIRATION:3600000}
     accounts:
-      - username: ${ADMIN_ID_1}
-        password: ${ADMIN_PASSWORD_1}
-      - username: ${ADMIN_ID_2}
-        password: ${ADMIN_PASSWORD_2}
+      - username: ${ADMIN_ID}
+        password: ${ADMIN_PASSWORD}
 
 cors:
   allowed-origins: https://hanyang.life,https://admin.hanyang.life
