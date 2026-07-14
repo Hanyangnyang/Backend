@@ -35,7 +35,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.yml,init-letsencrypt.sh,nginx/nginx.conf,hanyang-user-api/build/libs/*.jar,hanyang-admin-api/build/libs/*.jar,hanyang-user-api/Dockerfile,hanyang-admin-api/Dockerfile"
+          source: ".dockerignore,docker-compose.yml,init-letsencrypt.sh,nginx/nginx.conf,hanyang-user-api/build/libs/*.jar,hanyang-admin-api/build/libs/*.jar,hanyang-user-api/Dockerfile,hanyang-admin-api/Dockerfile"
           target: "/home/ubuntu/app"
 
       # 5. EC2 원격 서버에서 배포 스크립트 실행 (SSH 접속)
@@ -46,6 +46,7 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
             cd /home/ubuntu/app
             
             # 전송된 init-letsencrypt.sh 파일에 실행 권한 부여
