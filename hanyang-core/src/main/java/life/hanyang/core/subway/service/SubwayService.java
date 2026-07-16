@@ -9,9 +9,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -25,7 +26,7 @@ public class SubwayService {
     private final SubwayRepository subwayRepository;
     private final RestClient restClient;
 
-    @Value("${subway.api-key}")
+    @Value("${api.public-data-key}")
     private String apiKey;
 
     @Transactional
@@ -35,8 +36,7 @@ public class SubwayService {
         for (SubwayLine line : SubwayLine.values()) {
             for (SubwayDirection direction : SubwayDirection.values()) {
                 for (SubwayDayType dayType : SubwayDayType.values()) {
-
-                    // HOLIDAY(공휴일) 타입은 호출해도 0건이 호출되므로 루프에서 스킵 처리
+                    
                     if (dayType == SubwayDayType.HOLIDAY) {
                         continue;
                     }
@@ -45,8 +45,8 @@ public class SubwayService {
                         List<SubwayTimetable> result = fetchTimetableFromApi(station, line, direction, dayType);
                         totalTimetables.addAll(result);
                     } catch (Exception e) {
-                        log.error("지하철 시간표 API 호출 실패 - 노선: {}, 방향: {}, 요일: {}. 에러: {}", 
-                                line.getApiValue(), direction.getApiValue(), dayType.getApiValue(), e.getMessage());
+                        log.error("지하철 시간표 API 호출 실패 - 노선: {}, 방향: {}, 요일: {}", 
+                                line.getApiValue(), direction.getApiValue(), dayType.getApiValue(), e);
                     }
                 }
             }
@@ -64,18 +64,27 @@ public class SubwayService {
     private List<SubwayTimetable> fetchTimetableFromApi(SubwayStation station, SubwayLine line, 
                                                         SubwayDirection direction, SubwayDayType dayType) {
         
-        URI uri = UriComponentsBuilder.fromUriString("https://apis.data.go.kr/B553766/schedule/getTrainSch")
-                .queryParam("serviceKey", apiKey)
-                .queryParam("pageNo", 1)
-                .queryParam("numOfRows", 1000)
-                .queryParam("stnNm", station.getApiValue())
-                .queryParam("lineNm", line.getApiValue())
-                .queryParam("upbdnbSe", direction.getApiValue())
-                .queryParam("wkndSe", dayType.getApiValue())
-                .queryParam("tmprTmtblYn", "N")
-                .queryParam("_type", "json")
-                .build(true)
-                .toUri();
+        String encodedStnNm = URLEncoder.encode(station.getApiValue(), StandardCharsets.UTF_8);
+        String encodedLineNm = URLEncoder.encode(line.getApiValue(), StandardCharsets.UTF_8);
+        String encodedDirection = URLEncoder.encode(direction.getApiValue(), StandardCharsets.UTF_8);
+        String encodedDayType = URLEncoder.encode(dayType.getApiValue(), StandardCharsets.UTF_8);
+
+        String url = String.format(
+                "https://apis.data.go.kr/B553766/schedule/getTrainSch" +
+                        "?serviceKey=%s" +
+                        "&pageNo=1" +
+                        "&numOfRows=1000" +
+                        "&stnNm=%s" +
+                        "&lineNm=%s" +
+                        "&upbdnbSe=%s" +
+                        "&wkndSe=%s" +
+                        "&tmprTmtblYn=N" +
+                        "&dataType=JSON",
+                apiKey, encodedStnNm, encodedLineNm, encodedDirection, encodedDayType
+        );
+
+        URI uri = URI.create(url);
+        log.info("지하철 시간표 API 호출 URI: {}", uri);
 
         SubwayScheduleApiResponse apiResponse = restClient.get()
                 .uri(uri)
@@ -84,23 +93,36 @@ public class SubwayService {
 
         List<SubwayTimetable> list = new ArrayList<>();
         if (apiResponse == null || apiResponse.getResponse() == null || apiResponse.getResponse().getBody() == null) {
+            log.warn("API 응답 구조가 비어있습니다. (Response or Body is null)");
             return list;
         }
 
         List<SubwayScheduleApiResponse.TrainScheduleItem> items = apiResponse.getResponse().getBody().getItems().getItem();
+        log.info("지하철 시간표 API 응답 건수: {}건 (노선: {}, 방향: {}, 요일: {})", 
+                items != null ? items.size() : 0, line.getApiValue(), direction.getApiValue(), dayType.getApiValue());
+
         if (items == null || items.isEmpty()) {
             return list;
         }
 
         for (SubwayScheduleApiResponse.TrainScheduleItem item : items) {
-            LocalTime departureTime = LocalTime.parse(item.getTrainDptreTm(), DateTimeFormatter.ofPattern("HH:mm:ss"));
+            // 도착 시간을 우선으로 하되, 없으면 출발 시간을 사용 (시발 열차 대응)
+            String rawTime = item.getTrainArvlTm();
+            if (rawTime == null || rawTime.isBlank()) {
+                rawTime = item.getTrainDptreTm();
+            }
+
+            LocalTime time = parseLocalTime(rawTime);
+            if (time == null) {
+                continue;
+            }
 
             SubwayTimetable timetable = SubwayTimetable.builder()
                     .subwayStation(station)
                     .subwayLine(line)
                     .direction(direction)
                     .subwayDayType(dayType)
-                    .time(departureTime)
+                    .time(time)
                     .destination(item.getArvlStnNm())
                     .trainNo(item.getTrainno())
                     .build();
@@ -109,5 +131,15 @@ public class SubwayService {
         }
 
         return list;
+    }
+
+    private LocalTime parseLocalTime(String rawTime) {
+        if (rawTime == null || rawTime.isBlank()) {
+            return null;
+        }
+        if (rawTime.startsWith("24:")) {
+            rawTime = "00:" + rawTime.substring(3);
+        }
+        return LocalTime.parse(rawTime, DateTimeFormatter.ofPattern("HH:mm:ss"));
     }
 }
