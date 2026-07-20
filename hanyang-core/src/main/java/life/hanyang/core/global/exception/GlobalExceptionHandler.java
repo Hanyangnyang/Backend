@@ -66,7 +66,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
     }
 
-
+    /**
+     * 요청 바인딩/파싱/입력 검증 과정에서 발생하는 IllegalArgumentException 처리 (400 Bad Request)
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.warn("Bad Request Exception: ", e);
+        ApiResponse<Void> response = ApiResponse.fail(ErrorCode.INVALID_INPUT_VALUE.getCode(), e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
 
     /**
      * 6. 파일 업로드 용량 제한 초과 시 예외 처리 (400 Bad Request)
@@ -74,8 +82,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException e) {
         log.warn("File Size Limit Exceeded: ", e);
-        ApiResponse<Void> response = ApiResponse.fail("FILE_SIZE_LIMIT_EXCEEDED", "업로드 가능한 최대 파일 용량(5MB)을 초과했습니다.");
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        ApiResponse<Void> response = ApiResponse.fail(ErrorCode.FILE_SIZE_LIMIT_EXCEEDED.getCode(), ErrorCode.FILE_SIZE_LIMIT_EXCEEDED.getMessage());
+        return ResponseEntity.status(ErrorCode.FILE_SIZE_LIMIT_EXCEEDED.getStatus()).body(response);
     }
 
     /**
