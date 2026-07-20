@@ -1,5 +1,5 @@
 # 빌드 결과물 및 임시 파일
-/build/
+build/
 .gradle/
 out/
 bin/

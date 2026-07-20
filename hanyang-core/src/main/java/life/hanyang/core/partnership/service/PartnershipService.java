@@ -9,6 +9,7 @@ import life.hanyang.core.partnership.dto.PartnershipDetailResponse;
 import life.hanyang.core.partnership.dto.PartnershipUpdateDto;
 import life.hanyang.core.partnership.repository.MerchantRepository;
 import life.hanyang.core.partnership.repository.PartnershipRepository;
+import life.hanyang.core.global.exception.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -87,7 +88,7 @@ public class PartnershipService {
 
     public void addPartnership(Long merchantId, PartnershipDetailDto request) {
         Merchant merchant = merchantRepository.findById(merchantId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 업체가 존재하지 않습니다. id: " + merchantId));
+                .orElseThrow(() -> new EntityNotFoundException("해당 업체가 존재하지 않습니다. id: " + merchantId));
         Partnership partnership = Partnership.builder()
                 .department(request.getCollegeName())
                 .benefit(request.getBenefit())
@@ -104,14 +105,14 @@ public class PartnershipService {
     @Transactional
     public void deletePartnership(Long partnershipId) {
         Partnership partnership = partnershipRepository.findById(partnershipId)
-                        .orElseThrow(() -> new IllegalArgumentException("해당 제휴 정보가 존재하지 않습니다. id: " + partnershipId));
+                        .orElseThrow(() -> new EntityNotFoundException("해당 제휴 정보가 존재하지 않습니다. id: " + partnershipId));
         partnershipRepository.delete(partnership);
     }
 
     @Transactional
     public void updatePartnership(Long partnershipId, PartnershipUpdateDto request) {
         Partnership partnership = partnershipRepository.findById(partnershipId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 제휴 정보가 존재하지 않습니다. id: " + partnershipId));
+                .orElseThrow(() -> new EntityNotFoundException("해당 제휴 정보가 존재하지 않습니다. id: " + partnershipId));
         
         partnership.update(
                 request.getDepartment(),
@@ -127,7 +128,7 @@ public class PartnershipService {
         if (request.getMerchantId() != null && 
             (partnership.getMerchant() == null || !partnership.getMerchant().getMerchantId().equals(request.getMerchantId()))) {
             Merchant newMerchant = merchantRepository.findById(request.getMerchantId())
-                    .orElseThrow(() -> new IllegalArgumentException("해당 업체가 존재하지 않습니다. id: " + request.getMerchantId()));
+                    .orElseThrow(() -> new EntityNotFoundException("해당 업체가 존재하지 않습니다. id: " + request.getMerchantId()));
             partnership.changeMerchant(newMerchant);
         }
     }
