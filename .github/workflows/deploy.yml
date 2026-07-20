@@ -65,6 +65,9 @@ jobs:
             echo 'ADMIN_ID=${{ secrets.ADMIN_ID }}' >> .env
             echo 'ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}' >> .env
             
+            # 외부 API용 Secrets 주입
+            echo 'PUBLIC_DATA_PORTAL_KEY=${{ secrets.PUBLIC_DATA_PORTAL_KEY }}' >> .env
+            
             # 구버전 컨테이너 중지 및 찌꺼기 삭제
             docker compose down
             

@@ -32,13 +32,10 @@ aws:
     secret-key: ${SUPABASE_S3_SECRET_KEY}
     region: ap-northeast-2
 
-subway:
-  api-key: ${SUBWAY_API_KEY:default_temp_key}
-
 api:
   public-data-key: ${PUBLIC_DATA_PORTAL_KEY}
 
   subway:
-    api-key: ${api.public-data-key}
+    api-k서ey: ${api.public-data-key}
 
 
