@@ -66,15 +66,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
     }
 
-    /**
-     * 5. 로그인 실패 예외 처리 (시큐리티 로그인 컨트롤러 에러 - 401 Unauthorized)
-     */
-    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
-    public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(org.springframework.security.core.AuthenticationException e) {
-        log.warn("Authentication Exception (Login fail): ", e);
-        ApiResponse<Void> response = ApiResponse.fail(ErrorCode.BAD_CREDENTIALS.getCode(), ErrorCode.BAD_CREDENTIALS.getMessage());
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-    }
+
 
     /**
      * 6. 파일 업로드 용량 제한 초과 시 예외 처리 (400 Bad Request)

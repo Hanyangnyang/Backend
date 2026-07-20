@@ -7,6 +7,7 @@ import life.hanyang.core.shuttle.dto.ShuttleTimetableRequest;
 import life.hanyang.core.shuttle.dto.ShuttleTimetableResponse;
 import life.hanyang.core.shuttle.domain.ShuttleTimetable;
 import life.hanyang.core.shuttle.repository.ShuttleTimetableRepository;
+import life.hanyang.core.global.exception.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,7 +72,7 @@ public class ShuttleTimetableService {
     @Transactional
     public ShuttleTimetableResponse updateTimetable(Long id, ShuttleTimetableRequest request) {
         ShuttleTimetable entity = shuttleTimetableRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("해당 시간표가 존재하지 않습니다. id:" + id));
+                .orElseThrow(() -> new EntityNotFoundException("해당 시간표가 존재하지 않습니다. id: " + id));
         entity.update(
                 ShuttleRoute.valueOf(request.getRoute()),
                 ShuttlePeriod.valueOf(request.getPeriod()),

@@ -1,5 +1,8 @@
 package life.hanyang.core.gym.service;
 
+import life.hanyang.core.global.exception.BusinessException;
+import life.hanyang.core.global.exception.EntityNotFoundException;
+import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.gym.domain.GymPeriod;
 import life.hanyang.core.gym.domain.GymPeriodType;
 import life.hanyang.core.gym.domain.GymScheduleCell;
@@ -49,10 +52,10 @@ public class GymPeriodService {
                 );
 
         if (isDuplicate) {
-            throw new IllegalArgumentException(String.format(
+            throw new BusinessException(String.format(
                     "(중복) 이미 등록된 학기 정보입니다. (연도: %d, 학기: %s, 유형: %s)",
                     request.year(), request.semester(), request.periodType()
-            ));
+            ), ErrorCode.DUPLICATE_RESOURCE);
         }
         gymPeriodRepository.save(request.toEntity());
     }
@@ -60,7 +63,7 @@ public class GymPeriodService {
     @Transactional
     public void deletePeriod(Long periodId) {
         GymPeriod gymPeriod = gymPeriodRepository.findById(periodId)
-                        .orElseThrow(() -> new IllegalArgumentException("해당 학기 정보가 존재하지 않습니다. ID: " +periodId));
+                        .orElseThrow(() -> new EntityNotFoundException("해당 학기 정보가 존재하지 않습니다. ID: " + periodId));
         gymPeriodRepository.delete(gymPeriod);
     }
 }

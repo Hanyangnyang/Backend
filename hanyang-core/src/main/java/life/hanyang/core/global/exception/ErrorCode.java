@@ -11,6 +11,7 @@ public enum ErrorCode {
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "C002", "지원하지 않는 HTTP 메서드입니다."),
     ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "C003", "해당 리소스를 찾을 수 없습니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C004", "서버 내부 에러가 발생했습니다."),
+    DUPLICATE_RESOURCE(HttpStatus.CONFLICT, "C005", "이미 존재하는 리소스입니다."),
 
     // 인증/인가(보안) 에러
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "A001", "인증에 실패하였습니다."),
