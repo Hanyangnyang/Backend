@@ -2,6 +2,8 @@ package life.hanyang.core.subway.service;
 
 import life.hanyang.core.subway.domain.*;
 import life.hanyang.core.subway.dto.SubwayScheduleApiResponse;
+import life.hanyang.core.subway.dto.SubwaySearchRequest;
+import life.hanyang.core.subway.dto.SubwayTimetableResponse;
 import life.hanyang.core.subway.repository.SubwayRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -141,5 +143,17 @@ public class SubwayService {
             rawTime = "00:" + rawTime.substring(3);
         }
         return LocalTime.parse(rawTime, DateTimeFormatter.ofPattern("HH:mm:ss"));
+    }
+
+    public List<SubwayTimetableResponse> getTimetable(SubwaySearchRequest request) {
+        List<SubwayTimetable> timetables = subwayRepository.findBySubwayStationAndSubwayLineAndDirectionAndSubwayDayTypeOrderByTimeAsc(
+                request.subwayStation(),
+                request.subwayLine(),
+                request.direction(),
+                request.dayType()
+        );
+        return timetables.stream()
+                .map(SubwayTimetableResponse::from)
+                .toList();
     }
 }
