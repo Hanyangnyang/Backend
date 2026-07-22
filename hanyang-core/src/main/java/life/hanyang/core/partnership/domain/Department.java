@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 public enum Department {
     HANYANGNYANG("하냥냥"), //하냥냥 자체 제휴
     COUNCIL("학생회"), //학생회
-    LIONS("LIONS\\n칼리지"), //LIONS 컬리지
+    LIONS("LIONS칼리지"), //LIONS 컬리지
     COMMUNICATION("커뮤니케이션&컬쳐대학"), //커컬대
     ENGINEERING("공학대학"), //공학대
     MEDICINE("약학대학"), //약학대
