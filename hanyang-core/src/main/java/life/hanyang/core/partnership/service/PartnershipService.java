@@ -46,6 +46,7 @@ public class PartnershipService {
                     .latitude(request.getLocation() != null ? request.getLocation().getLatitude() : null)
                     .longitude(request.getLocation() != null ? request.getLocation().getLongitude() : null)
                     .fullAddress(request.getLocation() != null ? request.getLocation().getFullAddress() : null)
+                    .kakaoPlaceId(request.getKakaoPlaceId() != null ? request.getKakaoPlaceId() : null)
                     .build();
 
             // 3. 자식 Partnership 빌드 및 양방향 연관관계 맺기
@@ -86,6 +87,8 @@ public class PartnershipService {
                 .toList();
     }
 
+
+    @Transactional
     public void addPartnership(Long merchantId, PartnershipDetailDto request) {
         Merchant merchant = merchantRepository.findById(merchantId)
                 .orElseThrow(() -> new EntityNotFoundException("해당 업체가 존재하지 않습니다. id: " + merchantId));

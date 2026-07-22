@@ -16,5 +16,6 @@ public class MerchantCreateWithPartnershipsRequest {
     private Boolean isActive;
     private LocationDto location;
     private String emoji;
+    private String kakaoPlaceId;
     private List<PartnershipDetailDto> partnerships;
 }

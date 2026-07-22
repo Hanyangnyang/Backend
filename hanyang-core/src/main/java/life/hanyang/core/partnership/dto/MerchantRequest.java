@@ -14,7 +14,8 @@ public record MerchantRequest(
         String emoji,
         Double latitude,
         Double longitude,
-        String fullAddress
+        String fullAddress,
+        String kakaoPlaceId
     ) {
     public Merchant toEntity() {
         return Merchant.builder()
@@ -25,6 +26,7 @@ public record MerchantRequest(
                 .latitude(this.latitude)
                 .longitude(this.longitude)
                 .fullAddress(this.fullAddress)
+                .kakaoPlaceId(this.kakaoPlaceId)
                 .build();
     }
 }
