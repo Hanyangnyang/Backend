@@ -20,8 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class SubwayAdminController {
     private final SubwayService subwayService;
 
-    @Operation(summary = "모든 지하철 정보를 삭제하고 외부 API로 새롭게 정보를 받아옵니다.")
-    @PostMapping("reset")
+    @Operation(summary = "해당 지하철역의 시간표를 삭제한 뒤 외부 API로 다시 동기화합니다.")
+    @PostMapping("sync")
     public ResponseEntity<ApiResponse<Void>> resetTimetables(@RequestBody @Valid SubwayScheduleRequest request) {
         subwayService.replaceTimetable(request.station());
         return ResponseEntity.ok(ApiResponse.success(null));

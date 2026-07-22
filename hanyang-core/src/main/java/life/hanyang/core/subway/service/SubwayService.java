@@ -31,13 +31,15 @@ public class SubwayService {
     @Value("${api.public-data-key}")
     private String apiKey;
 
+    // 트랜잭션에 외부 API가 포함되어 있기 때문에, DELETE, SAVE만 Transaction 하는 게 정석이지만, 자주 쓰이지 않는 기능이므로 시스템에 주는 영향이 적은 것을 고려했을 때 그냥 가독성을 위해 Transaction 내부에 외부 API 호출 + DB 저장까지 묶어서 구현함
+    @Transactional
     public void replaceTimetable(SubwayStation station) {
         List<SubwayTimetable> totalTimetables = new ArrayList<>();
 
         for (SubwayLine line : SubwayLine.values()) {
             for (SubwayDirection direction : SubwayDirection.values()) {
                 for (SubwayDayType dayType : SubwayDayType.values()) {
-                    
+                    // HOLIDAY에서 응답이 비어서 오기 때문에 continue
                     if (dayType == SubwayDayType.HOLIDAY) {
                         continue;
                     }
@@ -54,7 +56,8 @@ public class SubwayService {
         }
 
         if (!totalTimetables.isEmpty()) {
-            saveTimetableToDb(station, totalTimetables);
+            subwayRepository.deleteBySubwayStationInBatch(station);
+            subwayRepository.saveAll(totalTimetables);
             log.info("지하철 시간표 동기화 완료 - 총 {}건 적재", totalTimetables.size());
         } else {
             throw new IllegalStateException("동기화할 지하철 시간표 데이터가 전혀 존재하지 않습니다.");
@@ -150,12 +153,7 @@ public class SubwayService {
         }
     }
 
-    @Transactional
-    public void saveTimetableToDb(SubwayStation station, List<SubwayTimetable> totalTimetables) {
-        subwayRepository.deleteBySubwayStationInBatch(station);
-        subwayRepository.saveAll(totalTimetables);
-    }
-
+    @Transactional(readOnly = true)
     public List<SubwayTimetableResponse> getTimetable(SubwaySearchRequest request) {
         List<SubwayTimetable> timetables = subwayRepository.findTimetableDynamic(
                 request.subwayStation(),
