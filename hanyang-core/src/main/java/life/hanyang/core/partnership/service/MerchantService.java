@@ -42,7 +42,7 @@ public class MerchantService {
                 .orElseThrow(() -> new EntityNotFoundException("해당 가맹점이 존재하지 않습니다. id: " + id));
         merchant.update(
                 request.storeName(),
-                MerchantCategory.valueOf(request.category().toUpperCase()),
+                MerchantCategory.fromValue(request.category()),
                 request.isActive(),
                 request.emoji(),
                 request.latitude(),
