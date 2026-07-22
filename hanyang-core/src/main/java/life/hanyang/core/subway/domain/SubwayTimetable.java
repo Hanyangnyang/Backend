@@ -53,8 +53,8 @@ public class SubwayTimetable {
     private String trainNo;
 
     @ColumnDefault("CURRENT_TIMESTAMP")
-    @Column(name = "created_at", nullable = false)
-    @UpdateTimestamp
+    @org.hibernate.annotations.CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @Builder

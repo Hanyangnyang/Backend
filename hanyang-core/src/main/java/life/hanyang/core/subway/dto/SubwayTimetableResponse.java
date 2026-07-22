@@ -1,6 +1,5 @@
 package life.hanyang.core.subway.dto;
 
-import life.hanyang.core.shuttle.dto.ShuttleTimetableResponse;
 import life.hanyang.core.subway.domain.*;
 
 import java.time.LocalTime;

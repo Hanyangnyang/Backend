@@ -36,6 +36,6 @@ api:
   public-data-key: ${PUBLIC_DATA_PORTAL_KEY}
 
   subway:
-    api-k서ey: ${api.public-data-key}
+    api-key: ${api.public-data-key}
 
 

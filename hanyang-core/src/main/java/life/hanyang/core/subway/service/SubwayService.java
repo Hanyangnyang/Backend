@@ -31,7 +31,6 @@ public class SubwayService {
     @Value("${api.public-data-key}")
     private String apiKey;
 
-    @Transactional
     public void replaceTimetable(SubwayStation station) {
         List<SubwayTimetable> totalTimetables = new ArrayList<>();
 
@@ -55,8 +54,7 @@ public class SubwayService {
         }
 
         if (!totalTimetables.isEmpty()) {
-            subwayRepository.deleteBySubwayStationInBatch(station);
-            subwayRepository.saveAll(totalTimetables);
+            saveTimetableToDb(station, totalTimetables);
             log.info("지하철 시간표 동기화 완료 - 총 {}건 적재", totalTimetables.size());
         } else {
             throw new IllegalStateException("동기화할 지하철 시간표 데이터가 전혀 존재하지 않습니다.");
@@ -86,7 +84,8 @@ public class SubwayService {
         );
 
         URI uri = URI.create(url);
-        log.info("지하철 시간표 API 호출 URI: {}", uri);
+        log.info("지하철 시간표 API 호출 - 역: {}, 노선: {}, 방향: {}, 요일: {}", 
+                station.getApiValue(), line.getApiValue(), direction.getApiValue(), dayType.getApiValue());
 
         SubwayScheduleApiResponse apiResponse = restClient.get()
                 .uri(uri)
@@ -99,7 +98,8 @@ public class SubwayService {
             return list;
         }
 
-        List<SubwayScheduleApiResponse.TrainScheduleItem> items = apiResponse.getResponse().getBody().getItems().getItem();
+        List<SubwayScheduleApiResponse.TrainScheduleItem> items =
+                apiResponse.getResponse().getBody().getItems() == null ? null : apiResponse.getResponse().getBody().getItems().getItem();
         log.info("지하철 시간표 API 응답 건수: {}건 (노선: {}, 방향: {}, 요일: {})", 
                 items != null ? items.size() : 0, line.getApiValue(), direction.getApiValue(), dayType.getApiValue());
 
@@ -139,14 +139,25 @@ public class SubwayService {
         if (rawTime == null || rawTime.isBlank()) {
             return null;
         }
-        if (rawTime.startsWith("24:")) {
-            rawTime = "00:" + rawTime.substring(3);
+        try {
+            if (rawTime.startsWith("24:")) {
+                rawTime = "00:" + rawTime.substring(3);
+            }
+            return LocalTime.parse(rawTime, DateTimeFormatter.ofPattern("HH:mm:ss"));
+        } catch (Exception e) {
+            log.warn("지하철 시간 파싱 실패 - 입력값: {}", rawTime, e);
+            return null;
         }
-        return LocalTime.parse(rawTime, DateTimeFormatter.ofPattern("HH:mm:ss"));
+    }
+
+    @Transactional
+    public void saveTimetableToDb(SubwayStation station, List<SubwayTimetable> totalTimetables) {
+        subwayRepository.deleteBySubwayStationInBatch(station);
+        subwayRepository.saveAll(totalTimetables);
     }
 
     public List<SubwayTimetableResponse> getTimetable(SubwaySearchRequest request) {
-        List<SubwayTimetable> timetables = subwayRepository.findBySubwayStationAndSubwayLineAndDirectionAndSubwayDayTypeOrderByTimeAsc(
+        List<SubwayTimetable> timetables = subwayRepository.findTimetableDynamic(
                 request.subwayStation(),
                 request.subwayLine(),
                 request.direction(),
