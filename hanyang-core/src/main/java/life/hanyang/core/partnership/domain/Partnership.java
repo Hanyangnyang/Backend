@@ -13,7 +13,10 @@ import java.time.LocalDate;
 
 @Getter
 @Entity
-@Table(name = "partnership")
+@Table(
+    name = "partnership",
+    indexes = @Index(name = "idx_partnership_merchant_id_department", columnList = "merchant_id, department")
+)
 @NoArgsConstructor
 public class Partnership {
     @Id

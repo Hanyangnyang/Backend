@@ -13,7 +13,10 @@ import java.util.List;
 
 @Getter
 @Entity
-@Table(name = "merchant")
+@Table(
+    name = "merchant",
+    indexes = @Index(name = "idx_merchant_category_active", columnList = "category, is_active")
+)
 @NoArgsConstructor
 public class Merchant {
     @Id
