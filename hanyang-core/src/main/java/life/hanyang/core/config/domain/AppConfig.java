@@ -18,7 +18,7 @@ public class AppConfig {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(columnDefinition = "jsonb")
+    @Column(columnDefinition = "TEXT")
     private String currentPeriodOverride;
 
     @JdbcTypeCode(SqlTypes.JSON)
