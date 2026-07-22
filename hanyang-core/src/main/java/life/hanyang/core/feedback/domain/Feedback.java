@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Getter
@@ -28,11 +28,10 @@ public class Feedback {
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Builder
-    public Feedback(UUID id, UUID userId, String content, String platform) {
-        this.id = id;
+    public Feedback(UUID userId, String content, String platform) {
         this.userId = userId;
         this.content = content;
         this.platform = platform;

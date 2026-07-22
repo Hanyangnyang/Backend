@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -29,11 +30,10 @@ public class Device {
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Builder
-    public Device(UUID id, String fcmToken, String platform, LocalDateTime lastActiveAt) {
-        this.id = id;
+    public Device(String fcmToken, String platform, LocalDateTime lastActiveAt) {
         this.fcmToken = fcmToken;
         this.platform = platform;
         this.lastActiveAt = lastActiveAt;

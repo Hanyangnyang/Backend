@@ -16,25 +16,28 @@ import org.hibernate.type.SqlTypes;
 public class AppConfig {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Integer id;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "current_period_override", columnDefinition = "TEXT")
     private String currentPeriodOverride;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
+    @Column(name = "period_schedule", columnDefinition = "jsonb")
     private String periodSchedule;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
+    @Column(name = "custom_holidays", columnDefinition = "jsonb")
     private String customHolidays;
 
+    @Column(name = "force_weekend")
     private Boolean forceWeekend;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
+    @Column(name = "no_operation_days", columnDefinition = "jsonb")
     private String noOperationDays;
 
+    @Column(name = "force_no_operation")
     private Boolean forceNoOperation;
 
     @Builder

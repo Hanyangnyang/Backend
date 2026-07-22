@@ -5,7 +5,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Getter
 @Entity
@@ -26,10 +26,10 @@ public class BusArrivalLog {
     private String plateNo;
 
     @Column(nullable = false)
-    private LocalDateTime arrivedAt;
+    private Instant arrivedAt;
 
     @Builder
-    public BusArrivalLog(String stationId, String routeName, String plateNo, LocalDateTime arrivedAt) {
+    public BusArrivalLog(String stationId, String routeName, String plateNo, Instant arrivedAt) {
         this.stationId = stationId;
         this.routeName = routeName;
         this.plateNo = plateNo;
