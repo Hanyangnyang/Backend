@@ -24,22 +24,18 @@ public class SubwayTimetable {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @JdbcType(PostgreSQLEnumJdbcType.class)
     @Column(name = "subway_station", nullable = false)
     private SubwayStation subwayStation;
 
     @Enumerated(EnumType.STRING)
-    @JdbcType(PostgreSQLEnumJdbcType.class)
     @Column(name = "line", nullable = false)
     private SubwayLine subwayLine;
 
     @Enumerated(EnumType.STRING)
-    @JdbcType(PostgreSQLEnumJdbcType.class)
     @Column(name = "direction", nullable = false)
     private SubwayDirection direction;
 
     @Enumerated(EnumType.STRING)
-    @JdbcType(PostgreSQLEnumJdbcType.class)
     @Column(name = "day_type", nullable = false)
     private SubwayDayType subwayDayType;
 
