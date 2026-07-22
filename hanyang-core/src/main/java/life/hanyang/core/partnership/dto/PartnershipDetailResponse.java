@@ -19,6 +19,7 @@ public class PartnershipDetailResponse {
     private final Double latitude;
     private final Double longitude;
     private final String fullAddress;
+    private final String kakaoPlaceId;
     private final List<PartnershipInfo> partnerships;
 
     public PartnershipDetailResponse(Merchant merchant, List<PartnershipInfo> partnerships) {
@@ -30,6 +31,7 @@ public class PartnershipDetailResponse {
         this.latitude = merchant.getLatitude();
         this.longitude = merchant.getLongitude();
         this.fullAddress = merchant.getFullAddress();
+        this.kakaoPlaceId = merchant.getKakaoPlaceId();
         this.partnerships = partnerships;
     }
 

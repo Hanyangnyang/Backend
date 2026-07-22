@@ -47,7 +47,8 @@ public class MerchantService {
                 request.emoji(),
                 request.latitude(),
                 request.longitude(),
-                request.fullAddress()
+                request.fullAddress(),
+                request.kakaoPlaceId()
         );
         return MerchantResponse.from(merchant);
     }

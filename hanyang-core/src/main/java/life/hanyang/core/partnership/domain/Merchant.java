@@ -56,8 +56,11 @@ public class Merchant {
     @UpdateTimestamp
     private Instant updatedAt;
 
+    @Column(name = "kakao_place_id")
+    private String kakaoPlaceId;
+
     @Builder
-    public Merchant(String storeName, MerchantCategory merchantCategory, Boolean isActive, String emoji, Double latitude, Double longitude, String fullAddress) {
+    public Merchant(String storeName, MerchantCategory merchantCategory, Boolean isActive, String emoji, Double latitude, Double longitude, String fullAddress, String kakaoPlaceId) {
         this.storeName = storeName;
         this.merchantCategory = merchantCategory;
         this.isActive = isActive == null || isActive;
@@ -65,9 +68,10 @@ public class Merchant {
         this.latitude = latitude;
         this.longitude = longitude;
         this.fullAddress = fullAddress;
+        this.kakaoPlaceId = kakaoPlaceId;
     }
 
-    public void update(String storeName, MerchantCategory merchantCategory, Boolean isActive, String emoji, Double latitude, Double longitude, String fullAddress) {
+    public void update(String storeName, MerchantCategory merchantCategory, Boolean isActive, String emoji, Double latitude, Double longitude, String fullAddress, String kakaoPlaceId) {
         this.storeName = storeName;
         this.merchantCategory = merchantCategory;
         this.isActive = isActive == null || isActive;
@@ -75,5 +79,6 @@ public class Merchant {
         this.latitude = latitude;
         this.longitude = longitude;
         this.fullAddress = fullAddress;
+        this.kakaoPlaceId = kakaoPlaceId;
     }
 }
