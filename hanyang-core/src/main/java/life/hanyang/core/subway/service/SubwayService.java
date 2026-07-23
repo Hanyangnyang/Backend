@@ -8,6 +8,8 @@ import life.hanyang.core.subway.repository.SubwayRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -33,6 +35,7 @@ public class SubwayService {
 
     // 트랜잭션에 외부 API가 포함되어 있기 때문에, DELETE, SAVE만 Transaction 하는 게 정석이지만, 자주 쓰이지 않는 기능이므로 시스템에 주는 영향이 적은 것을 고려했을 때 그냥 가독성을 위해 Transaction 내부에 외부 API 호출 + DB 저장까지 묶어서 구현함
     @Transactional
+    @CacheEvict(cacheNames = "subwayTimetable", allEntries = true)
     public void replaceTimetable(SubwayStation station) {
         List<SubwayTimetable> totalTimetables = new ArrayList<>();
 
@@ -154,6 +157,7 @@ public class SubwayService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "subwayTimetable", key = "#request.subwayStation() + ':' + #request.subwayLine() + ':' + #request.direction() + ':' + #request.dayType()")
     public List<SubwayTimetableResponse> getTimetable(SubwaySearchRequest request) {
         List<SubwayTimetable> timetables = subwayRepository.findTimetableDynamic(
                 request.subwayStation(),
