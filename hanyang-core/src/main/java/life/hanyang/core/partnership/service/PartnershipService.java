@@ -11,6 +11,8 @@ import life.hanyang.core.partnership.repository.MerchantRepository;
 import life.hanyang.core.partnership.repository.PartnershipRepository;
 import life.hanyang.core.global.exception.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,7 @@ public class PartnershipService {
 
     //DB 테이블(Merchant, Partnership) 전체 초기화 후 전달받은 데이터 적재
     @Transactional
+    @CacheEvict(cacheNames = {"partnership", "merchant"}, allEntries = true)
     public void resetAndLoadPartnerships(List<MerchantCreateWithPartnershipsRequest> requests) {
         // 1. 기존 테이블 데이터를 FK 역순으로 지우기
         partnershipRepository.deleteAllInBatch();
@@ -69,6 +72,7 @@ public class PartnershipService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "partnership", key = "'available'")
     public List<PartnershipDetailResponse> getAvailablePartnerships() {
         List<Merchant> merchants = merchantRepository.findAllWithPartnerships();
         LocalDate today = LocalDate.now();
@@ -86,6 +90,8 @@ public class PartnershipService {
                 .toList();
     }
 
+    @Transactional
+    @CacheEvict(cacheNames = {"partnership", "merchant"}, allEntries = true)
     public void addPartnership(Long merchantId, PartnershipDetailDto request) {
         Merchant merchant = merchantRepository.findById(merchantId)
                 .orElseThrow(() -> new EntityNotFoundException("해당 업체가 존재하지 않습니다. id: " + merchantId));
@@ -103,6 +109,7 @@ public class PartnershipService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"partnership", "merchant"}, allEntries = true)
     public void deletePartnership(Long partnershipId) {
         Partnership partnership = partnershipRepository.findById(partnershipId)
                         .orElseThrow(() -> new EntityNotFoundException("해당 제휴 정보가 존재하지 않습니다. id: " + partnershipId));
@@ -110,6 +117,7 @@ public class PartnershipService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"partnership", "merchant"}, allEntries = true)
     public void updatePartnership(Long partnershipId, PartnershipUpdateDto request) {
         Partnership partnership = partnershipRepository.findById(partnershipId)
                 .orElseThrow(() -> new EntityNotFoundException("해당 제휴 정보가 존재하지 않습니다. id: " + partnershipId));

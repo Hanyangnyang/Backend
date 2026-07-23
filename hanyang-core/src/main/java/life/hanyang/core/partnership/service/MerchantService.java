@@ -8,6 +8,8 @@ import life.hanyang.core.partnership.dto.MerchantResponse;
 import life.hanyang.core.partnership.repository.MerchantRepository;
 import life.hanyang.core.global.exception.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,7 @@ public class MerchantService {
     private final MerchantRepository merchantRepository;
 
 
+    @Cacheable(cacheNames = "merchant", key = "'all'")
     public List<MerchantResponse> getAllMerchants() {
         return merchantRepository.findAll().stream()
                 .map(MerchantResponse::from)
@@ -29,6 +32,7 @@ public class MerchantService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"merchant", "partnership"}, allEntries = true)
     public void createMerchants(List<MerchantRequest> requests){
         List<Merchant> entities = requests.stream()
                 .map(MerchantRequest::toEntity)
@@ -37,6 +41,7 @@ public class MerchantService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"merchant", "partnership"}, allEntries = true)
     public MerchantResponse updateMerchant(Long id, MerchantRequest request) {
         Merchant merchant = merchantRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("해당 가맹점이 존재하지 않습니다. id: " + id));
@@ -53,6 +58,7 @@ public class MerchantService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"merchant", "partnership"}, allEntries = true)
     public void deleteMerchants(List<Long> merchantIds){
         Long count = merchantRepository.countByMerchantIdIn(merchantIds);
         if (count != merchantIds.size()) {
