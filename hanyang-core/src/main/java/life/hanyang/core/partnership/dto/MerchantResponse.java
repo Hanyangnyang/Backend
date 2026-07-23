@@ -13,6 +13,7 @@ public record MerchantResponse(
         Double latitude,
         Double longitude,
         String fullAddress,
+        String kakaoPlaceId,
         Instant updatedAt
 
 ) {
@@ -27,6 +28,7 @@ public record MerchantResponse(
                 merchant.getLatitude(),
                 merchant.getLongitude(),
                 merchant.getFullAddress(),
+                merchant.getKakaoPlaceId(),
                 merchant.getUpdatedAt()
         );
     }

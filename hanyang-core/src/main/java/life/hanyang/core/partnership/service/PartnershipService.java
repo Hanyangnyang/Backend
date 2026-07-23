@@ -43,12 +43,13 @@ public class PartnershipService {
             // 2. 부모 Merchant 빌드
             Merchant merchant = Merchant.builder()
                     .storeName(request.getName())
-                    .merchantCategory(MerchantCategory.valueOf(request.getCategory().toUpperCase()))
+                    .merchantCategory(MerchantCategory.fromValue(request.getCategory()))
                     .emoji(request.getEmoji())
                     .isActive(request.getIsActive())
                     .latitude(request.getLocation() != null ? request.getLocation().getLatitude() : null)
                     .longitude(request.getLocation() != null ? request.getLocation().getLongitude() : null)
                     .fullAddress(request.getLocation() != null ? request.getLocation().getFullAddress() : null)
+                    .kakaoPlaceId(request.getKakaoPlaceId() != null ? request.getKakaoPlaceId() : null)
                     .build();
 
             // 3. 자식 Partnership 빌드 및 양방향 연관관계 맺기

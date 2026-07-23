@@ -33,13 +33,13 @@ public class Partnership {
     @Column(name = "benefit", nullable = false, columnDefinition = "TEXT")
     private String benefit;
 
-    @Column(name = "conditions", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "conditions", columnDefinition = "TEXT")
     private String conditions;
 
-    @Column(name = "source_url", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "source_url", columnDefinition = "TEXT")
     private String sourceUrl;
 
-    @Column(name = "photo_order", nullable = false)
+    @Column(name = "photo_order")
     private Integer photoOrder;
 
     @Column(name = "start_date", nullable = false)
