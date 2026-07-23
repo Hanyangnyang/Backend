@@ -15,7 +15,10 @@ import java.time.LocalTime;
 
 @Getter
 @Entity
-@Table(name = "subway_timetable")
+@Table(
+    name = "subway_timetable",
+    indexes = @Index(name = "idx_subway_timetable_station_line_direction_day_type", columnList = "subway_station, line, direction, day_type")
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SubwayTimetable {
     @Id
