@@ -15,7 +15,10 @@ import java.time.LocalTime;
 
 @Getter
 @Entity
-@Table(name = "gym_schedule_cell")
+@Table(
+    name = "gym_schedule_cell",
+    indexes = @Index(name = "idx_gym_schedule_cell_period_id_day_time", columnList = "period_id, day_of_week, start_time")
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class GymScheduleCell {
     @Id
