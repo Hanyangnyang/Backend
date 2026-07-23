@@ -12,6 +12,8 @@ import life.hanyang.core.gym.dto.GymPeriodResponse;
 import life.hanyang.core.gym.repository.GymPeriodRepository;
 import life.hanyang.core.gym.repository.GymScheduleCellRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,7 @@ public class GymPeriodService {
     private final GymPeriodRepository gymPeriodRepository;
     private final GymScheduleCellRepository gymScheduleCellRepository;
 
+    @Cacheable(cacheNames = "gymPeriod", key = "'all'")
     public List<GymPeriodResponse> getGymPeriods() {
         List<GymPeriod> gymPeriods = gymPeriodRepository.findAll();
         List<GymScheduleCell> cells = gymScheduleCellRepository.findAll();
@@ -43,6 +46,7 @@ public class GymPeriodService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "gymPeriod", allEntries = true)
     public void savePeriod(
             GymPeriodRequest request) {
         boolean isDuplicate = gymPeriodRepository.existsByYearAndSemesterAndPeriodType(
@@ -61,6 +65,7 @@ public class GymPeriodService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "gymPeriod", allEntries = true)
     public void deletePeriod(Long periodId) {
         GymPeriod gymPeriod = gymPeriodRepository.findById(periodId)
                         .orElseThrow(() -> new EntityNotFoundException("해당 학기 정보가 존재하지 않습니다. ID: " + periodId));
