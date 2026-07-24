@@ -9,6 +9,7 @@ public class MenuParserUtils {
     private static final List<String> IGNORE_TITLE_KEYWORDS = List.of(
             "검색", "댓글", "창업보육", "학생식당", "교직원", "창의인재", "푸드코트", "위치", "조회"
     );
+
     /**
      * 식단 제목(h3)이 유효한지 검증하는 메서드
      */
@@ -19,38 +20,83 @@ public class MenuParserUtils {
         return IGNORE_TITLE_KEYWORDS.stream().noneMatch(title::contains);
     }
 
-    public static ParsedMenu cleanUpMenuText(String rawText) {
-        if (rawText == null || rawText.isBlank() || rawText.contains("확인 가능합니다")) {
-            return new ParsedMenu("", "");
+    /**
+     * rawText를 파싱하여 개별 식단 세트(메뉴 내용, 가격) 리스트로 반환 (api/menu.js 구현과 동등)
+     */
+    public static List<ParsedMenu> parseMenuSets(String rawText) {
+        List<ParsedMenu> result = new ArrayList<>();
+        if (rawText == null || rawText.isBlank() || rawText.length() <= 5 || rawText.contains("확인 가능합니다")) {
+            return result;
         }
-        // 2. [천원의아침밥] 태그 뒤 띄어쓰기 보정
+
+        // 1. [천원의아침밥] 뒤에 띄어쓰기 없으면 강제로 공백 추가
         String text = rawText.replaceAll("(\\[천원의아침밥\\])([^\\s])", "$1 $2");
-        // 3. 쌍따옴표 제거 후 공백(\\s+) 단위로 나눔
+
+        // 2. 쌍따옴표 제거 후 공백 단위 분할 및 필터링
         String[] tokens = text.replace("\"", "").split("\\s+");
-        List<String> items = new ArrayList<>();
-        String extractedPrice = "";
+        List<String> rawItems = new ArrayList<>();
         for (String token : tokens) {
             String trimmed = token.trim();
-            // 단독으로 남은 '&' 나 빈 문자열 제거
             if (trimmed.isEmpty() || trimmed.equals("&")) {
                 continue;
             }
-            // 영문(알파벳)이 포함된 불필요한 토큰 제거 (JS/HTML 속성 등)
             if (trimmed.matches(".*[a-zA-Z].*")) {
                 continue;
             }
-            // 가격 텍스트 (예: "6000원", "5,500원") 추출
-            if (trimmed.matches(".*\\d+.*원.*")) {
-                extractedPrice = trimmed;
-                continue;
-            }
-            // 유효한 음식 명칭/태그 추가
-            items.add(trimmed);
+            rawItems.add(trimmed);
         }
-        // 4. 줄바꿈(\n) 단위로 결합된 텍스트 생성 ("김치찌개\n밥\n쌀")
-        String cleanMenuText = String.join("\n", items);
-        return new ParsedMenu(cleanMenuText, extractedPrice);
+
+        // 3. 가격(숫자+원) 기준으로 세트 분할
+        List<SetItem> sets = new ArrayList<>();
+        List<String> currentItems = new ArrayList<>();
+
+        for (String item : rawItems) {
+            if (item.matches(".*\\d+.*원.*")) {
+                sets.add(new SetItem(new ArrayList<>(currentItems), item));
+                currentItems.clear();
+            } else {
+                currentItems.add(item);
+            }
+        }
+        if (!currentItems.isEmpty()) {
+            sets.add(new SetItem(currentItems, ""));
+        }
+
+        // 4. 각 세트별 포맷팅 (첫 메뉴는 볼드+불렛, 나머지는 불렛)
+        for (SetItem set : sets) {
+            if (!set.items().isEmpty()) {
+                boolean firstMenuFound = false;
+                List<String> formattedItems = new ArrayList<>();
+                for (String item : set.items()) {
+                    if (item.equals("[천원의아침밥]")) {
+                        formattedItems.add(item);
+                    } else {
+                        if (!firstMenuFound) {
+                            firstMenuFound = true;
+                            formattedItems.add("• <b>" + item + "</b>");
+                        } else {
+                            formattedItems.add("• " + item);
+                        }
+                    }
+                }
+                String displayMenu = String.join("\n", formattedItems);
+                result.add(new ParsedMenu(displayMenu, set.price()));
+            }
+        }
+
+        return result;
     }
+
+    public static ParsedMenu cleanUpMenuText(String rawText) {
+        List<ParsedMenu> sets = parseMenuSets(rawText);
+        if (sets.isEmpty()) {
+            return new ParsedMenu("", "");
+        }
+        return sets.get(0);
+    }
+
+    private record SetItem(List<String> items, String price) {}
+
     // 결과 전달용 DTO/Record
     public record ParsedMenu(String cleanedMenu, String price) {}
 }

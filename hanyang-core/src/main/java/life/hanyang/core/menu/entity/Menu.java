@@ -22,6 +22,8 @@ public class Menu {
     private Cafeteria cafeteria;
 
     private LocalDate date;
+
+    @Enumerated(EnumType.STRING)
     private MealType type;
 
     // 1. 웹사이트에서 긁어온 원본 그대로 (백업/비교용)
@@ -46,6 +48,24 @@ public class Menu {
         this.displayMenu = parsed.cleanedMenu();
         this.price = parsed.price();
         this.isOverridden = false;
+    }
+
+    public Menu(Cafeteria cafeteria, LocalDate date, MealType type, String rawText, String displayMenu, String price) {
+        this.cafeteria = cafeteria;
+        this.date = date;
+        this.type = type;
+        this.rawMenu = rawText;
+        this.displayMenu = displayMenu;
+        this.price = price;
+        this.isOverridden = false;
+    }
+
+    public void updateContent(String rawText, String displayMenu, String price) {
+        if (!this.isOverridden) {
+            this.rawMenu = rawText;
+            this.displayMenu = displayMenu;
+            this.price = price;
+        }
     }
 
     public void updateDisplayMenu(String newDisplayMenu) {
