@@ -1,0 +1,75 @@
+package life.hanyang.core.menu.service;
+
+import life.hanyang.core.menu.dto.MenuResponse;
+import life.hanyang.core.menu.entity.Cafeteria;
+import life.hanyang.core.menu.entity.CafeteriaCode;
+import life.hanyang.core.menu.entity.Menu;
+import life.hanyang.core.menu.repository.MenuRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class MenuService {
+
+    private final MenuRepository menuRepository;
+
+    /**
+     * 특정 기간 및 특정 식당 코드의 메뉴 목록을 날짜별로 그룹화하여 조회
+     */
+    public Map<LocalDate, List<MenuResponse>> getMenusGroupByDate(
+            LocalDate startDate, 
+            LocalDate endDate, 
+            List<CafeteriaCode> codes
+    ) {
+        LocalDate start = (startDate == null) ? LocalDate.now().minusDays(7) : startDate;
+        LocalDate end = (endDate == null) ? LocalDate.now().plusDays(7) : endDate;
+
+        // 1. DB에서 조건에 부합하는 모든 식단 데이터 조회
+        List<Menu> menus = (codes == null || codes.isEmpty())
+                ? menuRepository.findByDateBetween(start, end)
+                : menuRepository.findByDateBetweenAndCafeteria_CodeIn(start, end, codes);
+
+        // 2. 조회된 Menu 엔티티들을 날짜(LocalDate) -> 식당(Cafeteria) 순으로 계층 구조화
+        return menus.stream()
+                .collect(Collectors.groupingBy(
+                        Menu::getDate,
+                        Collectors.groupingBy(
+                                Menu::getCafeteria,
+                                Collectors.mapping(
+                                        menuEntity -> new MenuResponse.MenuDetailResponse(
+                                                menuEntity.getId(),
+                                                menuEntity.getType(),
+                                                menuEntity.getPrice(),
+                                                menuEntity.getDisplayMenu(),
+                                                menuEntity.getRawMenu()
+                                        ),
+                                        Collectors.toList()
+                                )
+                        )
+                ))
+                .entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().entrySet().stream()
+                                .map(cafeteriaEntry -> {
+                                    Cafeteria cafeteria = cafeteriaEntry.getKey();
+                                    List<MenuResponse.MenuDetailResponse> details = cafeteriaEntry.getValue();
+                                    return new MenuResponse(
+                                            cafeteria.getCode(),
+                                            cafeteria.getName(),
+                                            cafeteria.getOperatingHours(),
+                                            details
+                                    );
+                                })
+                                .collect(Collectors.toList())
+                ));
+    }
+}
