@@ -29,8 +29,22 @@ public class MenuService {
             LocalDate endDate, 
             List<CafeteriaCode> codes
     ) {
-        LocalDate start = (startDate == null) ? LocalDate.now().minusDays(7) : startDate;
-        LocalDate end = (endDate == null) ? LocalDate.now().plusDays(7) : endDate;
+        LocalDate start;
+        LocalDate end;
+
+        if (startDate == null && endDate == null) {
+            start = LocalDate.now().minusDays(7);
+            end = LocalDate.now().plusDays(7);
+        } else if (startDate != null && endDate == null) {
+            start = startDate;
+            end = startDate;
+        } else if (startDate == null && endDate != null) {
+            start = endDate;
+            end = endDate;
+        } else {
+            start = startDate;
+            end = endDate;
+        }
 
         // 1. DB에서 조건에 부합하는 모든 식단 데이터를 FETCH JOIN으로 1번의 쿼리로 일괄 조회
         List<Menu> menus = (codes == null || codes.isEmpty())
