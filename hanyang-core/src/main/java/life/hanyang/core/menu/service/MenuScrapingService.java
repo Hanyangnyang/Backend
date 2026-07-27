@@ -10,6 +10,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +22,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -35,6 +39,20 @@ public class MenuScrapingService {
     private static final String BASE_URL_PATTERN =
             "https://www.hanyang.ac.kr/web/www/%s?p_p_id=kr_ac_hanyang_cafe_web_portlet_CafePortlet&p_p_lifecycle=0&p_p_state=normal&p_p_mode=view&_kr_ac_hanyang_cafe_web_portlet_CafePortlet_sMenuDate=%s&_kr_ac_hanyang_cafe_web_portlet_CafePortlet_action=view";
 
+    // 10개의 스레드로 스크래핑을 병렬 수행하는 전용 스레드 풀
+    private final Executor scrapingTaskExecutor = Executors.newFixedThreadPool(10);
+
+    /**
+     * 관리자 수동 요청용 비동기 스크래핑 (백그라운드 스레드로 즉시 위임)
+     */
+    @Async
+    public void scrapeCafeteriasAsync(List<CafeteriaCode> codes, List<LocalDate> dates) {
+        scrapeCafeterias(codes, dates);
+    }
+
+    /**
+     * CompletableFuture 기반 10개 병렬 스크래핑 수행
+     */
     public void scrapeCafeterias(List<CafeteriaCode> codes, List<LocalDate> dates) {
         List<CafeteriaCode> targetCodes = (codes == null || codes.isEmpty())
                 ? List.of(CafeteriaCode.values())
@@ -51,16 +69,26 @@ public class MenuScrapingService {
             targetDates = dates;
         }
 
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
         for (LocalDate date : targetDates) {
             for (CafeteriaCode code : targetCodes) {
-                try {
-                    scrapeSingleCafeteriaForDate(code, date);
-                } catch (Exception e) {
-                    log.error("Failed to scrape cafeteria [{}] for date [{}]: {}",
-                            code.getDefaultName(), date, e.getMessage(), e);
-                }
+                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                    try {
+                        scrapeSingleCafeteriaForDate(code, date);
+                    } catch (Exception e) {
+                        log.error("Failed to scrape cafeteria [{}] for date [{}]: {}",
+                                code.getDefaultName(), date, e.getMessage(), e);
+                    }
+                }, scrapingTaskExecutor);
+
+                futures.add(future);
             }
         }
+
+        // 모든 병렬 크롤링 완료까지 대기
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        log.info("Finished all scraping tasks for target dates.");
     }
 
     private void scrapeSingleCafeteriaForDate(CafeteriaCode code, LocalDate date) {
@@ -148,3 +176,4 @@ public class MenuScrapingService {
         scrapeCafeterias(null, targetDates);
     }
 }
+

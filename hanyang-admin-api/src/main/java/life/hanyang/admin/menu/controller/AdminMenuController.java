@@ -9,6 +9,7 @@ import life.hanyang.core.menu.service.MenuScrapingService;
 import life.hanyang.core.menu.service.MenuSaveService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,14 +25,15 @@ public class AdminMenuController {
     private final MenuScrapingService menuScrapingService;
     private final MenuSaveService menuSaveService;
 
-    @Operation(summary = "수동으로 학식 스크래핑을 실행합니다. (기본 범위 D-7 ~ D+7 전체 식당 실행)")
+    @Operation(summary = "수동으로 학식 스크래핑을 비동기(202 Accepted) 실행합니다. (기본 범위 D-7 ~ D+7 전체 식당 실행)")
     @PostMapping("/scrape")
-    public ResponseEntity<ApiResponse<Void>> triggerScraping(
+    public ResponseEntity<ApiResponse<String>> triggerScraping(
             @RequestParam(required = false) List<CafeteriaCode> codes,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) List<LocalDate> dates
     ) {
-        menuScrapingService.scrapeCafeterias(codes, dates);
-        return ResponseEntity.ok(ApiResponse.success());
+        menuScrapingService.scrapeCafeteriasAsync(codes, dates);
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(ApiResponse.success("학식 스크래핑 요청이 정상 수신되었으며, 백그라운드 병렬 작업으로 처리 중입니다."));
     }
 
     @Operation(summary = "특정 식단의 화면 표시 메뉴 텍스트를 수동으로 변경(재정의)합니다.")
@@ -44,3 +46,4 @@ public class AdminMenuController {
         return ResponseEntity.ok(ApiResponse.success());
     }
 }
+

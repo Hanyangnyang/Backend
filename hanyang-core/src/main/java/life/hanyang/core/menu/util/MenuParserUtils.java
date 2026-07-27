@@ -2,6 +2,7 @@ package life.hanyang.core.menu.util;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class MenuParserUtils {
 
@@ -10,11 +11,14 @@ public class MenuParserUtils {
             "검색", "댓글", "창업보육", "학생식당", "교직원", "창의인재", "푸드코트", "위치", "조회"
     );
 
+    // 숫자 또는 특수기호가 섞이고 "원"으로 끝나는 가격 패턴 (예: 6,000원, 4,500원)
+    private static final Pattern PRICE_TITLE_PATTERN = Pattern.compile(".*[0-9,.~\\s]+원$");
+
     /**
      * 식단 제목(h3)이 유효한지 검증하는 메서드
      */
     public static boolean isValidTitle(String title) {
-        if (title == null || title.isBlank() || title.contains("원")) {
+        if (title == null || title.isBlank() || PRICE_TITLE_PATTERN.matcher(title.trim()).matches()) {
             return false;
         }
         return IGNORE_TITLE_KEYWORDS.stream().noneMatch(title::contains);
@@ -40,7 +44,8 @@ public class MenuParserUtils {
             if (trimmed.isEmpty() || trimmed.equals("&")) {
                 continue;
             }
-            if (trimmed.matches(".*[a-zA-Z].*")) {
+            // 순수 영문(영문 번역 문구) 단어만 필터링하고, 한글+영문 조합("BBQ치킨", "A코너" 등)은 삭제하지 않고 보존
+            if (trimmed.matches("^[a-zA-Z\\-]+$")) {
                 continue;
             }
             rawItems.add(trimmed);
@@ -86,3 +91,4 @@ public class MenuParserUtils {
     // 결과 전달용 DTO/Record
     public record ParsedMenu(String cleanedMenu, String price) {}
 }
+
