@@ -15,8 +15,10 @@ public record MenuResponse(
     public record MenuDetailResponse(
             Long id,
             MealType mealType,
+            Integer displayOrder,
             String price,
             List<String> menuItems,
             String rawMenu
     ) {}
 }
+

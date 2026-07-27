@@ -65,6 +65,7 @@ public class MenuService {
                                             return new MenuResponse.MenuDetailResponse(
                                                     menuEntity.getId(),
                                                     menuEntity.getType(),
+                                                    menuEntity.getDisplayOrder(),
                                                     menuEntity.getPrice(),
                                                     menuItems,
                                                     menuEntity.getRawMenu()
