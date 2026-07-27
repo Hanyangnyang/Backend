@@ -9,7 +9,15 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "menu")
+@Table(
+    name = "menu",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_cafeteria_date_type_order",
+            columnNames = {"cafeteria_id", "date", "type", "display_order"}
+        )
+    }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Menu {
@@ -26,6 +34,9 @@ public class Menu {
     @Enumerated(EnumType.STRING)
     private MealType type;
 
+    @Column(name = "display_order", nullable = false)
+    private Integer displayOrder;
+
     // 1. 웹사이트에서 긁어온 원본 그대로 (백업/비교용)
     @Column(columnDefinition = "TEXT")
     private String rawMenu;
@@ -38,10 +49,11 @@ public class Menu {
 
     private boolean isOverridden;
 
-    public Menu(Cafeteria cafeteria, LocalDate date, MealType type, String rawText) {
+    public Menu(Cafeteria cafeteria, LocalDate date, MealType type, Integer displayOrder, String rawText) {
         this.cafeteria = cafeteria;
         this.date = date;
         this.type = type;
+        this.displayOrder = displayOrder;
         this.rawMenu = rawText;
 
         MenuParserUtils.ParsedMenu parsed = MenuParserUtils.cleanUpMenuText(rawText);
@@ -50,10 +62,11 @@ public class Menu {
         this.isOverridden = false;
     }
 
-    public Menu(Cafeteria cafeteria, LocalDate date, MealType type, String rawText, String displayMenu, String price) {
+    public Menu(Cafeteria cafeteria, LocalDate date, MealType type, Integer displayOrder, String rawText, String displayMenu, String price) {
         this.cafeteria = cafeteria;
         this.date = date;
         this.type = type;
+        this.displayOrder = displayOrder;
         this.rawMenu = rawText;
         this.displayMenu = displayMenu;
         this.price = price;
@@ -78,3 +91,4 @@ public class Menu {
         return this.displayMenu.contains(keyword);
     }
 }
+

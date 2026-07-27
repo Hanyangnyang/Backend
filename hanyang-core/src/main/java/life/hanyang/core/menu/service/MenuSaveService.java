@@ -2,6 +2,7 @@ package life.hanyang.core.menu.service;
 
 import life.hanyang.core.menu.dto.MenuCrawlResultDto;
 import life.hanyang.core.menu.entity.Cafeteria;
+import life.hanyang.core.menu.entity.MealType;
 import life.hanyang.core.menu.entity.Menu;
 import life.hanyang.core.menu.repository.CafeteriaRepository;
 import life.hanyang.core.menu.repository.MenuRepository;
@@ -9,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -38,9 +41,15 @@ public class MenuSaveService {
             cafeteriaRepository.save(cafeteria);
         }
 
+        // MealType별 순서(displayOrder) 카운터
+        Map<MealType, Integer> orderCounter = new HashMap<>();
+
         for (MenuCrawlResultDto.MenuDetailDto menuDto : dto.menus()) {
-            Optional<Menu> existingOpt = menuRepository.findByCafeteriaAndDateAndType(
-                    cafeteria, dto.date(), menuDto.mealType()
+            MealType mealType = menuDto.mealType();
+            int currentOrder = orderCounter.getOrDefault(mealType, 0);
+
+            Optional<Menu> existingOpt = menuRepository.findByCafeteriaAndDateAndTypeAndDisplayOrder(
+                    cafeteria, dto.date(), mealType, currentOrder
             );
 
             if (existingOpt.isPresent()) {
@@ -49,11 +58,14 @@ public class MenuSaveService {
                 menuRepository.save(existing);
             } else {
                 Menu menu = new Menu(
-                        cafeteria, dto.date(), menuDto.mealType(),
+                        cafeteria, dto.date(), mealType, currentOrder,
                         menuDto.rawMenu(), menuDto.displayMenu(), menuDto.price()
                 );
                 menuRepository.save(menu);
             }
+
+            orderCounter.put(mealType, currentOrder + 1);
         }
     }
 }
+

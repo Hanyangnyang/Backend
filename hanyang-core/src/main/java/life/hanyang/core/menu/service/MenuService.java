@@ -32,10 +32,10 @@ public class MenuService {
         LocalDate start = (startDate == null) ? LocalDate.now().minusDays(7) : startDate;
         LocalDate end = (endDate == null) ? LocalDate.now().plusDays(7) : endDate;
 
-        // 1. DB에서 조건에 부합하는 모든 식단 데이터 조회
+        // 1. DB에서 조건에 부합하는 모든 식단 데이터를 FETCH JOIN으로 1번의 쿼리로 일괄 조회
         List<Menu> menus = (codes == null || codes.isEmpty())
-                ? menuRepository.findByDateBetween(start, end)
-                : menuRepository.findByDateBetweenAndCafeteria_CodeIn(start, end, codes);
+                ? menuRepository.findByDateBetweenWithCafeteria(start, end)
+                : menuRepository.findByDateBetweenAndCafeteria_CodeInWithCafeteria(start, end, codes);
 
         // 2. 조회된 Menu 엔티티들을 날짜(LocalDate) -> 식당(Cafeteria) 순으로 계층 구조화
         return menus.stream()
