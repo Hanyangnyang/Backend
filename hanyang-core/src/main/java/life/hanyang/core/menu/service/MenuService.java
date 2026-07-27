@@ -44,13 +44,18 @@ public class MenuService {
                         Collectors.groupingBy(
                                 Menu::getCafeteria,
                                 Collectors.mapping(
-                                        menuEntity -> new MenuResponse.MenuDetailResponse(
-                                                menuEntity.getId(),
-                                                menuEntity.getType(),
-                                                menuEntity.getPrice(),
-                                                menuEntity.getDisplayMenu(),
-                                                menuEntity.getRawMenu()
-                                        ),
+                                        menuEntity -> {
+                                            List<String> menuItems = (menuEntity.getDisplayMenu() == null || menuEntity.getDisplayMenu().isBlank())
+                                                    ? List.of()
+                                                    : List.of(menuEntity.getDisplayMenu().split("\n"));
+                                            return new MenuResponse.MenuDetailResponse(
+                                                    menuEntity.getId(),
+                                                    menuEntity.getType(),
+                                                    menuEntity.getPrice(),
+                                                    menuItems,
+                                                    menuEntity.getRawMenu()
+                                            );
+                                        },
                                         Collectors.toList()
                                 )
                         )

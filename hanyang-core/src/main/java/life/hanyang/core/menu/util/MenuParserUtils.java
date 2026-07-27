@@ -62,24 +62,10 @@ public class MenuParserUtils {
             sets.add(new SetItem(currentItems, ""));
         }
 
-        // 4. 각 세트별 포맷팅 (첫 메뉴는 볼드+불렛, 나머지는 불렛)
+        // 4. 각 세트별 포맷팅 (HTML 태그 없이 줄바꿈으로만 구분된 순수 텍스트 생성)
         for (SetItem set : sets) {
             if (!set.items().isEmpty()) {
-                boolean firstMenuFound = false;
-                List<String> formattedItems = new ArrayList<>();
-                for (String item : set.items()) {
-                    if (item.equals("[천원의아침밥]")) {
-                        formattedItems.add(item);
-                    } else {
-                        if (!firstMenuFound) {
-                            firstMenuFound = true;
-                            formattedItems.add("• <b>" + item + "</b>");
-                        } else {
-                            formattedItems.add("• " + item);
-                        }
-                    }
-                }
-                String displayMenu = String.join("\n", formattedItems);
+                String displayMenu = String.join("\n", set.items());
                 result.add(new ParsedMenu(displayMenu, set.price()));
             }
         }
