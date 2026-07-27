@@ -10,6 +10,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.net.URLEncoder;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -135,5 +137,14 @@ public class MenuScrapingService {
             }
         }
         return hours;
+    }
+
+    @Scheduled(cron = "0 0 1 * * *", zone = "Asia/Seoul")
+    public void autoScrapeMenu() {
+        List<LocalDate> targetDates = IntStream.rangeClosed(-1, 7) // 하루 전 ~ 7일 뒤
+                .mapToObj(i -> LocalDate.now().plusDays(i))
+                .toList();
+
+        scrapeCafeterias(null, targetDates);
     }
 }
