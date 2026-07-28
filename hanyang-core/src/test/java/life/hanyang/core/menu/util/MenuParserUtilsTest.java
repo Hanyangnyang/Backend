@@ -30,7 +30,7 @@ class MenuParserUtilsTest {
         List<MenuParserUtils.ParsedMenu> sets = MenuParserUtils.parseMenuSets(rawText);
 
         assertEquals(1, sets.size());
-        assertEquals("6,000원", sets.get(0).price());
+        assertEquals(6000, sets.get(0).price());
         assertTrue(sets.get(0).cleanedMenu().contains("연탄직화제육볶음"));
         assertTrue(sets.get(0).cleanedMenu().contains("살얼음요구르트*1"));
     }
@@ -53,9 +53,22 @@ class MenuParserUtilsTest {
         List<MenuParserUtils.ParsedMenu> sets = MenuParserUtils.parseMenuSets(rawText);
 
         assertEquals(1, sets.size());
-        assertEquals("1,000원", sets.get(0).price());
+        assertEquals(1000, sets.get(0).price());
         assertTrue(sets.get(0).cleanedMenu().startsWith("[천원의아침밥]"));
         assertTrue(sets.get(0).cleanedMenu().contains("쌀밥"));
+    }
+
+    @Test
+    @DisplayName("괄호로 둘러싸인 영문 번역 문구( (Tuna Vegetable) ) 필터링 테스트")
+    void testParenthesizedEnglishFiltering() {
+        String rawText = "참치생채소비빔밥 (Tuna Vegetable) 청포묵김가루무침 배추김치 우동국 5,500원";
+        List<MenuParserUtils.ParsedMenu> sets = MenuParserUtils.parseMenuSets(rawText);
+
+        assertEquals(1, sets.size());
+        assertFalse(sets.get(0).cleanedMenu().contains("Tuna"));
+        assertFalse(sets.get(0).cleanedMenu().contains("Vegetable"));
+        assertTrue(sets.get(0).cleanedMenu().contains("참치생채소비빔밥"));
+        assertTrue(sets.get(0).cleanedMenu().contains("청포묵김가루무침"));
     }
 }
 
