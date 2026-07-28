@@ -10,6 +10,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -33,16 +34,13 @@ import java.util.stream.IntStream;
 @Service
 @RequiredArgsConstructor
 public class MenuScrapingService {
-
+    private final Executor scrapingTaskExecutor;
     private final MenuSaveService menuSaveService;
 
     private static final String BASE_URL_PATTERN =
             "https://www.hanyang.ac.kr/web/www/%s?p_p_id=kr_ac_hanyang_cafe_web_portlet_CafePortlet&p_p_lifecycle=0&p_p_state=normal&p_p_mode=view&_kr_ac_hanyang_cafe_web_portlet_CafePortlet_sMenuDate=%s&_kr_ac_hanyang_cafe_web_portlet_CafePortlet_action=view";
 
-    // 10개의 스레드로 스크래핑을 병렬 수행하는 전용 스레드 풀
-    private final Executor scrapingTaskExecutor = Executors.newFixedThreadPool(10);
-
-    /**
+   /**
      * 관리자 수동 요청용 비동기 스크래핑 (백그라운드 스레드로 즉시 위임)
      */
     @Async
@@ -86,9 +84,8 @@ public class MenuScrapingService {
             }
         }
 
-        // 모든 병렬 크롤링 완료까지 대기
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        log.info("Finished all scraping tasks for target dates.");
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenRun(() -> log.info("Finished all scraping tasks for target dates"));
     }
 
     private void scrapeSingleCafeteriaForDate(CafeteriaCode code, LocalDate date) {
