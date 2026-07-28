@@ -45,7 +45,7 @@ public class Menu {
     @Column(columnDefinition = "TEXT")
     private String displayMenu;
 
-    private String price;
+    private Integer price;
 
     private boolean isOverridden;
 
@@ -62,7 +62,7 @@ public class Menu {
         this.isOverridden = false;
     }
 
-    public Menu(Cafeteria cafeteria, LocalDate date, MealType type, Integer displayOrder, String rawText, String displayMenu, String price) {
+    public Menu(Cafeteria cafeteria, LocalDate date, MealType type, Integer displayOrder, String rawText, String displayMenu, Integer price) {
         this.cafeteria = cafeteria;
         this.date = date;
         this.type = type;
@@ -73,7 +73,7 @@ public class Menu {
         this.isOverridden = false;
     }
 
-    public void updateContent(String rawText, String displayMenu, String price) {
+    public void updateContent(String rawText, String displayMenu, Integer price) {
         if (!this.isOverridden) {
             this.rawMenu = rawText;
             this.displayMenu = displayMenu;

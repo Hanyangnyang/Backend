@@ -16,7 +16,7 @@ public record MenuResponse(
             Long id,
             MealType mealType,
             Integer displayOrder,
-            String price,
+            Integer price,
             List<String> menuItems,
             String rawMenu
     ) {}

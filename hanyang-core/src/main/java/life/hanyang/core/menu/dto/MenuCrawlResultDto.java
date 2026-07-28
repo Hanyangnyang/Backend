@@ -16,6 +16,6 @@ public record MenuCrawlResultDto(
             MealType mealType,
             String rawMenu,
             String displayMenu,
-            String price
+            Integer price
     ) {}
 }
