@@ -11,6 +11,7 @@ import life.hanyang.core.gym.dto.GymScheduleUpdateDto; // 👈 추가
 import life.hanyang.core.gym.repository.GymPeriodRepository;
 import life.hanyang.core.gym.repository.GymScheduleCellRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ public class GymScheduleCellService {
     private final GymPeriodRepository gymPeriodRepository;
 
     @Transactional
+    @CacheEvict(cacheNames = "gymPeriod", allEntries = true)
     public void saveSchedules(List<GymScheduleCreateRequest> requests){
         List<GymScheduleCell> allCellsToSave = new java.util.ArrayList<>();
         for (GymScheduleCreateRequest request : requests) {
@@ -55,6 +57,7 @@ public class GymScheduleCellService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "gymPeriod", allEntries = true)
     public void deleteSchedules(List<Long> scheduleCellIds){
         long count = gymScheduleCellRepository.countByIdIn(scheduleCellIds);
         // TODO: 삭제 API의 멱등성 보장을 위해 count 조회 검증 로직 제거 검토
@@ -120,6 +123,7 @@ public class GymScheduleCellService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "gymPeriod", allEntries = true)
     public void updateSchedule(Long cellId, GymScheduleCellDto dto) {
         GymScheduleCell cell = gymScheduleCellRepository.findById(cellId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 시간표 셀입니다. ID: " + cellId));
@@ -151,6 +155,7 @@ public class GymScheduleCellService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "gymPeriod", allEntries = true)
     public void updateSchedules(List<GymScheduleUpdateDto> requests) {
         if (requests.isEmpty()) return;
 
