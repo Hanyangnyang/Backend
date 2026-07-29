@@ -21,13 +21,13 @@ public class Banner {
     @Column(name = "id", nullable = false)
     private Long id;
 
-    @Column(name = "image_url", nullable = false)
+    @Column(name = "image_url", nullable = false, columnDefinition = "TEXT")
     private String imageUrl;
 
     @Column(name = "alt_text")
     private String altText;
 
-    @Column(name = "click_url")
+    @Column(name = "click_url", columnDefinition = "TEXT")
     private String clickUrl;
 
     @Column(name = "display_order")

@@ -8,6 +8,12 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'software.amazon.awssdk:s3:2.25.15'
 
+    // Jsoup (HTML Parser)
+    implementation 'org.jsoup:jsoup:1.17.2'
+
+    // Swagger / OpenAPI Annotations
+    implementation 'io.swagger.core.v3:swagger-annotations-jakarta:2.2.28'
+
     // JWT
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
