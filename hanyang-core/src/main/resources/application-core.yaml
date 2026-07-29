@@ -44,4 +44,7 @@ api:
   subway:
     api-key: ${api.public-data-key}
 
+  library:
+    base-url:
+      ${LIBRARY_API_BASE_URL:https://lib.hanyang.ac.kr}
 
