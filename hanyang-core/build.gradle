@@ -9,7 +9,7 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.25.15'
 
     // Jsoup (HTML Parser)
-    implementation 'org.jsoup:jsoup:1.17.2'
+    api 'org.jsoup:jsoup:1.17.2'
 
     // Swagger / OpenAPI Annotations
     implementation 'io.swagger.core.v3:swagger-annotations-jakarta:2.2.28'
