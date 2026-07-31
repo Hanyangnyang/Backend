@@ -41,6 +41,9 @@ jobs:
           echo 'ADMIN_ID=${{ secrets.ADMIN_ID }}' >> .env
           echo 'ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}' >> .env
           echo 'PUBLIC_DATA_PORTAL_KEY=${{ secrets.PUBLIC_DATA_PORTAL_KEY }}' >> .env
+          echo 'REDIS_HOST=${{ secrets.REDIS_HOST }}' >> .env
+          echo 'REDIS_PORT=${{ secrets.REDIS_PORT }}' >> .env
+          echo 'REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}' >> .env
 
       # 5. Actions 가상 러너 내부에서 도커 구동 & 헬스체크 찌르기 (Smoke Test)
       - name: Run Docker Compose & Smoke Health Check
