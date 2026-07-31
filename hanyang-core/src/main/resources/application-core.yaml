@@ -48,3 +48,17 @@ api:
     base-url:
       ${LIBRARY_API_BASE_URL:https://lib.hanyang.ac.kr}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  webhook:
+    url: ${DISCORD_WEBHOOK_URL:${SLACK_WEBHOOK_URL:}}
+
+
