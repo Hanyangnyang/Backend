@@ -18,7 +18,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
@@ -47,4 +47,9 @@ api:
   library:
     base-url:
       ${LIBRARY_API_BASE_URL:https://lib.hanyang.ac.kr}
+
+  weather:
+    base-url: ${WEATHER_API_BASE_URL:http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}
+    service-key: ${WEATHER_API_SERVICE_KEY:${api.public-data-key}}
+
 
