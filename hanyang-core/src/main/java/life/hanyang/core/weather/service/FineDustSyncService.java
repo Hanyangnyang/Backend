@@ -78,11 +78,20 @@ public class FineDustSyncService {
     }
 
     /**
-     * 대상 HourlyWeather의 미세먼지 정보가 null인 경우, 가장 최근의 관측 데이터로 보완(Fallback)
+     * 대상 HourlyWeather의 미세먼지 정보 중 비어있는(null) 필드가 있는 경우, 가장 최근의 관측 데이터로 보완(Fallback)
      */
     @Transactional(readOnly = true)
     public void fillFallbackFineDust(HourlyWeather targetWeather) {
-        if (targetWeather == null || targetWeather.getPm10Value() != null) {
+        if (targetWeather == null) {
+            return;
+        }
+
+        boolean hasAllFineDust = targetWeather.getPm10Value() != null
+                && targetWeather.getPm25Value() != null
+                && targetWeather.getPm10Grade() != null
+                && targetWeather.getPm25Grade() != null;
+
+        if (hasAllFineDust) {
             return;
         }
 
