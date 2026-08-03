@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -25,6 +26,7 @@ public class UvSyncService {
 
     private static final String DEFAULT_LOCATION = "ANSAN";
     private static final String DEFAULT_AREA_NO = "4127100000"; // 안산시 상록구 행정구역코드
+    private static final ZoneId KST_ZONE = ZoneId.of("Asia/Seoul");
 
     /**
      * 자외선 지수(UV Index) 75시간 예측치를 1시간 단위로 꽉 채워 동기화
@@ -82,7 +84,7 @@ public class UvSyncService {
     }
 
     private String getLatestBaseTime() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(KST_ZONE);
         String dateStr = now.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         int hour = now.getHour();
         return hour < 18 ? dateStr + "06" : dateStr + "18";
