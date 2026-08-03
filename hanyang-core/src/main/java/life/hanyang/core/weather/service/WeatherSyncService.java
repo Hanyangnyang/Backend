@@ -56,7 +56,7 @@ public class WeatherSyncService {
         Map<LocalDateTime, HourlyWeather> existingMap = hourlyWeatherRepository
                 .findAllByLocationAndForecastAtBetweenOrderByForecastAtAsc(DEFAULT_LOCATION, minTime, maxTime)
                 .stream()
-                .collect(Collectors.toMap(HourlyWeather::getForecastAt, w -> w));
+                .collect(Collectors.toMap(HourlyWeather::getForecastAt, w -> w, (existing, replacement) -> existing));
 
         List<HourlyWeather> weatherListToSave = new ArrayList<>();
 
@@ -96,7 +96,7 @@ public class WeatherSyncService {
         Map<LocalDateTime, HourlyWeather> existingMap = hourlyWeatherRepository
                 .findAllByLocationAndForecastAtBetweenOrderByForecastAtAsc(DEFAULT_LOCATION, minTime, maxTime)
                 .stream()
-                .collect(Collectors.toMap(HourlyWeather::getForecastAt, w -> w));
+                .collect(Collectors.toMap(HourlyWeather::getForecastAt, w -> w, (existing, replacement) -> existing));
 
         List<HourlyWeather> weatherListToSave = new ArrayList<>();
 

@@ -57,7 +57,7 @@ public class UvSyncService {
         Map<LocalDateTime, HourlyWeather> existingMap = hourlyWeatherRepository
                 .findAllByLocationAndForecastAtBetweenOrderByForecastAtAsc(DEFAULT_LOCATION, baseDateTime, maxDateTime)
                 .stream()
-                .collect(Collectors.toMap(HourlyWeather::getForecastAt, w -> w));
+                .collect(Collectors.toMap(HourlyWeather::getForecastAt, w -> w, (existing, replacement) -> existing));
 
         Map<Integer, String> hourValueMap = createHourValueMap(item);
 
