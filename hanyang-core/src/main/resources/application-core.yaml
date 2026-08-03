@@ -48,6 +48,10 @@ api:
     base-url:
       ${LIBRARY_API_BASE_URL:https://lib.hanyang.ac.kr}
 
+  weather:
+    base-url: ${WEATHER_API_BASE_URL:https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}
+    service-key: ${WEATHER_API_SERVICE_KEY:${api.public-data-key}}
+    
 management:
   endpoints:
     web:
