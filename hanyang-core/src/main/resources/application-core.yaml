@@ -51,5 +51,18 @@ api:
   weather:
     base-url: ${WEATHER_API_BASE_URL:https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}
     service-key: ${WEATHER_API_SERVICE_KEY:${api.public-data-key}}
+    
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  webhook:
+    url: ${DISCORD_WEBHOOK_URL:${SLACK_WEBHOOK_URL:}}
 
 
