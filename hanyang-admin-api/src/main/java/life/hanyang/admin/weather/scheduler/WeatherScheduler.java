@@ -23,17 +23,21 @@ public class WeatherScheduler {
         log.info("[Scheduler] Starting scheduled syncVillageFcst...");
         try {
             weatherSyncService.syncVillageFcst();
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            log.warn("[Scheduler] VillageFcst API Network/Timeout occurred: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[Scheduler] Error in scheduleVillageFcst", e);
         }
     }
 
-    // 2. 초단기실황: 매시 18분에 실행 (14:18, 15:18 ...)
-    @Scheduled(cron = "0 18 * * * *", zone = "Asia/Seoul")
+    // 2. 초단기실황: 매시 20분에 실행 (14:20, 15:20 ...)
+    @Scheduled(cron = "0 20 * * * *", zone = "Asia/Seoul")
     public void scheduleUltraSrtNcst() {
         log.info("[Scheduler] Starting scheduled syncUltraSrtNcst...");
         try {
             weatherSyncService.syncUltraSrtNcst();
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            log.warn("[Scheduler] UltraSrtNcst API Network/Timeout occurred: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[Scheduler] Error in scheduleUltraSrtNcst", e);
         }
@@ -45,6 +49,8 @@ public class WeatherScheduler {
         log.info("[Scheduler] Starting scheduled syncUltraSrtFcst...");
         try {
             weatherSyncService.syncUltraSrtFcst();
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            log.warn("[Scheduler] UltraSrtFcst API Network/Timeout occurred: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[Scheduler] Error in scheduleUltraSrtFcst", e);
         }
@@ -57,7 +63,7 @@ public class WeatherScheduler {
         try {
             fineDustSyncService.syncRealtimeFineDust();
         } catch (org.springframework.web.client.ResourceAccessException e) {
-            log.warn("[Scheduler] FineDust API Timeout occurred: {}", e.getMessage());
+            log.warn("[Scheduler] FineDust API Network/Timeout occurred: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[Scheduler] Error in scheduleRealtimeFineDust", e);
         }
@@ -70,7 +76,7 @@ public class WeatherScheduler {
         try {
             uvSyncService.syncUvIndex();
         } catch (org.springframework.web.client.ResourceAccessException e) {
-            log.warn("[Scheduler] UV API Timeout occurred: {}", e.getMessage());
+            log.warn("[Scheduler] UV API Network/Timeout occurred: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[Scheduler] Error in scheduleUvIndex", e);
         }
