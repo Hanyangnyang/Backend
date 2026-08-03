@@ -4,12 +4,14 @@ import life.hanyang.core.weather.dto.UltraSrtFcstResponseDto;
 import life.hanyang.core.weather.dto.UltraSrtNcstResponseDto;
 import life.hanyang.core.weather.dto.VillageFcstResponseDto;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.DefaultUriBuilderFactory;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.time.Duration;
 
 @Component
 public class WeatherApiClient {
@@ -26,7 +28,14 @@ public class WeatherApiClient {
         DefaultUriBuilderFactory factory = new DefaultUriBuilderFactory(baseUrl);
         factory.setEncodingMode(DefaultUriBuilderFactory.EncodingMode.VALUES_ONLY);
 
-        this.restClient = builder.uriBuilderFactory(factory).build();
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        requestFactory.setReadTimeout(Duration.ofSeconds(10));
+
+        this.restClient = builder
+                .requestFactory(requestFactory)
+                .uriBuilderFactory(factory)
+                .build();
         this.baseUrl = baseUrl;
         this.serviceKey = serviceKey;
     }
