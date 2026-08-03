@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -50,6 +51,13 @@ public class UvSyncService {
         }
 
         LocalDateTime baseDateTime = LocalDateTime.parse(item.date(), DateTimeFormatter.ofPattern("yyyyMMddHH"));
+        LocalDateTime maxDateTime = baseDateTime.plusHours(77); // 75h + 2h offset
+
+        // 1. DB 단 1회 조회를 통해 해당 범위의 기존 레코드를 Map으로 조작
+        Map<LocalDateTime, HourlyWeather> existingMap = hourlyWeatherRepository
+                .findAllByLocationAndForecastAtBetweenOrderByForecastAtAsc(DEFAULT_LOCATION, baseDateTime, maxDateTime)
+                .stream()
+                .collect(Collectors.toMap(HourlyWeather::getForecastAt, w -> w));
 
         Map<Integer, String> hourValueMap = createHourValueMap(item);
 
@@ -66,12 +74,11 @@ public class UvSyncService {
             for (int offset = 0; offset < 3; offset++) {
                 LocalDateTime forecastAt = baseDateTime.plusHours(hoursToAdd + offset);
 
-                HourlyWeather hourlyWeather = hourlyWeatherRepository.findByLocationAndForecastAt(DEFAULT_LOCATION, forecastAt)
-                        .orElseGet(() -> HourlyWeather.builder()
-                                .location(DEFAULT_LOCATION)
-                                .forecastAt(forecastAt)
-                                .temperature(0.0)
-                                .build());
+                HourlyWeather hourlyWeather = existingMap.computeIfAbsent(forecastAt, k -> HourlyWeather.builder()
+                        .location(DEFAULT_LOCATION)
+                        .forecastAt(forecastAt)
+                        .temperature(0.0)
+                        .build());
 
                 hourlyWeather.patchUvIndex(uvValue);
                 weatherListToSave.add(hourlyWeather);

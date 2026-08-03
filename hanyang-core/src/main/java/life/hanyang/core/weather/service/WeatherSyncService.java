@@ -18,6 +18,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -46,13 +47,25 @@ public class WeatherSyncService {
         }
 
         Map<LocalDateTime, List<VillageFcstResponseDto.Item>> timeGroupMap = groupItemsByForecastTime(response);
+        if (timeGroupMap.isEmpty()) return;
+
+        List<LocalDateTime> sortedTimes = timeGroupMap.keySet().stream().sorted().toList();
+        LocalDateTime minTime = sortedTimes.get(0);
+        LocalDateTime maxTime = sortedTimes.get(sortedTimes.size() - 1);
+
+        Map<LocalDateTime, HourlyWeather> existingMap = hourlyWeatherRepository
+                .findAllByLocationAndForecastAtBetweenOrderByForecastAtAsc(DEFAULT_LOCATION, minTime, maxTime)
+                .stream()
+                .collect(Collectors.toMap(HourlyWeather::getForecastAt, w -> w));
+
         List<HourlyWeather> weatherListToSave = new ArrayList<>();
 
         for (Map.Entry<LocalDateTime, List<VillageFcstResponseDto.Item>> entry : timeGroupMap.entrySet()) {
             LocalDateTime forecastAt = entry.getKey();
             List<VillageFcstResponseDto.Item> itemsAtTime = entry.getValue();
 
-            HourlyWeather hourlyWeather = createOrPatchVillageFcst(forecastAt, itemsAtTime);
+            HourlyWeather existing = existingMap.get(forecastAt);
+            HourlyWeather hourlyWeather = createOrPatchVillageFcstWithExisting(forecastAt, itemsAtTime, existing);
             weatherListToSave.add(hourlyWeather);
         }
 
@@ -74,13 +87,25 @@ public class WeatherSyncService {
         }
 
         Map<LocalDateTime, List<UltraSrtFcstResponseDto.Item>> timeGroupMap = groupUltraSrtFcstItems(response);
+        if (timeGroupMap.isEmpty()) return;
+
+        List<LocalDateTime> sortedTimes = timeGroupMap.keySet().stream().sorted().toList();
+        LocalDateTime minTime = sortedTimes.get(0);
+        LocalDateTime maxTime = sortedTimes.get(sortedTimes.size() - 1);
+
+        Map<LocalDateTime, HourlyWeather> existingMap = hourlyWeatherRepository
+                .findAllByLocationAndForecastAtBetweenOrderByForecastAtAsc(DEFAULT_LOCATION, minTime, maxTime)
+                .stream()
+                .collect(Collectors.toMap(HourlyWeather::getForecastAt, w -> w));
+
         List<HourlyWeather> weatherListToSave = new ArrayList<>();
 
         for (Map.Entry<LocalDateTime, List<UltraSrtFcstResponseDto.Item>> entry : timeGroupMap.entrySet()) {
             LocalDateTime forecastAt = entry.getKey();
             List<UltraSrtFcstResponseDto.Item> itemsAtTime = entry.getValue();
 
-            HourlyWeather hourlyWeather = createOrPatchUltraSrtFcst(forecastAt, itemsAtTime);
+            HourlyWeather existing = existingMap.get(forecastAt);
+            HourlyWeather hourlyWeather = createOrPatchUltraSrtFcstWithExisting(forecastAt, itemsAtTime, existing);
             weatherListToSave.add(hourlyWeather);
         }
 
@@ -194,7 +219,7 @@ public class WeatherSyncService {
         return map;
     }
 
-    private HourlyWeather createOrPatchVillageFcst(LocalDateTime forecastAt, List<VillageFcstResponseDto.Item> itemsAtTime) {
+    private HourlyWeather createOrPatchVillageFcstWithExisting(LocalDateTime forecastAt, List<VillageFcstResponseDto.Item> itemsAtTime, HourlyWeather existing) {
         Double temp = null;
         Integer humidity = null;
         Integer sky = null;
@@ -214,31 +239,24 @@ public class WeatherSyncService {
             }
         }
 
-        final Double finalTemp = temp;
-        final Integer finalHumidity = humidity;
-        final Integer finalSky = sky;
-        final Integer finalPty = pty;
-        final Integer finalPop = pop;
-        final Double finalPcp = pcp;
+        if (existing != null) {
+            existing.patchVillageFcst(temp, humidity, sky, pty, pop, pcp);
+            return existing;
+        }
 
-        return hourlyWeatherRepository.findByLocationAndForecastAt(DEFAULT_LOCATION, forecastAt)
-                .map(existing -> {
-                    existing.patchVillageFcst(finalTemp, finalHumidity, finalSky, finalPty, finalPop, finalPcp);
-                    return existing;
-                })
-                .orElseGet(() -> HourlyWeather.builder()
-                        .location(DEFAULT_LOCATION)
-                        .forecastAt(forecastAt)
-                        .temperature(finalTemp != null ? finalTemp : 0.0)
-                        .humidity(finalHumidity)
-                        .skyState(finalSky)
-                        .rainState(finalPty)
-                        .precipProbability(finalPop)
-                        .precipitation(finalPcp)
-                        .build());
+        return HourlyWeather.builder()
+                .location(DEFAULT_LOCATION)
+                .forecastAt(forecastAt)
+                .temperature(temp != null ? temp : 0.0)
+                .humidity(humidity)
+                .skyState(sky)
+                .rainState(pty)
+                .precipProbability(pop)
+                .precipitation(pcp)
+                .build();
     }
 
-    private HourlyWeather createOrPatchUltraSrtFcst(LocalDateTime forecastAt, List<UltraSrtFcstResponseDto.Item> itemsAtTime) {
+    private HourlyWeather createOrPatchUltraSrtFcstWithExisting(LocalDateTime forecastAt, List<UltraSrtFcstResponseDto.Item> itemsAtTime, HourlyWeather existing) {
         Double t1h = null;
         Integer reh = null;
         Integer sky = null;
@@ -258,28 +276,21 @@ public class WeatherSyncService {
             }
         }
 
-        final Double finalT1h = t1h;
-        final Integer finalReh = reh;
-        final Integer finalSky = sky;
-        final Integer finalPty = pty;
-        final Double finalRn1 = rn1;
-        final Boolean finalLgt = lgt;
+        if (existing != null) {
+            existing.patchUltraSrtFcst(t1h, reh, sky, pty, rn1, lgt);
+            return existing;
+        }
 
-        return hourlyWeatherRepository.findByLocationAndForecastAt(DEFAULT_LOCATION, forecastAt)
-                .map(existing -> {
-                    existing.patchUltraSrtFcst(finalT1h, finalReh, finalSky, finalPty, finalRn1, finalLgt);
-                    return existing;
-                })
-                .orElseGet(() -> HourlyWeather.builder()
-                        .location(DEFAULT_LOCATION)
-                        .forecastAt(forecastAt)
-                        .temperature(finalT1h != null ? finalT1h : 0.0)
-                        .humidity(finalReh)
-                        .skyState(finalSky)
-                        .rainState(finalPty)
-                        .precipitation(finalRn1)
-                        .hasThunder(finalLgt)
-                        .build());
+        return HourlyWeather.builder()
+                .location(DEFAULT_LOCATION)
+                .forecastAt(forecastAt)
+                .temperature(t1h != null ? t1h : 0.0)
+                .humidity(reh)
+                .skyState(sky)
+                .rainState(pty)
+                .precipitation(rn1)
+                .hasThunder(lgt)
+                .build();
     }
 
     private String[] getLatestVillageBaseDateTime() {
