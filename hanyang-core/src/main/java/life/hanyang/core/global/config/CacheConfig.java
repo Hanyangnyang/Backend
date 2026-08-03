@@ -54,7 +54,8 @@ public class CacheConfig implements CachingConfigurer {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(config)
                 .withInitialCacheConfigurations(Map.of(
-                        "readingRoomSeats", config.entryTtl(Duration.ofMinutes(3))
+                        "readingRoomSeats", config.entryTtl(Duration.ofMinutes(3)),
+                        "weatherSummary", config.entryTtl(Duration.ofMinutes(10))
                 ))
                 .build();
     }

@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.cache.annotation.CacheEvict;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -28,6 +30,7 @@ public class UvSyncService {
      * 자외선 지수(UV Index) 75시간 예측치를 1시간 단위로 꽉 채워 동기화
      */
     @Transactional
+    @CacheEvict(cacheNames = "weatherSummary", allEntries = true)
     public void syncUvIndex() {
         String baseTime = getLatestBaseTime();
         log.info("Starting syncUvIndex for areaNo: {}, time: {}", DEFAULT_AREA_NO, baseTime);

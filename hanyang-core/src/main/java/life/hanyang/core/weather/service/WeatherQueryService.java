@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.cache.annotation.Cacheable;
+
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -27,6 +29,7 @@ public class WeatherQueryService {
     /**
      * 메인 화면용 통합 날씨 정보 조회 (현재 카드 + 과거 24시간 ~ 미래 24시간 시간별 슬라이더)
      */
+    @Cacheable(cacheNames = "weatherSummary", key = "'summary'")
     public WeatherCompositeResponse getWeatherSummary() {
         LocalDateTime now = LocalDateTime.now(KST_ZONE).withMinute(0).withSecond(0).withNano(0);
 

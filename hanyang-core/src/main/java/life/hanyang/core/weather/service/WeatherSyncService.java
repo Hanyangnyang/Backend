@@ -11,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.cache.annotation.CacheEvict;
+
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -32,6 +34,7 @@ public class WeatherSyncService {
 
     // 1. 단기예보 3일치 정보 업데이트 (POP, SKY, PTY, TMP, REH, PCP)
     @Transactional
+    @CacheEvict(cacheNames = "weatherSummary", allEntries = true)
     public void syncVillageFcst() {
         String[] baseDateTime = getLatestVillageBaseDateTime();
         log.info("Starting syncVillageFcst for baseDate: {}, baseTime: {}", baseDateTime[0], baseDateTime[1]);
@@ -59,6 +62,7 @@ public class WeatherSyncService {
 
     // 2. 초단기예보 6시간치 정보 업데이트 (T1H, RN1, SKY, PTY, LGT, REH)
     @Transactional
+    @CacheEvict(cacheNames = "weatherSummary", allEntries = true)
     public void syncUltraSrtFcst() {
         String[] baseDateTime = getLatestUltraSrtFcstBaseDateTime();
         log.info("Starting syncUltraSrtFcst for baseDate: {}, baseTime: {}", baseDateTime[0], baseDateTime[1]);
@@ -86,6 +90,7 @@ public class WeatherSyncService {
 
     // 3. 초단기실황 관측 정보 업데이트 (T1H, RN1, PTY, REH)
     @Transactional
+    @CacheEvict(cacheNames = "weatherSummary", allEntries = true)
     public void syncUltraSrtNcst() {
         String[] baseDateTime = getLatestNcstBaseDateTime();
         log.info("Starting syncUltraSrtNcst for baseDate: {}, baseTime: {}", baseDateTime[0], baseDateTime[1]);

@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.cache.annotation.CacheEvict;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -30,6 +32,7 @@ public class FineDustSyncService {
      * 에어코리아 실시간 미세먼지 데이터 동기화
      */
     @Transactional
+    @CacheEvict(cacheNames = "weatherSummary", allEntries = true)
     public void syncRealtimeFineDust() {
         log.info("Starting syncRealtimeFineDust for station: {}", DEFAULT_STATION);
 
