@@ -20,7 +20,7 @@ public class WeatherApiClient {
 
     public WeatherApiClient(
             RestClient.Builder builder,
-            @Value("${api.weather.base-url:http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}") String baseUrl,
+            @Value("${api.weather.base-url:https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}") String baseUrl,
             @Value("${api.weather.service-key:}") String serviceKey
     ) {
         DefaultUriBuilderFactory factory = new DefaultUriBuilderFactory(baseUrl);

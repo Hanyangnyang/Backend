@@ -20,7 +20,7 @@ import java.util.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class weatherSyncService {
+public class WeatherSyncService {
 
     private final WeatherApiClient weatherApiClient;
     private final HourlyWeatherRepository hourlyWeatherRepository;

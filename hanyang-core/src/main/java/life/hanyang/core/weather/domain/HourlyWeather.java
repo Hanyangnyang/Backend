@@ -5,6 +5,11 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Getter
@@ -49,13 +54,25 @@ public class HourlyWeather {
     private Boolean hasThunder;
     private Integer pm10Value;
     private Integer pm25Value;
+    private Integer pm10Grade;
+    private Integer pm25Grade;
     private Integer uvIndex;
+
+    @ColumnDefault("CURRENT_TIMESTAMP")
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @ColumnDefault("CURRENT_TIMESTAMP")
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     @Builder
     public HourlyWeather(String location, LocalDateTime forecastAt, Double temperature, Integer humidity,
                          String weatherCondition, Integer skyState, Integer rainState,
                          Integer precipProbability, Double precipitation, Boolean hasThunder,
-                         Integer pm10Value, Integer pm25Value, Integer uvIndex) {
+                         Integer pm10Value, Integer pm25Value, Integer pm10Grade, Integer pm25Grade, Integer uvIndex) {
         this.location = location;
         this.forecastAt = forecastAt;
         this.temperature = temperature;
@@ -67,6 +84,8 @@ public class HourlyWeather {
         this.hasThunder = hasThunder != null ? hasThunder : false;
         this.pm10Value = pm10Value;
         this.pm25Value = pm25Value;
+        this.pm10Grade = pm10Grade;
+        this.pm25Grade = pm25Grade;
         this.uvIndex = uvIndex;
 
         if (weatherCondition != null) {
@@ -110,6 +129,14 @@ public class HourlyWeather {
         if (precipitation != null) this.precipitation = precipitation;
 
         recalculateWeatherCondition();
+    }
+
+    // 4) 미세먼지 PATCH (Non-null 값만 부분 업데이트)
+    public void patchFineDust(Integer pm10Value, Integer pm25Value, Integer pm10Grade, Integer pm25Grade) {
+        if (pm10Value != null) this.pm10Value = pm10Value;
+        if (pm25Value != null) this.pm25Value = pm25Value;
+        if (pm10Grade != null) this.pm10Grade = pm10Grade;
+        if (pm25Grade != null) this.pm25Grade = pm25Grade;
     }
 
     // 현재 보유 중인 skyState와 rainState 기반으로 weatherCondition 상태 자동 재계산

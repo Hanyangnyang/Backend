@@ -7,5 +7,7 @@ import java.util.Optional;
 
 public interface HourlyWeatherRepository extends JpaRepository<HourlyWeather,Long> {
     Optional<HourlyWeather> findByLocationAndForecastAt(String location, LocalDateTime forecastAt);
+
+    Optional<HourlyWeather> findFirstByLocationAndPm10ValueIsNotNullOrderByForecastAtDesc(String location);
 }
 
