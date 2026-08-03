@@ -36,6 +36,6 @@ public enum WeatherCondition {
                 default -> SUNNY;
             };
         }
-        return SUNNY;
+        return null;
     }
 }

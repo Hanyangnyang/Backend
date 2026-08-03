@@ -139,9 +139,16 @@ public class HourlyWeather {
         if (pm25Grade != null) this.pm25Grade = pm25Grade;
     }
 
+    // 5) 자외선지수 PATCH (Non-null 값만 부분 업데이트)
+    public void patchUvIndex(Integer uvIndex) {
+        if (uvIndex != null) {
+            this.uvIndex = uvIndex;
+        }
+    }
+
     // 현재 보유 중인 skyState와 rainState 기반으로 weatherCondition 상태 자동 재계산
     private void recalculateWeatherCondition() {
         WeatherCondition condition = WeatherCondition.from(this.skyState, this.rainState);
-        this.weatherCondition = condition.name();
+        this.weatherCondition = condition != null ? condition.name() : null;
     }
 }
