@@ -30,8 +30,8 @@ public class WeatherScheduler {
         }
     }
 
-    // 2. 초단기실황: 매시 20분에 실행 (14:20, 15:20 ...)
-    @Scheduled(cron = "0 20 * * * *", zone = "Asia/Seoul")
+    // 2. 초단기실황: 매시 18분에 실행 (14:18, 15:18 ...)
+    @Scheduled(cron = "0 18 * * * *", zone = "Asia/Seoul")
     public void scheduleUltraSrtNcst() {
         log.info("[Scheduler] Starting scheduled syncUltraSrtNcst...");
         try {
