@@ -6,10 +6,9 @@ import life.hanyang.core.weather.dto.WeatherCurrentResponse;
 import life.hanyang.core.weather.dto.WeatherHourlyResponse;
 import life.hanyang.core.weather.repository.HourlyWeatherRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import org.springframework.cache.annotation.Cacheable;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -37,7 +36,10 @@ public class WeatherQueryService {
         LocalDateTime start = now.minusHours(24);
         LocalDateTime end = now.plusHours(24);
 
-        // 1. 현재 정시 날씨 조회 및 미세먼지 Fallback 보완
+        // 미세먼지 수치 누락 시 보완을 위한 최신 관측 미세먼지 레코드 1회만 조회 (엔티티 수정 방지)
+        HourlyWeather fallbackFineDust = fineDustSyncService.getLatestFineDustRecord(DEFAULT_LOCATION).orElse(null);
+
+        // 1. 현재 정시 날씨 조회 및 순수 DTO 합성
         HourlyWeather currentWeather = hourlyWeatherRepository.findByLocationAndForecastAt(DEFAULT_LOCATION, now)
                 .orElseGet(() -> HourlyWeather.builder()
                         .location(DEFAULT_LOCATION)
@@ -45,16 +47,14 @@ public class WeatherQueryService {
                         .temperature(0.0)
                         .build());
 
-        fineDustSyncService.fillFallbackFineDust(currentWeather);
-        WeatherCurrentResponse currentResponse = WeatherCurrentResponse.from(currentWeather);
+        WeatherCurrentResponse currentResponse = WeatherCurrentResponse.from(currentWeather, fallbackFineDust);
 
-        // 2. 과거 24시간 ~ 미래 24시간 목록 조회 및 각 레코드 미세먼지 Fallback 보완
+        // 2. 과거 24시간 ~ 미래 24시간 목록 조회 및 순수 DTO 합성
         List<HourlyWeather> hourlyList = hourlyWeatherRepository
                 .findAllByLocationAndForecastAtBetweenOrderByForecastAtAsc(DEFAULT_LOCATION, start, end);
 
         List<WeatherHourlyResponse> hourlyResponses = hourlyList.stream()
-                .peek(fineDustSyncService::fillFallbackFineDust)
-                .map(WeatherHourlyResponse::from)
+                .map(weather -> WeatherHourlyResponse.from(weather, fallbackFineDust))
                 .toList();
 
         return new WeatherCompositeResponse(currentResponse, hourlyResponses);

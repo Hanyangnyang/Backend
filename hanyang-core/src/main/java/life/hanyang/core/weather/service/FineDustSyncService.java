@@ -14,6 +14,7 @@ import org.springframework.cache.annotation.CacheEvict;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -78,30 +79,11 @@ public class FineDustSyncService {
     }
 
     /**
-     * 대상 HourlyWeather의 미세먼지 정보 중 비어있는(null) 필드가 있는 경우, 가장 최근의 관측 데이터로 보완(Fallback)
+     * 가장 최근 관측된 미세먼지 레코드 조회 (DTO 합성용)
      */
     @Transactional(readOnly = true)
-    public void fillFallbackFineDust(HourlyWeather targetWeather) {
-        if (targetWeather == null) {
-            return;
-        }
-
-        boolean hasAllFineDust = targetWeather.getPm10Value() != null
-                && targetWeather.getPm25Value() != null
-                && targetWeather.getPm10Grade() != null
-                && targetWeather.getPm25Grade() != null;
-
-        if (hasAllFineDust) {
-            return;
-        }
-
-        hourlyWeatherRepository.findFirstByLocationAndPm10ValueIsNotNullOrderByForecastAtDesc(targetWeather.getLocation())
-                .ifPresent(latest -> targetWeather.patchFineDust(
-                        latest.getPm10Value(),
-                        latest.getPm25Value(),
-                        latest.getPm10Grade(),
-                        latest.getPm25Grade()
-                ));
+    public Optional<HourlyWeather> getLatestFineDustRecord(String location) {
+        return hourlyWeatherRepository.findFirstByLocationAndPm10ValueIsNotNullOrderByForecastAtDesc(location);
     }
 
     private boolean isEmptyResponse(AirKoreaRealtimeApiResponse response) {

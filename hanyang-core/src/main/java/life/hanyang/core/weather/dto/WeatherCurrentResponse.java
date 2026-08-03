@@ -15,17 +15,22 @@ public record WeatherCurrentResponse(
         Integer pm25Grade,         // 초미세먼지 등급
         Integer uvIndex            // 자외선 지수
 ) {
-    public static WeatherCurrentResponse from(HourlyWeather weather) {
+    public static WeatherCurrentResponse from(HourlyWeather weather, HourlyWeather fallbackFineDust) {
+        Integer pm10Val = weather.getPm10Value() != null ? weather.getPm10Value() : (fallbackFineDust != null ? fallbackFineDust.getPm10Value() : null);
+        Integer pm25Val = weather.getPm25Value() != null ? weather.getPm25Value() : (fallbackFineDust != null ? fallbackFineDust.getPm25Value() : null);
+        Integer pm10Grd = weather.getPm10Grade() != null ? weather.getPm10Grade() : (fallbackFineDust != null ? fallbackFineDust.getPm10Grade() : null);
+        Integer pm25Grd = weather.getPm25Grade() != null ? weather.getPm25Grade() : (fallbackFineDust != null ? fallbackFineDust.getPm25Grade() : null);
+
         return new WeatherCurrentResponse(
                 weather.getForecastAt(),
                 weather.getTemperature(),
                 weather.getHumidity(),
                 weather.getWeatherCondition(),
                 weather.getPrecipitation(),
-                weather.getPm10Value(),
-                weather.getPm10Grade(),
-                weather.getPm25Value(),
-                weather.getPm25Grade(),
+                pm10Val,
+                pm10Grd,
+                pm25Val,
+                pm25Grd,
                 weather.getUvIndex()
         );
     }
