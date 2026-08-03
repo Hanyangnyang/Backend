@@ -1,0 +1,34 @@
+package life.hanyang.core.weather.dto;
+
+import life.hanyang.core.weather.domain.HourlyWeather;
+import java.time.LocalDateTime;
+
+public record WeatherHourlyResponse(
+        LocalDateTime forecastAt,
+        Double temperature,       // 기온 (°C)
+        Integer humidity,          // 습도 (%)
+        String weatherCondition,   // SUNNY, CLOUDY, RAIN 등
+        Integer precipProbability, // 강수확률 (%)
+        Double precipitation,      // 강수량 (mm)
+        Integer pm10Value,         // 미세먼지 농도 (µg/m³)
+        Integer pm10Grade,         // 미세먼지 등급 (1:좋음, 2:보통, 3:나쁨, 4:매우나쁨)
+        Integer pm25Value,         // 초미세먼지 농도 (µg/m³)
+        Integer pm25Grade,         // 초미세먼지 등급
+        Integer uvIndex            // 자외선 지수
+) {
+    public static WeatherHourlyResponse from(HourlyWeather weather) {
+        return new WeatherHourlyResponse(
+                weather.getForecastAt(),
+                weather.getTemperature(),
+                weather.getHumidity(),
+                weather.getWeatherCondition(),
+                weather.getPrecipProbability(),
+                weather.getPrecipitation(),
+                weather.getPm10Value(),
+                weather.getPm10Grade(),
+                weather.getPm25Value(),
+                weather.getPm25Grade(),
+                weather.getUvIndex()
+        );
+    }
+}
