@@ -29,7 +29,7 @@ public class WeatherBriefingService {
 
         LocalDateTime endHour = startHour.plusHours(durationHours);
 
-        return hourlyWeatherRepository.findByLocationAndForecastAtBetweenOrderByForecastAtAsc(
+        return hourlyWeatherRepository.findAllByLocationAndForecastAtBetweenOrderByForecastAtAsc(
                 location,
                 startHour,
                 endHour

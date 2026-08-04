@@ -41,6 +41,7 @@ public class WeatherBriefing {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @ColumnDefault("CURRENT_TIMESTAMP")
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
