@@ -69,5 +69,3 @@ management:
 logging:
   webhook:
     url: ${DISCORD_WEBHOOK_URL:${SLACK_WEBHOOK_URL:}}
-
-
