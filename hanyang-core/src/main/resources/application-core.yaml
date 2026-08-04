@@ -51,6 +51,11 @@ api:
   weather:
     base-url: ${WEATHER_API_BASE_URL:https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}
     service-key: ${WEATHER_API_SERVICE_KEY:${api.public-data-key}}
+
+  gemini:
+    base-url: ${GEMINI_API_BASE_URL:https://generativelanguage.googleapis.com}
+    key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_API_MODEL:gemini-3.5-flash-lite}
     
 management:
   endpoints:
