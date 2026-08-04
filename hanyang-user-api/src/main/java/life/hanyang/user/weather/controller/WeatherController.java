@@ -68,12 +68,25 @@ public class WeatherController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    @Operation(summary = "AI 날씨 브리핑 조회", description = "dateTime 미입력 시 가장 최신 브리핑을 조회하며, 입력 시 해당 시각 정각의 AI 날씨 브리핑을 조회합니다.")
+    @Operation(
+            summary = "AI 날씨 브리핑 조회",
+            description = """
+                    ### 🤖 AI 날씨 브리핑 조회 안내
+                    
+                    **1. 파라미터 상세 안내**
+                    - `location`: 날씨 지역 코드 (기본값: `ANSAN`)
+                    - `dateTime`: 조회하고 싶은 특정 날씨 시각 (ISO-8601 포맷: `YYYY-MM-DDTHH:mm:ss`, 예: `2026-08-04T14:00:00`)
+                    
+                    **2. 동작 방식**
+                    - `dateTime` **미입력 시 (기본)**: 가장 최근에 생성된 최신 AI 날씨 브리핑 1건을 조회합니다.
+                    - `dateTime` **입력 시**: 입력받은 시각의 정각(`14:00:00`)에 생성된 AI 날씨 브리핑을 조회합니다.
+                    """
+    )
     @GetMapping("/briefing")
-        public ResponseEntity<ApiResponse<WeatherBriefingResponse>> getWeatherBriefing(
-                @RequestParam(defaultValue = "ANSAN") String location,
-                @RequestParam(required = false)
-                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTime
+    public ResponseEntity<ApiResponse<WeatherBriefingResponse>> getWeatherBriefing(
+            @RequestParam(defaultValue = "ANSAN") String location,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTime
     ) {
         WeatherBriefingResponse response = weatherBriefingService.getBriefing(location, dateTime);
         return ResponseEntity.ok(ApiResponse.success(response));
