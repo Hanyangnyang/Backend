@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "weather_briefing",
         indexes = {
-                @Index(name = "idx_location_forecast_at", columnList = "location, forecast_at DESC")
+                @Index(name = "idx_location_forecast_at", columnList = "location, forecast_at")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
