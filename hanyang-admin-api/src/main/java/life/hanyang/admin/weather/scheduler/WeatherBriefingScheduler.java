@@ -2,9 +2,9 @@ package life.hanyang.admin.weather.scheduler;
 
 import life.hanyang.core.weather.service.WeatherBriefingService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
@@ -13,10 +13,10 @@ public class WeatherBriefingScheduler {
     private final WeatherBriefingService weatherBriefingService;
 
     /**
-     * 매시 20분 0초에 실행 (초단기실황 API 수집 완료 직후)
+     * 매시 22분 0초에 실행 (기상청 및 대기질 데이터 수집 완료 직후)
      */
-    @Scheduled(cron = "0 20 * * * *", zone = "Asia/Seoul")
-    public void scheduleWeatherBriefingGenration() {
+    @Scheduled(cron = "0 22 * * * *", zone = "Asia/Seoul")
+    public void scheduleWeatherBriefingGeneration() {
         log.info("[WeatherBriefingScheduler] 날씨 LLM 브리핑 정기 생성 시작");
         try {
             weatherBriefingService.generateAndSaveBriefing("ANSAN");
