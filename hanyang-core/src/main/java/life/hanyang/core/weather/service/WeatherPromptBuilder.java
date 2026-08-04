@@ -118,58 +118,62 @@ public class WeatherPromptBuilder {
                 .filter(h -> h.getForecastAt() != null && h.getForecastAt().toLocalDate().equals(tomorrow))
                 .toList();
 
-        if (tomorrowWeathers.isEmpty()) {
-            tomorrowWeathers = hourlyWeathers;
-        }
+        boolean hasTomorrowData = !tomorrowWeathers.isEmpty();
+        List<HourlyWeather> targetWeathers = hasTomorrowData ? tomorrowWeathers : hourlyWeathers;
 
-        double tomorrowMaxTemp = tomorrowWeathers.stream()
+        double tomorrowMaxTemp = targetWeathers.stream()
                 .filter(h -> h.getTemperature() != null)
                 .mapToDouble(HourlyWeather::getTemperature)
                 .max().orElse(currentTemp);
 
-        double tomorrowMinTemp = tomorrowWeathers.stream()
+        double tomorrowMinTemp = targetWeathers.stream()
                 .filter(h -> h.getTemperature() != null)
                 .mapToDouble(HourlyWeather::getTemperature)
                 .min().orElse(currentTemp);
 
-        int tomorrowMaxPrecipProb = tomorrowWeathers.stream()
+        int tomorrowMaxPrecipProb = targetWeathers.stream()
                 .mapToInt(h -> h.getPrecipProbability() != null ? h.getPrecipProbability() : 0)
                 .max().orElse(0);
 
         boolean hasRainOrSnowTomorrow = tomorrowMaxPrecipProb >= 30;
         String tomorrowRainStatus = hasRainOrSnowTomorrow
-                ? String.format("있음 (내일 최고 강수확률 %d%%, 내일 우산 챙기도록 조언 포함)", tomorrowMaxPrecipProb)
+                ? String.format("있음 (최고 강수확률 %d%%, 우산 챙기도록 조언 포함)", tomorrowMaxPrecipProb)
                 : "없음";
 
         String currentWeatherLabel = current.getWeatherCondition() != null ? current.getWeatherCondition() : "정보 없음";
 
         String eveningContextGuide = getEveningContextGuide(isTodayWeekend, isTomorrowWeekend);
 
+        String missingTomorrowNotice = !hasTomorrowData
+                ? "- 현재 내일 예보 데이터가 없으므로 '내일'이라는 단어나 표현을 절대로 사용하지 말고, 현시점 밤 기온과 날씨에 맞춘 저녁 인사만 작성할 것\n"
+                : "";
+
         String schoolNoticeRule = (isTodayWeekend || isTomorrowWeekend)
                 ? "- 오늘 또는 내일이 주말이므로 학교, 등교, 하교, 수업, 출근, 퇴근 관련 표현을 절대로 사용하지 말 것\n"
                 : "";
 
         return """
-                너는 날씨 앱의 AI 어시스턴트야. 아래 [현재 날씨 및 내일 예보 데이터]를 바탕으로 한국 대학생에게 따뜻한 저녁/밤 인사와 함께 내일 날씨 대비 코멘트를 한 문장으로 작성해줘.
+                너는 날씨 앱의 AI 어시스턴트야. 아래 [현재 날씨 및 예보 데이터]를 바탕으로 한국 대학생에게 따뜻한 저녁/밤 인사와 함께 날씨 대비 코멘트를 한 문장으로 작성해줘.
 
                 현재 시간대: 저녁/밤 시간대 (%d시)
                 현재 날씨: %.1f°C (%s)
 
-                [내일 날씨 정보]
-                내일 기온: 최고 %.1f°C / 최저 %.1f°C
-                내일 비/눈 예보 여부: %s
+                [향후/내일 예보 정보]
+                예보 기온: 최고 %.1f°C / 최저 %.1f°C
+                비/눈 예보 여부: %s
 
                 규칙:
                 - 한 문장으로 매우 짧고 간결하게 작성할 것 (대략 30~50자 이내)
                 - %s
                 - 이모지 사용 금지, 반말 금지, 친근한 존댓말 사용
                 - 문장 부호로만 끝낼 것 (마침표 또는 느낌표)
-                %s- 오직 코멘트 문장만 출력, 다른 말 하지 말 것
+                %s%s- 오직 코멘트 문장만 출력, 다른 말 하지 말 것
                 """.formatted(
                 hour, currentTemp, currentWeatherLabel,
                 tomorrowMaxTemp, tomorrowMinTemp,
                 tomorrowRainStatus,
                 eveningContextGuide,
+                missingTomorrowNotice,
                 schoolNoticeRule
         );
     }
