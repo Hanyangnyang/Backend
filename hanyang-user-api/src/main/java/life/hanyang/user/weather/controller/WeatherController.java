@@ -3,13 +3,19 @@ package life.hanyang.user.weather.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import life.hanyang.core.global.response.ApiResponse;
+import life.hanyang.core.weather.dto.WeatherBriefingResponse;
 import life.hanyang.core.weather.dto.WeatherCompositeResponse;
+import life.hanyang.core.weather.service.WeatherBriefingService;
 import life.hanyang.core.weather.service.WeatherQueryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/v1/weather")
@@ -18,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class WeatherController {
 
     private final WeatherQueryService weatherQueryService;
+    private final WeatherBriefingService weatherBriefingService;
 
     @GetMapping
     @Operation(
@@ -59,5 +66,16 @@ public class WeatherController {
     public ResponseEntity<ApiResponse<WeatherCompositeResponse>> getWeatherSummary() {
         WeatherCompositeResponse result = weatherQueryService.getWeatherSummary();
         return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @Operation(summary = "AI 날씨 브리핑 조회", description = "dateTime 미입력 시 가장 최신 브리핑을 조회하며, 입력 시 해당 시각 정각의 AI 날씨 브리핑을 조회합니다.")
+    @GetMapping("/briefing")
+        public ResponseEntity<ApiResponse<WeatherBriefingResponse>> getWeatherBriefing(
+                @RequestParam(defaultValue = "ANSAN") String location,
+                @RequestParam(required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTime
+    ) {
+        WeatherBriefingResponse response = weatherBriefingService.getBriefing(location, dateTime);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
