@@ -5,6 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
+import org.springframework.cache.annotation.EnableCaching;
+
+@EnableCaching
 @SpringBootApplication(scanBasePackages = "life.hanyang")
 @EnableJpaRepositories(basePackages = "life.hanyang.core")
 @EntityScan(basePackages = "life.hanyang.core")

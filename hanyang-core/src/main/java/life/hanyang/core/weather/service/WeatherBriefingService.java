@@ -9,6 +9,9 @@ import life.hanyang.core.weather.repository.HourlyWeatherRepository;
 import life.hanyang.core.weather.repository.WeatherBriefingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,12 +43,19 @@ public class WeatherBriefingService {
         );
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "weatherBriefing", key = "#location + ':latest'"),
+            @CacheEvict(value = "weatherBriefing", key = "#location + ':' + T(java.time.LocalDateTime).now(T(java.time.ZoneId).of('Asia/Seoul')).withMinute(0).withSecond(0).withNano(0)")
+    })
     @Transactional
     public void generateAndSaveBriefing(String location) {
         generateAndSaveBriefing(location, LocalDateTime.now(ZoneId.of("Asia/Seoul")));
     }
 
-
+    @Caching(evict = {
+            @CacheEvict(value = "weatherBriefing", key = "#location + ':latest'"),
+            @CacheEvict(value = "weatherBriefing", key = "#location + ':' + #baseTime.withMinute(0).withSecond(0).withNano(0).toString()")
+    })
     @Transactional
     public void generateAndSaveBriefing(String location, LocalDateTime baseTime) {
         List<HourlyWeather> hourlyWeathers = fetchHourlyWeathers(location, baseTime, 24);
@@ -68,7 +78,11 @@ public class WeatherBriefingService {
         weatherBriefingRepository.save(briefing);
     }
 
-    public WeatherBriefingResponse getBriefing(String location, LocalDateTime dateTime){
+    @Cacheable(
+            value = "weatherBriefing",
+            key = "#dateTime == null ? #location + ':latest' : #location + ':' + #dateTime"
+    )
+    public WeatherBriefingResponse getBriefing(String location, LocalDateTime dateTime) {
         if (dateTime != null) {
             LocalDateTime targetTime = dateTime.withMinute(0).withSecond(0).withNano(0);
             return weatherBriefingRepository.findByLocationAndForecastAt(location, targetTime)

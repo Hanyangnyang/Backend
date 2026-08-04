@@ -55,7 +55,8 @@ public class CacheConfig implements CachingConfigurer {
                 .cacheDefaults(config)
                 .withInitialCacheConfigurations(Map.of(
                         "readingRoomSeats", config.entryTtl(Duration.ofMinutes(3)),
-                        "weatherSummary", config.entryTtl(Duration.ofMinutes(10))
+                        "weatherSummary", config.entryTtl(Duration.ofMinutes(10)),
+                        "weatherBriefing", config.entryTtl(Duration.ofMinutes(30))
                 ))
                 .build();
     }

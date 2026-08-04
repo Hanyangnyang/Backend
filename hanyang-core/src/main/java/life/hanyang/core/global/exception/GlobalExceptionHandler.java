@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -20,14 +21,24 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     /**
-     * 커스텀 비즈니스 예외 처리
+     * 커스텀 비즈니스 예외 처리 (4xx 정상 예외이므로 스택 트레이스 소음 제거)
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
-        log.warn("Business Exception: {}", e.getMessage(), e);
+        log.warn("[Business Exception] {}", e.getMessage());
         ErrorCode errorCode = e.getErrorCode();
         ApiResponse<Void> response = ApiResponse.fail(errorCode.getCode(), e.getMessage());
         return ResponseEntity.status(errorCode.getStatus()).body(response);
+    }
+
+    /**
+     * 404 정적 리소스 없음 예외 처리 (Chrome DevTools 자동 핑 소음 차단)
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResourceFoundException(NoResourceFoundException e) {
+        log.warn("[Resource Not Found] {}", e.getMessage());
+        ApiResponse<Void> response = ApiResponse.fail(ErrorCode.ENTITY_NOT_FOUND.getCode(), ErrorCode.ENTITY_NOT_FOUND.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     /**
@@ -35,7 +46,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException e) {
-        log.warn("Validation Exception: ", e);
+        log.warn("Validation Exception: {}", e.getMessage());
         BindingResult bindingResult = e.getBindingResult();
 
         String message = bindingResult.getFieldErrors().stream()
@@ -51,7 +62,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatchException(MethodArgumentTypeMismatchException e) {
-        log.warn("Type Mismatch Exception: ", e);
+        log.warn("Type Mismatch Exception: {}", e.getMessage());
         ApiResponse<Void> response = ApiResponse.fail(ErrorCode.INVALID_INPUT_VALUE.getCode(), "올바르지 않은 파라미터 형식입니다.");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
@@ -61,7 +72,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiResponse<Void>> handleMethodNotSupportedException(HttpRequestMethodNotSupportedException e) {
-        log.warn("Method Not Supported Exception: ", e);
+        log.warn("Method Not Supported Exception: {}", e.getMessage());
         ApiResponse<Void> response = ApiResponse.fail(ErrorCode.METHOD_NOT_ALLOWED.getCode(), ErrorCode.METHOD_NOT_ALLOWED.getMessage());
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
     }
@@ -71,23 +82,23 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException e) {
-        log.warn("Bad Request Exception: ", e);
+        log.warn("Bad Request Exception: {}", e.getMessage());
         ApiResponse<Void> response = ApiResponse.fail(ErrorCode.INVALID_INPUT_VALUE.getCode(), e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**
-     * 6. 파일 업로드 용량 제한 초과 시 예외 처리 (400 Bad Request)
+     * 파일 업로드 용량 제한 초과 시 예외 처리 (400 Bad Request)
      */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException e) {
-        log.warn("File Size Limit Exceeded: ", e);
+        log.warn("File Size Limit Exceeded: {}", e.getMessage());
         ApiResponse<Void> response = ApiResponse.fail(ErrorCode.FILE_SIZE_LIMIT_EXCEEDED.getCode(), ErrorCode.FILE_SIZE_LIMIT_EXCEEDED.getMessage());
         return ResponseEntity.status(ErrorCode.FILE_SIZE_LIMIT_EXCEEDED.getStatus()).body(response);
     }
 
     /**
-     * 7. 최후의 방어선: 그 외 예상치 못한 모든 예외 처리 (500 Internal Server Error)
+     * 최후의 방어선: 그 외 예상치 못한 모든 심각한 예외 처리 (500 Internal Server Error)
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
