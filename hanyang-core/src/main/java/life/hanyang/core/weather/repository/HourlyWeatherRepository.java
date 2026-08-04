@@ -3,6 +3,7 @@ package life.hanyang.core.weather.repository;
 import life.hanyang.core.weather.domain.HourlyWeather;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface HourlyWeatherRepository extends JpaRepository<HourlyWeather,Long> {
@@ -11,5 +12,11 @@ public interface HourlyWeatherRepository extends JpaRepository<HourlyWeather,Lon
     Optional<HourlyWeather> findFirstByLocationAndPm10ValueIsNotNullOrderByForecastAtDesc(String location);
 
     java.util.List<HourlyWeather> findAllByLocationAndForecastAtBetweenOrderByForecastAtAsc(String location, LocalDateTime start, LocalDateTime end);
+
+    List<HourlyWeather> findByLocationAndForecastAtBetweenOrderByForecastAtAsc(
+            String location,
+            LocalDateTime start,
+            LocalDateTime end
+    );
 }
 
