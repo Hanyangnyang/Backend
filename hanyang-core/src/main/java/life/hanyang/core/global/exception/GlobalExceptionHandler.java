@@ -36,7 +36,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNoResourceFoundException(NoResourceFoundException e) {
-        log.warn("[Resource Not Found] {}", e.getMessage());
+        log.debug("[Resource Not Found] {}", e.getMessage());
         ApiResponse<Void> response = ApiResponse.fail(ErrorCode.ENTITY_NOT_FOUND.getCode(), ErrorCode.ENTITY_NOT_FOUND.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
