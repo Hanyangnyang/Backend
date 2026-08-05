@@ -4,23 +4,28 @@ import life.hanyang.core.partnership.domain.Department;
 import life.hanyang.core.partnership.domain.Merchant;
 import life.hanyang.core.partnership.domain.MerchantCategory;
 import life.hanyang.core.partnership.domain.Partnership;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.List;
 
 @Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 public class PartnershipDetailResponse {
-    private final Long merchantId;
-    private final String storeName;
-    private final MerchantCategory merchantCategory;
-    private final Boolean isActive;
-    private final String emoji;
-    private final Double latitude;
-    private final Double longitude;
-    private final String fullAddress;
-    private final String kakaoPlaceId;
-    private final List<PartnershipInfo> partnerships;
+    private Long merchantId;
+    private String storeName;
+    private MerchantCategory merchantCategory;
+    private Boolean isActive;
+    private String emoji;
+    private Double latitude;
+    private Double longitude;
+    private String fullAddress;
+    private String kakaoPlaceId;
+    private List<PartnershipInfo> partnerships;
 
     public PartnershipDetailResponse(Merchant merchant, List<PartnershipInfo> partnerships) {
         this.merchantId = merchant.getMerchantId();
@@ -36,15 +41,17 @@ public class PartnershipDetailResponse {
     }
 
     @Getter
+    @NoArgsConstructor(access = AccessLevel.PROTECTED)
+    @AllArgsConstructor
     public static class PartnershipInfo {
-        private final Long partnershipId;
-        private final Department department;
-        private final String benefit;
-        private final String conditions;
-        private final String sourceUrl;
-        private final Integer photoOrder;
-        private final LocalDate startDate;
-        private final LocalDate endDate;
+        private Long partnershipId;
+        private Department department;
+        private String benefit;
+        private String conditions;
+        private String sourceUrl;
+        private Integer photoOrder;
+        private LocalDate startDate;
+        private LocalDate endDate;
 
         public PartnershipInfo(Partnership partnership) {
             this.partnershipId = partnership.getPartnershipId();
