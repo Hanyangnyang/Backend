@@ -17,7 +17,13 @@ admin:
         password: ${ADMIN_PASSWORD}
 
 cors:
-  allowed-origins: https://hanyang.life,https://admin.hanyang.life
+  allowed-origins:
+    - https://hanyang.life
+    - https://www.hanyang.life
+    - https://admin.hanyang.life
+    - https://www.admin.hanyang.life
+    - http://localhost:5173
+    - http://localhost:3000
 
 server:
   port: 8081
