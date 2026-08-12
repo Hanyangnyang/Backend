@@ -13,6 +13,7 @@ import life.hanyang.core.shuttle.dto.ShuttleTimetableResponse;
 import life.hanyang.core.shuttle.service.ShuttleTimetableService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -29,7 +30,7 @@ public class ShuttleAdminController {
     private final ObjectMapper objectMapper;
 
     @Operation(summary = "모든 셔틀 정보를 삭제하고 입력한 파일에 있는 정보를 추가합니다.")
-    @PostMapping("reset-reload")
+    @PostMapping(value = "reset-reload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Void>> uploadTimetables(
             @RequestParam("file") MultipartFile file) {
         List<ShuttleTimetableRequest> requests;

@@ -13,6 +13,7 @@ import life.hanyang.core.partnership.dto.PartnershipUpdateDto;
 import life.hanyang.core.partnership.service.PartnershipService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -29,7 +30,7 @@ public class PartnershipAdminController {
     private final ObjectMapper objectMapper;
 
     @Operation(summary = "기존의 제휴 정보를 전부 삭제 하고, 입력한 JSON 파일에 있는 정보를 추가합니다.")
-    @PostMapping("reset-reload")
+    @PostMapping(value = "reset-reload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Void>> resetAndLoadData(@RequestParam("file") MultipartFile file) {
         List<MerchantCreateWithPartnershipsRequest> requests;
         try {
