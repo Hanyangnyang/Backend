@@ -67,8 +67,6 @@ public class GymPeriodService {
     @Transactional
     @CacheEvict(cacheNames = "gymPeriod", allEntries = true)
     public void deletePeriod(Long periodId) {
-        GymPeriod gymPeriod = gymPeriodRepository.findById(periodId)
-                        .orElseThrow(() -> new EntityNotFoundException("해당 학기 정보가 존재하지 않습니다. ID: " + periodId));
-        gymPeriodRepository.delete(gymPeriod);
+        gymPeriodRepository.deleteById(periodId);
     }
 }

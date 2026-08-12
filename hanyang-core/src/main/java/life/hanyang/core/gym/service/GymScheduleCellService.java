@@ -59,11 +59,6 @@ public class GymScheduleCellService {
     @Transactional
     @CacheEvict(cacheNames = "gymPeriod", allEntries = true)
     public void deleteSchedules(List<Long> scheduleCellIds){
-        long count = gymScheduleCellRepository.countByIdIn(scheduleCellIds);
-        // TODO: 삭제 API의 멱등성 보장을 위해 count 조회 검증 로직 제거 검토
-        if (count != scheduleCellIds.size()) {
-            throw new EntityNotFoundException("존재하지 않는 시간표 ID가 포함되어 있습니다.");
-        }
         gymScheduleCellRepository.deleteAllByIdInBatch(scheduleCellIds);
     }
 
