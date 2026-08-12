@@ -8,7 +8,7 @@ spring:
       - optional:classpath:/application-core.yaml
 
 cors:
-  allowed-origins: https://hanyang.life,https://admin.hanyang.life
+  allowed-origins: https://hanyang.life,https://admin.hanyang.life,http://localhost:5173,http://localhost:3000
 
 server:
   port: 8080
