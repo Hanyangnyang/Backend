@@ -61,11 +61,9 @@ public class MerchantService {
     @Transactional
     @CacheEvict(cacheNames = {"merchant", "partnership"}, allEntries = true)
     public void deleteMerchants(List<Long> merchantIds){
-        Long count = merchantRepository.countByMerchantIdIn(merchantIds);
-        if (count != merchantIds.size()) {
-            throw new EntityNotFoundException("존재하지 않는 업체의 ID가 포함되어 있습니다.");
+        if (merchantIds == null || merchantIds.isEmpty()) {
+            return;
         }
-        // 데이터 양이 얼마 되지 않아 deleteAllById 방식으로 편리하게 제거함
         merchantRepository.deleteAllById(merchantIds);
     }
 }
