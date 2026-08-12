@@ -32,17 +32,19 @@ public class ShuttleAdminController {
     @PostMapping("reset-reload")
     public ResponseEntity<ApiResponse<Void>> uploadTimetables(
             @RequestParam("file") MultipartFile file) {
+        List<ShuttleTimetableRequest> requests;
         try {
-            List<ShuttleTimetableRequest> requests = objectMapper.readValue(
+            requests = objectMapper.readValue(
                     file.getInputStream(),
                     new TypeReference<List<ShuttleTimetableRequest>>() {
                     }
             );
-            shuttleTimetableService.createAllTimetable(requests);
-            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
         } catch (IOException e) {
             throw new BusinessException("JSON 파일 파싱 중 에러가 발생했습니다: " + e.getMessage(), ErrorCode.INVALID_INPUT_VALUE);
         }
+
+        shuttleTimetableService.createAllTimetable(requests);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
     }
 
     @Operation(summary = "입력한 셔틀 스케줄들을 삭제합니다.")

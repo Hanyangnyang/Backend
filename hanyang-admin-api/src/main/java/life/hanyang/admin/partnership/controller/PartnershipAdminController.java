@@ -31,16 +31,18 @@ public class PartnershipAdminController {
     @Operation(summary = "기존의 제휴 정보를 전부 삭제 하고, 입력한 JSON 파일에 있는 정보를 추가합니다.")
     @PostMapping("reset-reload")
     public ResponseEntity<ApiResponse<Void>> resetAndLoadData(@RequestParam("file") MultipartFile file) {
+        List<MerchantCreateWithPartnershipsRequest> requests;
         try {
-            List<MerchantCreateWithPartnershipsRequest> requests = objectMapper.readValue(
+            requests = objectMapper.readValue(
                     file.getInputStream(),
                     new TypeReference<List<MerchantCreateWithPartnershipsRequest>>() {}
             );
-            partnershipService.resetAndLoadPartnerships(requests);
-            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
         } catch (IOException e) {
             throw new BusinessException("JSON 파일 파싱 중 에러가 발생했습니다: " + e.getMessage(), ErrorCode.INVALID_INPUT_VALUE);
         }
+
+        partnershipService.resetAndLoadPartnerships(requests);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
     }
 
     @Operation(summary = "제휴 정보를 추가합니다.")
