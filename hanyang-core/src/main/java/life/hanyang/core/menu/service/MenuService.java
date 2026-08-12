@@ -1,5 +1,7 @@
 package life.hanyang.core.menu.service;
 
+import life.hanyang.core.global.exception.BusinessException;
+import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.menu.dto.MenuResponse;
 import life.hanyang.core.menu.entity.Cafeteria;
 import life.hanyang.core.menu.entity.CafeteriaCode;
@@ -50,7 +52,10 @@ public class MenuService {
         }
 
         if (start.isAfter(end)) {
-            throw new IllegalArgumentException("시작 날짜(" + start + ")는 종료 날짜(" + end + ")보다 이전이거나 같아야 합니다.");
+            throw new BusinessException(
+                    String.format("시작 날짜는 종료 날짜보다 이전이거나 같아야 합니다. (시작: %s, 종료: %s)", start, end),
+                    ErrorCode.INVALID_INPUT_VALUE
+            );
         }
 
 
