@@ -31,10 +31,10 @@ public class ShuttleTimetableService {
         shuttleTimetableRepository.deleteAll();
         List<ShuttleTimetable> entities = requests.stream()
                 .map(req -> ShuttleTimetable.builder()
-                                .shuttleRoute(ShuttleRoute.valueOf(req.getRoute()))
-                                .shuttlePeriod(ShuttlePeriod.valueOf(req.getPeriod()))
-                                .shuttleDayType(ShuttleDayType.valueOf(req.getDayType()))
-                                .departureTime(LocalTime.parse(req.getDep()))
+                                .shuttleRoute(req.route())
+                                .shuttlePeriod(req.period())
+                                .shuttleDayType(req.dayType())
+                                .departureTime(req.dep())
                                 .build()
                 )
                 .collect(Collectors.toList());
@@ -69,10 +69,10 @@ public class ShuttleTimetableService {
     @CacheEvict(cacheNames = "shuttleTimetable", allEntries = true)
     public ShuttleTimetableResponse createTimetable(ShuttleTimetableRequest request) {
         ShuttleTimetable entity = ShuttleTimetable.builder()
-                .shuttleRoute(ShuttleRoute.valueOf(request.getRoute()))
-                .shuttlePeriod(ShuttlePeriod.valueOf(request.getPeriod()))
-                .shuttleDayType(ShuttleDayType.valueOf(request.getDayType()))
-                .departureTime(LocalTime.parse(request.getDep()))
+                .shuttleRoute(request.route())
+                .shuttlePeriod(request.period())
+                .shuttleDayType(request.dayType())
+                .departureTime(request.dep())
                 .build();
         ShuttleTimetable saved = shuttleTimetableRepository.save(entity);
         return ShuttleTimetableResponse.from(saved);
@@ -84,10 +84,10 @@ public class ShuttleTimetableService {
         ShuttleTimetable entity = shuttleTimetableRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("해당 시간표가 존재하지 않습니다. id: " + id));
         entity.update(
-                ShuttleRoute.valueOf(request.getRoute()),
-                ShuttlePeriod.valueOf(request.getPeriod()),
-                ShuttleDayType.valueOf(request.getDayType()),
-                LocalTime.parse(request.getDep())
+                request.route(),
+                request.period(),
+                request.dayType(),
+                request.dep()
         );
         return ShuttleTimetableResponse.from(entity);
     }

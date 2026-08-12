@@ -2,6 +2,7 @@ package life.hanyang.core.global.exception;
 
 import life.hanyang.core.global.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
@@ -10,10 +11,12 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -52,6 +55,27 @@ public class GlobalExceptionHandler {
         String message = bindingResult.getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(" "));
+
+        ApiResponse<Void> response = ApiResponse.fail(ErrorCode.INVALID_INPUT_VALUE.getCode(), message);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    /**
+     * Spring 6.1+ 컨트롤러 메서드 파라미터/컬렉션 유효성 검증 실패 예외 처리 (400 Bad Request)
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandlerMethodValidationException(HandlerMethodValidationException e) {
+        log.warn("Handler Method Validation Exception: {}", e.getMessage());
+
+        String message = e.getValueResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream())
+                .map(MessageSourceResolvable::getDefaultMessage)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(" "));
+
+        if (message.isBlank()) {
+            message = ErrorCode.INVALID_INPUT_VALUE.getMessage();
+        }
 
         ApiResponse<Void> response = ApiResponse.fail(ErrorCode.INVALID_INPUT_VALUE.getCode(), message);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);

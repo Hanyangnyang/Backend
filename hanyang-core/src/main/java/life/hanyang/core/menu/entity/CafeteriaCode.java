@@ -1,5 +1,7 @@
 package life.hanyang.core.menu.entity;
 
+import life.hanyang.core.global.exception.BusinessException;
+import life.hanyang.core.global.exception.ErrorCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import java.util.Arrays;
@@ -18,6 +20,6 @@ public enum CafeteriaCode {
         return Arrays.stream(values())
                 .filter(c -> c.code.equalsIgnoreCase(code))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 식당 코드입니다: " + code));
+                .orElseThrow(() -> new BusinessException("존재하지 않는 식당 코드입니다: " + code, ErrorCode.INVALID_INPUT_VALUE));
     }
 }

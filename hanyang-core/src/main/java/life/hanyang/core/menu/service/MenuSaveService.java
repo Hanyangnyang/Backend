@@ -1,5 +1,6 @@
 package life.hanyang.core.menu.service;
 
+import life.hanyang.core.global.exception.EntityNotFoundException;
 import life.hanyang.core.menu.dto.MenuCrawlResultDto;
 import life.hanyang.core.menu.entity.Cafeteria;
 import life.hanyang.core.menu.entity.MealType;
@@ -27,7 +28,7 @@ public class MenuSaveService {
      */
     public void updateMenuDisplay(Long menuId, String displayMenu) {
         Menu menu = menuRepository.findById(menuId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 식단 ID입니다: " + menuId));
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 식단 ID입니다: " + menuId));
         menu.updateDisplayMenu(displayMenu);
         menuRepository.save(menu);
     }
