@@ -23,11 +23,14 @@ public enum MerchantCategory {
 
     @JsonCreator
     public static MerchantCategory fromValue(String value) {
+        if (value == null) {
+            return null;
+        }
         for (MerchantCategory category : MerchantCategory.values()) {
             if (category.getValue().equalsIgnoreCase(value)) {
                 return category;
             }
         }
-        throw new IllegalArgumentException("Unknown merchant category: " + value);
+        return null;
     }
 }

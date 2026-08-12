@@ -42,18 +42,19 @@ public class PartnershipService {
         for (MerchantCreateWithPartnershipsRequest request : requests) {
             // 2. 부모 Merchant 빌드
             Merchant merchant = Merchant.builder()
-                    .storeName(request.getName())
-                    .merchantCategory(MerchantCategory.fromValue(request.getCategory()))
-                    .emoji(request.getEmoji())
-                    .isActive(request.getIsActive())
-                    .latitude(request.getLocation() != null ? request.getLocation().getLatitude() : null)
-                    .longitude(request.getLocation() != null ? request.getLocation().getLongitude() : null)
-                    .fullAddress(request.getLocation() != null ? request.getLocation().getFullAddress() : null)
-                    .kakaoPlaceId(request.getKakaoPlaceId() != null ? request.getKakaoPlaceId() : null)
+                    .storeName(request.storeName())
+                    .merchantCategory(request.category())
+                    .emoji(request.emoji())
+                    .isActive(request.isActive())
+                    .latitude(request.location() != null ? request.location().getLatitude() : null)
+                    .longitude(request.location() != null ? request.location().getLongitude() : null)
+                    .fullAddress(request.location() != null ? request.location().getFullAddress() : null)
+                    .kakaoPlaceId(request.kakaoPlaceId() != null ? request.kakaoPlaceId() : null)
                     .build();
 
             // 3. 자식 Partnership 빌드 및 양방향 연관관계 맺기
-            for (var partDto : request.getPartnerships()) {
+            if (request.partnerships() != null) {
+                for (var partDto : request.partnerships()) {
                 Partnership partnership = Partnership.builder()
                         .department(partDto.getCollegeName())
                         .benefit(partDto.getBenefit())
@@ -66,6 +67,7 @@ public class PartnershipService {
 
                 // 연관관계 편의 메서드 호출
                 merchant.addPartnership(partnership);
+            }
             }
             merchantsToSave.add(merchant);
         }
