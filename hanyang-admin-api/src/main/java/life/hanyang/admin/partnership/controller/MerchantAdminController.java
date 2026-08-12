@@ -2,6 +2,7 @@ package life.hanyang.admin.partnership.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import life.hanyang.core.global.response.ApiResponse;
 import life.hanyang.core.partnership.dto.MerchantRequest;
 import life.hanyang.core.partnership.dto.MerchantResponse;
@@ -29,14 +30,14 @@ public class MerchantAdminController {
 
     @Operation(summary = "업체 정보를 추가합니다.")
     @PostMapping
-    public ResponseEntity<ApiResponse<Void>> createMerchants(@RequestBody List<MerchantRequest> requests){
+    public ResponseEntity<ApiResponse<Void>> createMerchants(@RequestBody List<@Valid MerchantRequest> requests){
         merchantService.createMerchants(requests);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
     }
 
     @Operation(summary = "업체 정보를 변경합니다.")
     @PutMapping()
-    public ResponseEntity<ApiResponse<MerchantResponse>> updateMerchants(Long merchantId, @RequestBody MerchantRequest request){
+    public ResponseEntity<ApiResponse<MerchantResponse>> updateMerchants(Long merchantId, @Valid @RequestBody MerchantRequest request){
         MerchantResponse merchantResponse = merchantService.updateMerchant(merchantId, request);
         return ResponseEntity.ok(ApiResponse.success(merchantResponse));
     }
