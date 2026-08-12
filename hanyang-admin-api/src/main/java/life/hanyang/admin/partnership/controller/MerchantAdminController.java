@@ -36,8 +36,8 @@ public class MerchantAdminController {
     }
 
     @Operation(summary = "업체 정보를 변경합니다.")
-    @PutMapping()
-    public ResponseEntity<ApiResponse<MerchantResponse>> updateMerchants(Long merchantId, @Valid @RequestBody MerchantRequest request){
+    @PutMapping("/{merchantId}")
+    public ResponseEntity<ApiResponse<MerchantResponse>> updateMerchants(@PathVariable("merchantId") Long merchantId, @Valid @RequestBody MerchantRequest request){
         MerchantResponse merchantResponse = merchantService.updateMerchant(merchantId, request);
         return ResponseEntity.ok(ApiResponse.success(merchantResponse));
     }
