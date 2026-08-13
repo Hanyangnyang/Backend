@@ -78,7 +78,8 @@ public class WeatherBriefingService {
         } catch (Exception e) {
             throw new BusinessException(
                     "Gemini LLM 브리핑 생성에 실패했습니다: " + e.getMessage(),
-                    ErrorCode.INTERNAL_SERVER_ERROR
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    e
             );
         }
 

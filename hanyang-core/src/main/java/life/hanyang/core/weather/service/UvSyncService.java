@@ -43,7 +43,7 @@ public class UvSyncService {
         try {
             response = uvApiClient.fetchUvIndex(DEFAULT_AREA_NO, baseTime);
         } catch (Exception e) {
-            throw new BusinessException("기상청 자외선 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR);
+            throw new BusinessException("기상청 자외선 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR, e);
         }
 
         if (isEmptyResponse(response)) {

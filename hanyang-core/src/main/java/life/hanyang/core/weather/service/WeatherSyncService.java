@@ -45,7 +45,7 @@ public class WeatherSyncService {
         try {
             response = weatherApiClient.fetchVillageFcst(baseDateTime[0], baseDateTime[1], DEFAULT_NX, DEFAULT_NY);
         } catch (Exception e) {
-            throw new BusinessException("기상청 단기예보 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR);
+            throw new BusinessException("기상청 단기예보 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR, e);
         }
 
         if (isEmptyResponse(response)) {
@@ -98,7 +98,7 @@ public class WeatherSyncService {
         try {
             response = weatherApiClient.fetchUltraSrtFcst(baseDateTime[0], baseDateTime[1], DEFAULT_NX, DEFAULT_NY);
         } catch (Exception e) {
-            throw new BusinessException("기상청 초단기예보 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR);
+            throw new BusinessException("기상청 초단기예보 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR, e);
         }
 
         if (isEmptyUltraSrtFcstResponse(response)) {
@@ -151,7 +151,7 @@ public class WeatherSyncService {
         try {
             response = weatherApiClient.fetchUltraSrtNcst(baseDateTime[0], baseDateTime[1], DEFAULT_NX, DEFAULT_NY);
         } catch (Exception e) {
-            throw new BusinessException("기상청 초단기실황 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR);
+            throw new BusinessException("기상청 초단기실황 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR, e);
         }
 
         if (isEmptyNcstResponse(response)) {

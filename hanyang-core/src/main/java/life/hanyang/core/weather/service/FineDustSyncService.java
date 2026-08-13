@@ -42,7 +42,7 @@ public class FineDustSyncService {
         try {
             response = fineDustApiClient.fetchRealtimeFineDust(DEFAULT_STATION);
         } catch (Exception e) {
-            throw new BusinessException("에어코리아 미세먼지 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR);
+            throw new BusinessException("에어코리아 미세먼지 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR, e);
         }
 
         if (isEmptyResponse(response)) {
