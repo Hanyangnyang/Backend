@@ -68,4 +68,4 @@ management:
 
 logging:
   webhook:
-    url: ${DISCORD_WEBHOOK_URL:${SLACK_WEBHOOK_URL:}}
+    url: ${DISCORD_ERROR_WEBHOOK_URL:${DISCORD_WEBHOOK_URL:${SLACK_WEBHOOK_URL:}}}
