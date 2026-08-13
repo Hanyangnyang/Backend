@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 public record WeatherCurrentResponse(
         LocalDateTime forecastAt,
         Double temperature,       // 기온 (°C)
+        Double minTemperature,    // 오늘 최저 기온 (°C)
+        Double maxTemperature,    // 오늘 최고 기온 (°C)
         Integer humidity,          // 습도 (%)
         String weatherCondition,   // SUNNY, CLOUDY, RAIN 등 (날씨 정보가 없으면 null)
         Double precipitation,      // 강수량 (mm)
@@ -15,7 +17,12 @@ public record WeatherCurrentResponse(
         Integer pm25Grade,         // 초미세먼지 등급
         Integer uvIndex            // 자외선 지수
 ) {
-    public static WeatherCurrentResponse from(HourlyWeather weather, HourlyWeather fallbackFineDust) {
+    public static WeatherCurrentResponse from(
+            HourlyWeather weather,
+            HourlyWeather fallbackFineDust,
+            Double minTemperature,
+            Double maxTemperature
+    ) {
         Integer pm10Val = weather.getPm10Value() != null ? weather.getPm10Value() : (fallbackFineDust != null ? fallbackFineDust.getPm10Value() : null);
         Integer pm25Val = weather.getPm25Value() != null ? weather.getPm25Value() : (fallbackFineDust != null ? fallbackFineDust.getPm25Value() : null);
         Integer pm10Grd = weather.getPm10Grade() != null ? weather.getPm10Grade() : (fallbackFineDust != null ? fallbackFineDust.getPm10Grade() : null);
@@ -24,6 +31,8 @@ public record WeatherCurrentResponse(
         return new WeatherCurrentResponse(
                 weather.getForecastAt(),
                 weather.getTemperature(),
+                minTemperature,
+                maxTemperature,
                 weather.getHumidity(),
                 weather.getWeatherCondition(),
                 weather.getPrecipitation(),
