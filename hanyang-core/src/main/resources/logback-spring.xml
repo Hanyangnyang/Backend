@@ -10,8 +10,10 @@
 
     <!-- EC2 운영 서버 환경(SPRING_PROFILES_ACTIVE=prod)에서만 ERROR 발생 시 디스코드 비동기 알림 -->
     <springProfile name="prod">
+        <springProperty scope="context" name="DISCORD_URL" source="logging.webhook.url" defaultValue=""/>
+
         <appender name="DISCORD_WEBHOOK" class="life.hanyang.core.global.logging.DiscordLogbackAppender">
-            <webhookUrl>${DISCORD_ERROR_WEBHOOK_URL:${logging.webhook.url:}}</webhookUrl>
+            <webhookUrl>${DISCORD_URL}</webhookUrl>
         </appender>
 
         <appender name="ASYNC_DISCORD" class="ch.qos.logback.classic.AsyncAppender">
