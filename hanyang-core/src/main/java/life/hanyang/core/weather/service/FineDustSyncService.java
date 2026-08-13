@@ -1,15 +1,17 @@
 package life.hanyang.core.weather.service;
 
+import life.hanyang.core.global.exception.BusinessException;
+import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.weather.client.FineDustApiClient;
 import life.hanyang.core.weather.domain.HourlyWeather;
 import life.hanyang.core.weather.dto.AirKoreaRealtimeApiResponse;
 import life.hanyang.core.weather.repository.HourlyWeatherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -23,6 +25,7 @@ public class FineDustSyncService {
 
     private final FineDustApiClient fineDustApiClient;
     private final HourlyWeatherRepository hourlyWeatherRepository;
+    private final CacheManager cacheManager;
 
     private static final String DEFAULT_LOCATION = "ANSAN";
     private static final String DEFAULT_STATION = "본오동";
@@ -33,30 +36,41 @@ public class FineDustSyncService {
      * 에어코리아 실시간 미세먼지 데이터 동기화
      */
     @Transactional
-    @CacheEvict(cacheNames = "weatherSummary", allEntries = true)
     public void syncRealtimeFineDust() {
-        log.info("Starting syncRealtimeFineDust for station: {}", DEFAULT_STATION);
+        log.info("[FineDustSyncService] 미세먼지 실황 동기화 시작 (측정소: {})", DEFAULT_STATION);
 
-        AirKoreaRealtimeApiResponse response = fineDustApiClient.fetchRealtimeFineDust(DEFAULT_STATION);
+        AirKoreaRealtimeApiResponse response;
+        try {
+            response = fineDustApiClient.fetchRealtimeFineDust(DEFAULT_STATION);
+        } catch (Exception e) {
+            throw new BusinessException("에어코리아 미세먼지 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
         if (isEmptyResponse(response)) {
-            log.warn("FineDust API response is empty.");
-            return;
+            throw new BusinessException(
+                    String.format("미세먼지 API 응답 데이터가 비어 있습니다. (station: %s)", DEFAULT_STATION),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
         }
 
         List<AirKoreaRealtimeApiResponse.Response.Body.AirKoreaRealtimeItem> items =
                 response.response().body().items();
 
         if (items == null || items.isEmpty()) {
-            log.warn("FineDust items list is empty.");
-            return;
+            throw new BusinessException(
+                    String.format("미세먼지 측정항목 목록이 비어 있습니다. (station: %s)", DEFAULT_STATION),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
         }
 
         // 가장 최신 관측 데이터 (첫 번째 아이템)
         AirKoreaRealtimeApiResponse.Response.Body.AirKoreaRealtimeItem latestItem = items.get(0);
 
-        if (latestItem.dataTime() == null) {
-            log.warn("Latest FineDust item dataTime is null.");
-            return;
+        if (latestItem.dataTime() == null || latestItem.dataTime().isBlank()) {
+            throw new BusinessException(
+                    String.format("최신 미세먼지 관측시각(dataTime) 정보가 없습니다. (station: %s)", DEFAULT_STATION),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
         }
 
         LocalDateTime forecastAt = LocalDateTime.parse(latestItem.dataTime(), DATE_TIME_FORMATTER);
@@ -75,7 +89,8 @@ public class FineDustSyncService {
         hourlyWeather.patchFineDust(pm10Value, pm25Value, pm10Grade, pm25Grade);
         hourlyWeatherRepository.save(hourlyWeather);
 
-        log.info("Successfully synced FineDust for forecastAt: {}, pm10: {}, pm25: {}", forecastAt, pm10Value, pm25Value);
+        evictWeatherSummaryCache();
+        log.info("[FineDustSyncService] 미세먼지 실황 동기화 완료 (관측시각: {}, PM10: {}, PM2.5: {})", forecastAt, pm10Value, pm25Value);
     }
 
     /**
@@ -86,10 +101,19 @@ public class FineDustSyncService {
         return hourlyWeatherRepository.findFirstByLocationAndPm10ValueIsNotNullOrderByForecastAtDesc(location);
     }
 
+    private void evictWeatherSummaryCache() {
+        Cache cache = cacheManager.getCache("weatherSummary");
+        if (cache != null) {
+            cache.clear();
+        }
+    }
+
     private boolean isEmptyResponse(AirKoreaRealtimeApiResponse response) {
         return response == null ||
                 response.response() == null ||
-                response.response().body() == null;
+                response.response().body() == null ||
+                response.response().body().items() == null ||
+                response.response().body().items().isEmpty();
     }
 
     private Integer parseInt(String value) {

@@ -1,5 +1,7 @@
 package life.hanyang.core.weather.service;
 
+import life.hanyang.core.global.exception.BusinessException;
+import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.weather.client.WeatherApiClient;
 import life.hanyang.core.weather.domain.HourlyWeather;
 import life.hanyang.core.weather.dto.UltraSrtFcstResponseDto;
@@ -8,10 +10,10 @@ import life.hanyang.core.weather.dto.VillageFcstResponseDto;
 import life.hanyang.core.weather.repository.HourlyWeatherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -27,6 +29,7 @@ public class WeatherSyncService {
 
     private final WeatherApiClient weatherApiClient;
     private final HourlyWeatherRepository hourlyWeatherRepository;
+    private final CacheManager cacheManager;
 
     private static final String DEFAULT_LOCATION = "ANSAN";
     private static final int DEFAULT_NX = 58;
@@ -35,19 +38,31 @@ public class WeatherSyncService {
 
     // 1. 단기예보 3일치 정보 업데이트 (POP, SKY, PTY, TMP, REH, PCP)
     @Transactional
-    @CacheEvict(cacheNames = "weatherSummary", allEntries = true)
     public void syncVillageFcst() {
         String[] baseDateTime = getLatestVillageBaseDateTime();
-        log.info("Starting syncVillageFcst for baseDate: {}, baseTime: {}", baseDateTime[0], baseDateTime[1]);
+        log.info("[WeatherSyncService] 단기예보 동기화 시작 (기준일자: {}, 기준시각: {})", baseDateTime[0], baseDateTime[1]);
 
-        VillageFcstResponseDto response = weatherApiClient.fetchVillageFcst(baseDateTime[0], baseDateTime[1], DEFAULT_NX, DEFAULT_NY);
+        VillageFcstResponseDto response;
+        try {
+            response = weatherApiClient.fetchVillageFcst(baseDateTime[0], baseDateTime[1], DEFAULT_NX, DEFAULT_NY);
+        } catch (Exception e) {
+            throw new BusinessException("기상청 단기예보 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
         if (isEmptyResponse(response)) {
-            log.warn("VillageFcst API response is empty.");
-            return;
+            throw new BusinessException(
+                    String.format("기상청 단기예보 API 응답 데이터가 비어 있습니다. (baseDate: %s, baseTime: %s)", baseDateTime[0], baseDateTime[1]),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
         }
 
         Map<LocalDateTime, List<VillageFcstResponseDto.Item>> timeGroupMap = groupItemsByForecastTime(response);
-        if (timeGroupMap.isEmpty()) return;
+        if (timeGroupMap.isEmpty()) {
+            throw new BusinessException(
+                    String.format("기상청 단기예보 데이터 파싱 결과가 비어 있습니다. (baseDate: %s, baseTime: %s)", baseDateTime[0], baseDateTime[1]),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
+        }
 
         List<LocalDateTime> sortedTimes = timeGroupMap.keySet().stream().sorted().toList();
         LocalDateTime minTime = sortedTimes.get(0);
@@ -70,24 +85,37 @@ public class WeatherSyncService {
         }
 
         hourlyWeatherRepository.saveAll(weatherListToSave);
-        log.info("Successfully synced {} hourly weather records from VillageFcst.", weatherListToSave.size());
+        evictWeatherSummaryCache();
+        log.info("[WeatherSyncService] 단기예보 데이터 {}건 동기화 완료", weatherListToSave.size());
     }
 
     // 2. 초단기예보 6시간치 정보 업데이트 (T1H, RN1, SKY, PTY, LGT, REH)
     @Transactional
-    @CacheEvict(cacheNames = "weatherSummary", allEntries = true)
     public void syncUltraSrtFcst() {
         String[] baseDateTime = getLatestUltraSrtFcstBaseDateTime();
-        log.info("Starting syncUltraSrtFcst for baseDate: {}, baseTime: {}", baseDateTime[0], baseDateTime[1]);
+        log.info("[WeatherSyncService] 초단기예보 동기화 시작 (기준일자: {}, 기준시각: {})", baseDateTime[0], baseDateTime[1]);
 
-        UltraSrtFcstResponseDto response = weatherApiClient.fetchUltraSrtFcst(baseDateTime[0], baseDateTime[1], DEFAULT_NX, DEFAULT_NY);
+        UltraSrtFcstResponseDto response;
+        try {
+            response = weatherApiClient.fetchUltraSrtFcst(baseDateTime[0], baseDateTime[1], DEFAULT_NX, DEFAULT_NY);
+        } catch (Exception e) {
+            throw new BusinessException("기상청 초단기예보 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
         if (isEmptyUltraSrtFcstResponse(response)) {
-            log.warn("UltraSrtFcst API response is empty.");
-            return;
+            throw new BusinessException(
+                    String.format("기상청 초단기예보 API 응답 데이터가 비어 있습니다. (baseDate: %s, baseTime: %s)", baseDateTime[0], baseDateTime[1]),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
         }
 
         Map<LocalDateTime, List<UltraSrtFcstResponseDto.Item>> timeGroupMap = groupUltraSrtFcstItems(response);
-        if (timeGroupMap.isEmpty()) return;
+        if (timeGroupMap.isEmpty()) {
+            throw new BusinessException(
+                    String.format("기상청 초단기예보 데이터 파싱 결과가 비어 있습니다. (baseDate: %s, baseTime: %s)", baseDateTime[0], baseDateTime[1]),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
+        }
 
         List<LocalDateTime> sortedTimes = timeGroupMap.keySet().stream().sorted().toList();
         LocalDateTime minTime = sortedTimes.get(0);
@@ -110,20 +138,28 @@ public class WeatherSyncService {
         }
 
         hourlyWeatherRepository.saveAll(weatherListToSave);
-        log.info("Successfully synced {} ultra short-term forecast records.", weatherListToSave.size());
+        evictWeatherSummaryCache();
+        log.info("[WeatherSyncService] 초단기예보 데이터 {}건 동기화 완료", weatherListToSave.size());
     }
 
     // 3. 초단기실황 관측 정보 업데이트 (T1H, RN1, PTY, REH)
     @Transactional
-    @CacheEvict(cacheNames = "weatherSummary", allEntries = true)
     public void syncUltraSrtNcst() {
         String[] baseDateTime = getLatestNcstBaseDateTime();
-        log.info("Starting syncUltraSrtNcst for baseDate: {}, baseTime: {}", baseDateTime[0], baseDateTime[1]);
+        log.info("[WeatherSyncService] 초단기실황 동기화 시작 (기준일자: {}, 기준시각: {})", baseDateTime[0], baseDateTime[1]);
 
-        UltraSrtNcstResponseDto response = weatherApiClient.fetchUltraSrtNcst(baseDateTime[0], baseDateTime[1], DEFAULT_NX, DEFAULT_NY);
+        UltraSrtNcstResponseDto response;
+        try {
+            response = weatherApiClient.fetchUltraSrtNcst(baseDateTime[0], baseDateTime[1], DEFAULT_NX, DEFAULT_NY);
+        } catch (Exception e) {
+            throw new BusinessException("기상청 초단기실황 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
         if (isEmptyNcstResponse(response)) {
-            log.warn("UltraSrtNcst API response is empty.");
-            return;
+            throw new BusinessException(
+                    String.format("기상청 초단기실황 API 응답 데이터가 비어 있습니다. (baseDate: %s, baseTime: %s)", baseDateTime[0], baseDateTime[1]),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
         }
 
         LocalDateTime forecastAt = LocalDateTime.parse(
@@ -167,28 +203,39 @@ public class WeatherSyncService {
                         .build());
 
         hourlyWeatherRepository.save(hourlyWeather);
-        log.info("Successfully synced ultra short-term actual weather for {}", forecastAt);
+        evictWeatherSummaryCache();
+        log.info("[WeatherSyncService] 초단기실황 데이터 동기화 완료 (예측시각: {})", forecastAt);
+    }
+
+    private void evictWeatherSummaryCache() {
+        Cache cache = cacheManager.getCache("weatherSummary");
+        if (cache != null) {
+            cache.clear();
+        }
     }
 
     private boolean isEmptyResponse(VillageFcstResponseDto response) {
         return response == null || response.response() == null 
                 || response.response().body() == null 
                 || response.response().body().items() == null
-                || response.response().body().items().item() == null;
+                || response.response().body().items().item() == null
+                || response.response().body().items().item().isEmpty();
     }
 
     private boolean isEmptyNcstResponse(UltraSrtNcstResponseDto response) {
         return response == null || response.response() == null 
                 || response.response().body() == null 
                 || response.response().body().items() == null
-                || response.response().body().items().item() == null;
+                || response.response().body().items().item() == null
+                || response.response().body().items().item().isEmpty();
     }
 
     private boolean isEmptyUltraSrtFcstResponse(UltraSrtFcstResponseDto response) {
         return response == null || response.response() == null 
                 || response.response().body() == null 
                 || response.response().body().items() == null
-                || response.response().body().items().item() == null;
+                || response.response().body().items().item() == null
+                || response.response().body().items().item().isEmpty();
     }
 
     private Map<LocalDateTime, List<VillageFcstResponseDto.Item>> groupItemsByForecastTime(VillageFcstResponseDto response) {
