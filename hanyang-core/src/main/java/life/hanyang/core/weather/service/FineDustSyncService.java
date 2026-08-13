@@ -2,14 +2,13 @@ package life.hanyang.core.weather.service;
 
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.exception.ErrorCode;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.weather.client.FineDustApiClient;
 import life.hanyang.core.weather.domain.HourlyWeather;
 import life.hanyang.core.weather.dto.AirKoreaRealtimeApiResponse;
 import life.hanyang.core.weather.repository.HourlyWeatherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +24,7 @@ public class FineDustSyncService {
 
     private final FineDustApiClient fineDustApiClient;
     private final HourlyWeatherRepository hourlyWeatherRepository;
-    private final CacheManager cacheManager;
+    private final TransactionCacheEvictor transactionCacheEvictor;
 
     private static final String DEFAULT_LOCATION = "ANSAN";
     private static final String DEFAULT_STATION = "본오동";
@@ -89,7 +88,7 @@ public class FineDustSyncService {
         hourlyWeather.patchFineDust(pm10Value, pm25Value, pm10Grade, pm25Grade);
         hourlyWeatherRepository.save(hourlyWeather);
 
-        evictWeatherSummaryCache();
+        transactionCacheEvictor.evictCacheAfterCommit("weatherSummary");
         log.info("[FineDustSyncService] 미세먼지 실황 동기화 완료 (관측시각: {}, PM10: {}, PM2.5: {})", forecastAt, pm10Value, pm25Value);
     }
 
@@ -99,13 +98,6 @@ public class FineDustSyncService {
     @Transactional(readOnly = true)
     public Optional<HourlyWeather> getLatestFineDustRecord(String location) {
         return hourlyWeatherRepository.findFirstByLocationAndPm10ValueIsNotNullOrderByForecastAtDesc(location);
-    }
-
-    private void evictWeatherSummaryCache() {
-        Cache cache = cacheManager.getCache("weatherSummary");
-        if (cache != null) {
-            cache.clear();
-        }
     }
 
     private boolean isEmptyResponse(AirKoreaRealtimeApiResponse response) {

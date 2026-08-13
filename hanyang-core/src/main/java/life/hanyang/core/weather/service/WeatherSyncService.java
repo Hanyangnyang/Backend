@@ -2,6 +2,7 @@ package life.hanyang.core.weather.service;
 
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.exception.ErrorCode;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.weather.client.WeatherApiClient;
 import life.hanyang.core.weather.domain.HourlyWeather;
 import life.hanyang.core.weather.dto.UltraSrtFcstResponseDto;
@@ -10,8 +11,6 @@ import life.hanyang.core.weather.dto.VillageFcstResponseDto;
 import life.hanyang.core.weather.repository.HourlyWeatherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +28,7 @@ public class WeatherSyncService {
 
     private final WeatherApiClient weatherApiClient;
     private final HourlyWeatherRepository hourlyWeatherRepository;
-    private final CacheManager cacheManager;
+    private final TransactionCacheEvictor transactionCacheEvictor;
 
     private static final String DEFAULT_LOCATION = "ANSAN";
     private static final int DEFAULT_NX = 58;
@@ -85,7 +84,7 @@ public class WeatherSyncService {
         }
 
         hourlyWeatherRepository.saveAll(weatherListToSave);
-        evictWeatherSummaryCache();
+        transactionCacheEvictor.evictCacheAfterCommit("weatherSummary");
         log.info("[WeatherSyncService] 단기예보 데이터 {}건 동기화 완료", weatherListToSave.size());
     }
 
@@ -138,7 +137,7 @@ public class WeatherSyncService {
         }
 
         hourlyWeatherRepository.saveAll(weatherListToSave);
-        evictWeatherSummaryCache();
+        transactionCacheEvictor.evictCacheAfterCommit("weatherSummary");
         log.info("[WeatherSyncService] 초단기예보 데이터 {}건 동기화 완료", weatherListToSave.size());
     }
 
@@ -203,15 +202,8 @@ public class WeatherSyncService {
                         .build());
 
         hourlyWeatherRepository.save(hourlyWeather);
-        evictWeatherSummaryCache();
+        transactionCacheEvictor.evictCacheAfterCommit("weatherSummary");
         log.info("[WeatherSyncService] 초단기실황 데이터 동기화 완료 (예측시각: {})", forecastAt);
-    }
-
-    private void evictWeatherSummaryCache() {
-        Cache cache = cacheManager.getCache("weatherSummary");
-        if (cache != null) {
-            cache.clear();
-        }
     }
 
     private boolean isEmptyResponse(VillageFcstResponseDto response) {

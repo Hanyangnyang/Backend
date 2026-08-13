@@ -2,14 +2,13 @@ package life.hanyang.core.weather.service;
 
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.exception.ErrorCode;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.weather.client.UvApiClient;
 import life.hanyang.core.weather.domain.HourlyWeather;
 import life.hanyang.core.weather.dto.UvResponseDto;
 import life.hanyang.core.weather.repository.HourlyWeatherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +25,7 @@ public class UvSyncService {
 
     private final UvApiClient uvApiClient;
     private final HourlyWeatherRepository hourlyWeatherRepository;
-    private final CacheManager cacheManager;
+    private final TransactionCacheEvictor transactionCacheEvictor;
 
     private static final String DEFAULT_LOCATION = "ANSAN";
     private static final String DEFAULT_AREA_NO = "4127100000"; // 안산시 상록구 행정구역코드
@@ -99,15 +98,8 @@ public class UvSyncService {
         }
 
         hourlyWeatherRepository.saveAll(weatherListToSave);
-        evictWeatherSummaryCache();
+        transactionCacheEvictor.evictCacheAfterCommit("weatherSummary");
         log.info("[UvSyncService] 자외선 지수 {}건 동기화 완료 (기준시각: {})", updatedCount, baseTime);
-    }
-
-    private void evictWeatherSummaryCache() {
-        Cache cache = cacheManager.getCache("weatherSummary");
-        if (cache != null) {
-            cache.clear();
-        }
     }
 
     private String getLatestBaseTime() {
