@@ -1,6 +1,8 @@
 package life.hanyang.core.weather.service;
 
+import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.exception.EntityNotFoundException;
+import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.global.llm.gemini.GeminiApiClient;
 import life.hanyang.core.weather.domain.HourlyWeather;
 import life.hanyang.core.weather.domain.WeatherBriefing;
@@ -61,13 +63,25 @@ public class WeatherBriefingService {
         List<HourlyWeather> hourlyWeathers = fetchHourlyWeathers(location, baseTime, 24);
 
         if (hourlyWeathers.isEmpty()) {
-            log.warn("날씨 데이터가 존재하지 않아 브리핑을 생성할 수 없습니다. location: {}, baseTime: {}", location, baseTime);
-            return;
+            throw new BusinessException(
+                    String.format("날씨 수집 데이터가 존재하지 않아 브리핑을 생성할 수 없습니다. (location: %s, baseTime: %s)", location, baseTime),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
         }
 
         LocalDateTime baseForecastAt = hourlyWeathers.get(0).getForecastAt();
         String prompt = weatherPromptBuilder.buildPrompt(hourlyWeathers, baseTime);
-        String briefingText = geminiApiClient.generateContent(prompt);
+
+        String briefingText;
+        try {
+            briefingText = geminiApiClient.generateContent(prompt);
+        } catch (Exception e) {
+            throw new BusinessException(
+                    "Gemini LLM 브리핑 생성에 실패했습니다: " + e.getMessage(),
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    e
+            );
+        }
 
         WeatherBriefing briefing = WeatherBriefing.builder()
                 .location(location)

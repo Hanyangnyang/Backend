@@ -1,5 +1,8 @@
 package life.hanyang.core.weather.service;
 
+import life.hanyang.core.global.exception.BusinessException;
+import life.hanyang.core.global.exception.ErrorCode;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.weather.client.UvApiClient;
 import life.hanyang.core.weather.domain.HourlyWeather;
 import life.hanyang.core.weather.dto.UvResponseDto;
@@ -8,8 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -24,6 +25,7 @@ public class UvSyncService {
 
     private final UvApiClient uvApiClient;
     private final HourlyWeatherRepository hourlyWeatherRepository;
+    private final TransactionCacheEvictor transactionCacheEvictor;
 
     private static final String DEFAULT_LOCATION = "ANSAN";
     private static final String DEFAULT_AREA_NO = "4127100000"; // 안산시 상록구 행정구역코드
@@ -33,21 +35,30 @@ public class UvSyncService {
      * 자외선 지수(UV Index) 75시간 예측치를 1시간 단위로 꽉 채워 동기화
      */
     @Transactional
-    @CacheEvict(cacheNames = "weatherSummary", allEntries = true)
     public void syncUvIndex() {
         String baseTime = getLatestBaseTime();
-        log.info("Starting syncUvIndex for areaNo: {}, time: {}", DEFAULT_AREA_NO, baseTime);
+        log.info("[UvSyncService] 자외선 지수 동기화 시작 (행정구역: {}, 기준시각: {})", DEFAULT_AREA_NO, baseTime);
 
-        UvResponseDto response = uvApiClient.fetchUvIndex(DEFAULT_AREA_NO, baseTime);
+        UvResponseDto response;
+        try {
+            response = uvApiClient.fetchUvIndex(DEFAULT_AREA_NO, baseTime);
+        } catch (Exception e) {
+            throw new BusinessException("기상청 자외선 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR, e);
+        }
+
         if (isEmptyResponse(response)) {
-            log.warn("UvResponseDto is empty.");
-            return;
+            throw new BusinessException(
+                    String.format("자외선 API 응답 데이터가 비어 있습니다. (areaNo: %s, baseTime: %s)", DEFAULT_AREA_NO, baseTime),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
         }
 
         UvResponseDto.Item item = response.response().body().items().item().get(0);
         if (item.date() == null || item.date().isBlank()) {
-            log.warn("UvResponseDto item date is empty.");
-            return;
+            throw new BusinessException(
+                    String.format("자외선 지수 발표시각(date) 정보가 없습니다. (areaNo: %s, baseTime: %s)", DEFAULT_AREA_NO, baseTime),
+                    ErrorCode.ENTITY_NOT_FOUND
+            );
         }
 
         LocalDateTime baseDateTime = LocalDateTime.parse(item.date(), DateTimeFormatter.ofPattern("yyyyMMddHH"));
@@ -87,7 +98,8 @@ public class UvSyncService {
         }
 
         hourlyWeatherRepository.saveAll(weatherListToSave);
-        log.info("Successfully synced {} UV index hourly records for baseTime: {}", updatedCount, baseTime);
+        transactionCacheEvictor.evictCacheAfterCommit("weatherSummary");
+        log.info("[UvSyncService] 자외선 지수 {}건 동기화 완료 (기준시각: {})", updatedCount, baseTime);
     }
 
     private String getLatestBaseTime() {
