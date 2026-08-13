@@ -24,8 +24,6 @@ public class WeatherScheduler {
         try {
             weatherSyncService.syncVillageFcst();
             log.info("[WeatherScheduler] 기상청 단기예보 동기화 완료");
-        } catch (org.springframework.web.client.ResourceAccessException e) {
-            log.warn("[WeatherScheduler] 기상청 단기예보 API 네트워크/타임아웃 발생: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[WeatherScheduler] 기상청 단기예보 동기화 중 오류 발생: {}", e.getMessage(), e);
         }
@@ -38,8 +36,6 @@ public class WeatherScheduler {
         try {
             weatherSyncService.syncUltraSrtNcst();
             log.info("[WeatherScheduler] 기상청 초단기실황 동기화 완료");
-        } catch (org.springframework.web.client.ResourceAccessException e) {
-            log.warn("[WeatherScheduler] 기상청 초단기실황 API 네트워크/타임아웃 발생: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[WeatherScheduler] 기상청 초단기실황 동기화 중 오류 발생: {}", e.getMessage(), e);
         }
@@ -52,8 +48,6 @@ public class WeatherScheduler {
         try {
             weatherSyncService.syncUltraSrtFcst();
             log.info("[WeatherScheduler] 기상청 초단기예보 동기화 완료");
-        } catch (org.springframework.web.client.ResourceAccessException e) {
-            log.warn("[WeatherScheduler] 기상청 초단기예보 API 네트워크/타임아웃 발생: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[WeatherScheduler] 기상청 초단기예보 동기화 중 오류 발생: {}", e.getMessage(), e);
         }
@@ -66,8 +60,6 @@ public class WeatherScheduler {
         try {
             fineDustSyncService.syncRealtimeFineDust();
             log.info("[WeatherScheduler] 미세먼지 실황 동기화 완료");
-        } catch (org.springframework.web.client.ResourceAccessException e) {
-            log.warn("[WeatherScheduler] 미세먼지 API 네트워크/타임아웃 발생: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[WeatherScheduler] 미세먼지 실황 동기화 중 오류 발생: {}", e.getMessage(), e);
         }
@@ -80,8 +72,6 @@ public class WeatherScheduler {
         try {
             uvSyncService.syncUvIndex();
             log.info("[WeatherScheduler] 자외선 지수 동기화 완료");
-        } catch (org.springframework.web.client.ResourceAccessException e) {
-            log.warn("[WeatherScheduler] 자외선 API 네트워크/타임아웃 발생: {}", e.getMessage());
         } catch (Exception e) {
             log.error("[WeatherScheduler] 자외선 지수 동기화 중 오류 발생: {}", e.getMessage(), e);
         }
