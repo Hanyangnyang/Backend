@@ -27,7 +27,8 @@ public class FineDustSyncService {
     private final TransactionCacheEvictor transactionCacheEvictor;
 
     private static final String DEFAULT_LOCATION = "ANSAN";
-    private static final String DEFAULT_STATION = "본오동";
+    private static final String PRIMARY_STATION = "고잔동";
+    private static final String SECONDARY_STATION = "본오동";
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
 
@@ -36,38 +37,19 @@ public class FineDustSyncService {
      */
     @Transactional
     public void syncRealtimeFineDust() {
-        log.info("[FineDustSyncService] 미세먼지 실황 동기화 시작 (측정소: {})", DEFAULT_STATION);
+        log.info("[FineDustSyncService] 미세먼지 실황 동기화 시작 (1순위: {}, 2순위: {})", PRIMARY_STATION, SECONDARY_STATION);
 
-        AirKoreaRealtimeApiResponse response;
-        try {
-            response = fineDustApiClient.fetchRealtimeFineDust(DEFAULT_STATION);
-        } catch (Exception e) {
-            throw new BusinessException("에어코리아 미세먼지 API 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR, e);
-        }
-
-        if (isEmptyResponse(response)) {
-            throw new BusinessException(
-                    String.format("미세먼지 API 응답 데이터가 비어 있습니다. (station: %s)", DEFAULT_STATION),
-                    ErrorCode.ENTITY_NOT_FOUND
-            );
-        }
+        AirKoreaRealtimeApiResponse response = fetchWithFallback();
 
         List<AirKoreaRealtimeApiResponse.Response.Body.AirKoreaRealtimeItem> items =
                 response.response().body().items();
-
-        if (items == null || items.isEmpty()) {
-            throw new BusinessException(
-                    String.format("미세먼지 측정항목 목록이 비어 있습니다. (station: %s)", DEFAULT_STATION),
-                    ErrorCode.ENTITY_NOT_FOUND
-            );
-        }
 
         // 가장 최신 관측 데이터 (첫 번째 아이템)
         AirKoreaRealtimeApiResponse.Response.Body.AirKoreaRealtimeItem latestItem = items.get(0);
 
         if (latestItem.dataTime() == null || latestItem.dataTime().isBlank()) {
             throw new BusinessException(
-                    String.format("최신 미세먼지 관측시각(dataTime) 정보가 없습니다. (station: %s)", DEFAULT_STATION),
+                    "최신 미세먼지 관측시각(dataTime) 정보가 없습니다.",
                     ErrorCode.ENTITY_NOT_FOUND
             );
         }
@@ -93,11 +75,43 @@ public class FineDustSyncService {
     }
 
     /**
-     * 가장 최근 관측된 미세먼지 레코드 조회 (DTO 합성용)
+     * 1순위(고잔동) 시도 후 실패 시 2순위(본오동) 폴백 호출
+     */
+    private AirKoreaRealtimeApiResponse fetchWithFallback() {
+        // 1순위 고잔동 시도
+        try {
+            AirKoreaRealtimeApiResponse response = fineDustApiClient.fetchRealtimeFineDust(PRIMARY_STATION);
+            if (!isEmptyResponse(response)) {
+                return response;
+            }
+            log.warn("[FineDustSyncService] 1순위 측정소({}) 응답 데이터가 비어 있어 2순위 측정소({})로 시도합니다.", PRIMARY_STATION, SECONDARY_STATION);
+        } catch (Exception e) {
+            log.warn("[FineDustSyncService] 1순위 측정소({}) API 호출 실패 ({}), 2순위 측정소({})로 시도합니다.", PRIMARY_STATION, e.getMessage(), SECONDARY_STATION);
+        }
+
+        // 2순위 본오동 시도
+        try {
+            AirKoreaRealtimeApiResponse response = fineDustApiClient.fetchRealtimeFineDust(SECONDARY_STATION);
+            if (!isEmptyResponse(response)) {
+                return response;
+            }
+        } catch (Exception e) {
+            throw new BusinessException("에어코리아 미세먼지 API 1, 2순위 측정소 모두 호출 실패: " + e.getMessage(), ErrorCode.INTERNAL_SERVER_ERROR, e);
+        }
+
+        throw new BusinessException(
+                String.format("미세먼지 API 응답 데이터가 모두 비어 있습니다. (stations: %s, %s)", PRIMARY_STATION, SECONDARY_STATION),
+                ErrorCode.ENTITY_NOT_FOUND
+        );
+    }
+
+    /**
+     * 최근 3시간 이내 관측된 미세먼지 레코드 조회 (DTO 합성용)
      */
     @Transactional(readOnly = true)
-    public Optional<HourlyWeather> getLatestFineDustRecord(String location) {
-        return hourlyWeatherRepository.findFirstByLocationAndPm10ValueIsNotNullOrderByForecastAtDesc(location);
+    public Optional<HourlyWeather> getLatestFineDustRecord(String location, LocalDateTime now) {
+        LocalDateTime minForecastAt = now.minusHours(3);
+        return hourlyWeatherRepository.findFirstByLocationAndPm10ValueIsNotNullAndForecastAtGreaterThanEqualOrderByForecastAtDesc(location, minForecastAt);
     }
 
     private boolean isEmptyResponse(AirKoreaRealtimeApiResponse response) {

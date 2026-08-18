@@ -41,8 +41,8 @@ public class WeatherQueryService {
         LocalDateTime start = now.minusHours(24);
         LocalDateTime end = now.plusHours(24);
 
-        // 미세먼지 수치 누락 시 보완을 위한 최신 관측 미세먼지 레코드 1회만 조회 (엔티티 수정 방지)
-        HourlyWeather fallbackFineDust = fineDustSyncService.getLatestFineDustRecord(DEFAULT_LOCATION).orElse(null);
+        // 미세먼지 수치 누락 시 보완을 위한 최신 관측 미세먼지 레코드 1회만 조회 (엔티티 수정 방지, 3시간 유효기간)
+        HourlyWeather fallbackFineDust = fineDustSyncService.getLatestFineDustRecord(DEFAULT_LOCATION, now).orElse(null);
 
         // 오늘 당일 24시간 날씨 데이터 조회 (오늘 최저/최고 기온 계산용)
         List<HourlyWeather> todayWeathers = hourlyWeatherRepository
