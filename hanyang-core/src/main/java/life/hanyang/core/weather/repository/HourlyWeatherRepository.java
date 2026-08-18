@@ -12,5 +12,7 @@ public interface HourlyWeatherRepository extends JpaRepository<HourlyWeather, Lo
 
     Optional<HourlyWeather> findFirstByLocationAndPm10ValueIsNotNullOrderByForecastAtDesc(String location);
 
+    Optional<HourlyWeather> findFirstByLocationAndPm10ValueIsNotNullAndForecastAtGreaterThanEqualOrderByForecastAtDesc(String location, LocalDateTime minForecastAt);
+
     List<HourlyWeather> findAllByLocationAndForecastAtBetweenOrderByForecastAtAsc(String location, LocalDateTime start, LocalDateTime end);
 }
