@@ -19,7 +19,7 @@ public class ServerShutdownEventListener {
 
     public ServerShutdownEventListener(
             RestClient.Builder builder,
-            @Value("${logging.webhook.url:}") String webhookUrl
+            @Value("${DISCORD_WEBHOOK_URL:${logging.webhook.url:}}") String webhookUrl
     ) {
         this.restClient = builder.build();
         this.webhookUrl = webhookUrl;
