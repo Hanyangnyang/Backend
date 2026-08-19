@@ -53,15 +53,15 @@ public class WeatherScheduler {
         }
     }
 
-    // 4. 미세먼지 실황: 매시 20분에 실행 (14:20, 15:20 ...)
-    @Scheduled(cron = "0 20 * * * *", zone = "Asia/Seoul")
+    // 4. 미세먼지 실황: 매시 25분에 실행 (14:25, 15:25 ...)
+    @Scheduled(cron = "0 25 * * * *", zone = "Asia/Seoul")
     public void scheduleRealtimeFineDust() {
-        log.info("[WeatherScheduler] 미세먼지 실황 동기화 시작 (매시 20분)");
+        log.info("[WeatherScheduler] 미세먼지 실황 동기화 시작 (매시 25분)");
         try {
             fineDustSyncService.syncRealtimeFineDust();
             log.info("[WeatherScheduler] 미세먼지 실황 동기화 완료");
         } catch (Exception e) {
-            log.error("[WeatherScheduler] 미세먼지 실황 동기화 중 오류 발생: {}", e.getMessage(), e);
+            log.warn("[WeatherScheduler] 미세먼지 실황 동기화 중 오류 발생: {}", e.getMessage(), e);
         }
     }
 
