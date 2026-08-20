@@ -1,5 +1,7 @@
 package life.hanyang.core.menu.service;
 
+import life.hanyang.core.global.exception.BusinessException;
+import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.menu.dto.MenuCrawlResultDto;
 import life.hanyang.core.menu.entity.CafeteriaCode;
 import life.hanyang.core.menu.entity.MealType;
@@ -38,23 +40,38 @@ public class MenuScrapingService {
             "https://www.hanyang.ac.kr/web/www/%s?p_p_id=kr_ac_hanyang_cafe_web_portlet_CafePortlet&p_p_lifecycle=0&p_p_state=normal&p_p_mode=view&_kr_ac_hanyang_cafe_web_portlet_CafePortlet_sMenuDate=%s&_kr_ac_hanyang_cafe_web_portlet_CafePortlet_action=view";
 
     /**
-     * CompletableFuture 기반 10개 병렬 스크래핑 수행
+     * CompletableFuture 기반 병렬 스크래핑 수행
      */
-    public CompletableFuture<Void> scrapeCafeterias(List<CafeteriaCode> codes, List<LocalDate> dates) {
+    public CompletableFuture<Void> scrapeCafeterias(List<CafeteriaCode> codes, LocalDate startDate, LocalDate endDate) {
         List<CafeteriaCode> targetCodes = (codes == null || codes.isEmpty())
                 ? List.of(CafeteriaCode.values())
                 : codes;
 
-        List<LocalDate> targetDates;
-        if (dates == null || dates.isEmpty()) {
-            targetDates = new ArrayList<>();
-            LocalDate start = LocalDate.now().minusDays(7); // 일주일 전(D-7)
-            for (int i = 0; i < 15; i++) { // 일주일 전 ~ 일주일 뒤까지 총 15일
-                targetDates.add(start.plusDays(i));
-            }
+        LocalDate start;
+        LocalDate end;
+
+        if (startDate == null && endDate == null) {
+            start = LocalDate.now().minusDays(7);
+            end = LocalDate.now().plusDays(7);
+        } else if (startDate != null && endDate == null) {
+            start = startDate;
+            end = startDate;
+        } else if (startDate == null && endDate != null) {
+            start = endDate;
+            end = endDate;
         } else {
-            targetDates = dates;
+            start = startDate;
+            end = endDate;
         }
+
+        if (start.isAfter(end)) {
+            throw new BusinessException(
+                    String.format("시작 날짜는 종료 날짜보다 이전이거나 같아야 합니다. (시작: %s, 종료: %s)", start, end),
+                    ErrorCode.INVALID_INPUT_VALUE
+            );
+        }
+
+        List<LocalDate> targetDates = start.datesUntil(end.plusDays(1)).toList();
 
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
