@@ -85,7 +85,7 @@ public class MenuScrapingService {
         try {
             Document doc = Jsoup.connect(url)
                     .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                    .timeout(10000)
+                    .timeout(20000)
                     .get();
 
             Map<String, String> hours = parseOperatingHours(doc);
@@ -96,8 +96,12 @@ public class MenuScrapingService {
 
             log.info("Successfully scraped cafeteria [{}] for date [{}]", code.getDefaultName(), dateStr);
         } catch (Exception e) {
-            log.error("Error occurred while scraping cafeteria [{}] for date [{}]: {}", code.getDefaultName(), dateStr, e.getMessage(), e);
-            throw new RuntimeException("Scraping failed for " + code.getCode(), e);
+            String errorMsg = String.format(
+                    "Scraping failed for %s (%s) on %s - Cause: %s (%s)",
+                    code.getDefaultName(), code.getCode(), dateStr, e.getClass().getSimpleName(), e.getMessage()
+            );
+            log.error("Error occurred while scraping cafeteria [{}] for date [{}]: {}", code.getDefaultName(), dateStr, errorMsg, e);
+            throw new RuntimeException(errorMsg, e);
         }
     }
 
