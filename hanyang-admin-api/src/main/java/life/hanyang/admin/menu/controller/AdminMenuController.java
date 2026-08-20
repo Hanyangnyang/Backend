@@ -29,9 +29,10 @@ public class AdminMenuController {
     @PostMapping("/scrape")
     public ResponseEntity<ApiResponse<String>> triggerScraping(
             @RequestParam(required = false) List<CafeteriaCode> codes,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) List<LocalDate> dates
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        menuScrapingService.scrapeCafeterias(codes, dates);
+        menuScrapingService.scrapeCafeterias(codes, startDate, endDate);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("학식 스크래핑 요청이 정상 수신되었으며, 백그라운드 병렬 작업으로 처리 중입니다."));
     }

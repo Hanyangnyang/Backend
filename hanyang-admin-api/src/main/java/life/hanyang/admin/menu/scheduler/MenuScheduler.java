@@ -7,8 +7,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.stream.IntStream;
 
 @Slf4j
 @Component
@@ -22,11 +20,9 @@ public class MenuScheduler {
     public void scheduleAutoMenuScrape() {
         log.info("[MenuScheduler] 식단 자동 스크래핑 시작 (어제 ~ 7일 뒤)");
         try {
-            List<LocalDate> targetDates = IntStream.rangeClosed(-1, 7)
-                    .mapToObj(i -> LocalDate.now().plusDays(i))
-                    .toList();
-
-            menuScrapingService.scrapeCafeterias(null, targetDates);
+            LocalDate start = LocalDate.now().minusDays(1);
+            LocalDate end = LocalDate.now().plusDays(7);
+            menuScrapingService.scrapeCafeterias(null, start, end);
             log.info("[MenuScheduler] 식단 자동 스크래핑 요청 완료");
         } catch (Exception e) {
             log.error("[MenuScheduler] 식단 자동 스크래핑 중 오류 발생: {}", e.getMessage(), e);
