@@ -8,6 +8,7 @@ import life.hanyang.core.menu.entity.CafeteriaCode;
 import life.hanyang.core.menu.entity.Menu;
 import life.hanyang.core.menu.repository.MenuRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,7 @@ public class MenuService {
     /**
      * 특정 기간 및 특정 식당 코드의 메뉴 목록을 날짜별로 그룹화하여 조회
      */
+    @Cacheable(cacheNames = "menu", key = "{#startDate, #endDate, #codes}")
     public Map<LocalDate, List<MenuResponse>> getMenusGroupByDate(
             LocalDate startDate, 
             LocalDate endDate, 

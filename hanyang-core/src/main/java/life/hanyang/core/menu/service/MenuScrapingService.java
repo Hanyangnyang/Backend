@@ -2,6 +2,7 @@ package life.hanyang.core.menu.service;
 
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.exception.ErrorCode;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.menu.dto.MenuCrawlResultDto;
 import life.hanyang.core.menu.entity.CafeteriaCode;
 import life.hanyang.core.menu.entity.MealType;
@@ -35,6 +36,7 @@ import java.util.stream.IntStream;
 public class MenuScrapingService {
     private final Executor scrapingTaskExecutor;
     private final MenuSaveService menuSaveService;
+    private final TransactionCacheEvictor transactionCacheEvictor;
 
     private static final String BASE_URL_PATTERN =
             "https://www.hanyang.ac.kr/web/www/%s?p_p_id=kr_ac_hanyang_cafe_web_portlet_CafePortlet&p_p_lifecycle=0&p_p_state=normal&p_p_mode=view&_kr_ac_hanyang_cafe_web_portlet_CafePortlet_sMenuDate=%s&_kr_ac_hanyang_cafe_web_portlet_CafePortlet_action=view";
@@ -91,7 +93,10 @@ public class MenuScrapingService {
         }
 
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                .thenRun(() -> log.info("Finished all scraping tasks for target dates"));
+                .thenRun(() -> {
+                    log.info("Finished all scraping tasks for target dates");
+                    transactionCacheEvictor.evictCacheAfterCommit("menu");
+                });
     }
 
     private void scrapeSingleCafeteriaForDate(CafeteriaCode code, LocalDate date) {
