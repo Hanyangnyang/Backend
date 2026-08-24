@@ -16,8 +16,10 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.cache.RedisCache;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.cache.RedisCacheWriter;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
@@ -51,16 +53,22 @@ public class CacheConfig implements CachingConfigurer {
                         new GenericJackson2JsonRedisSerializer(objectMapper)
                 ));
 
-        return RedisCacheManager.builder(connectionFactory)
-                .cacheDefaults(config)
-                .withInitialCacheConfigurations(Map.of(
-                        "readingRoomSeats", config.entryTtl(Duration.ofHours(24)),
-                        "weatherSummary", config.entryTtl(Duration.ofMinutes(10)),
-                        "weatherBriefing", config.entryTtl(Duration.ofMinutes(30)),
-                        "menu", config.entryTtl(Duration.ofHours(12)),
-                        "banner", config.entryTtl(Duration.ofHours(12))
-                ))
-                .build();
+        Map<String, RedisCacheConfiguration> initialConfigs = Map.of(
+                "readingRoomSeats", config.entryTtl(Duration.ofHours(24)),
+                "weatherSummary", config.entryTtl(Duration.ofMinutes(10)),
+                "weatherBriefing", config.entryTtl(Duration.ofMinutes(30)),
+                "menu", config.entryTtl(Duration.ofHours(12)),
+                "banner", config.entryTtl(Duration.ofHours(12))
+        );
+
+        RedisCacheWriter cacheWriter = RedisCacheWriter.nonLockingRedisCacheWriter(connectionFactory);
+
+        return new RedisCacheManager(cacheWriter, config, initialConfigs) {
+            @Override
+            protected RedisCache createRedisCache(String name, RedisCacheConfiguration cacheConfig) {
+                return new CustomXCacheRedisCache(name, cacheWriter, cacheConfig != null ? cacheConfig : config);
+            }
+        };
     }
 
     @Override
