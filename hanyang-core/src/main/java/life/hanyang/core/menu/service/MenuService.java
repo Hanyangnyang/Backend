@@ -95,10 +95,13 @@ public class MenuService {
                                 .map(cafeteriaEntry -> {
                                     Cafeteria cafeteria = cafeteriaEntry.getKey();
                                     List<MenuResponse.MenuDetailResponse> details = cafeteriaEntry.getValue();
+                                    Map<String, String> operatingHours = cafeteria.getOperatingHours() == null
+                                            ? Map.of()
+                                            : new java.util.HashMap<>(cafeteria.getOperatingHours());
                                     return new MenuResponse(
                                             cafeteria.getCode(),
                                             cafeteria.getName(),
-                                            cafeteria.getOperatingHours(),
+                                            operatingHours,
                                             details
                                     );
                                 })
