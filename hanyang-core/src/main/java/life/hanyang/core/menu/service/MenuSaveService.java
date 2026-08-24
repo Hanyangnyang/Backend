@@ -1,6 +1,7 @@
 package life.hanyang.core.menu.service;
 
 import life.hanyang.core.global.exception.EntityNotFoundException;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.menu.dto.MenuCrawlResultDto;
 import life.hanyang.core.menu.entity.Cafeteria;
 import life.hanyang.core.menu.entity.MealType;
@@ -22,6 +23,7 @@ public class MenuSaveService {
 
     private final CafeteriaRepository cafeteriaRepository;
     private final MenuRepository menuRepository;
+    private final TransactionCacheEvictor transactionCacheEvictor;
 
     /**
      * 관리자에 의한 특정 식단 내용 수동 수정 (isOverridden = true 설정되어 자동 크롤링 시 보호됨)
@@ -31,6 +33,7 @@ public class MenuSaveService {
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 식단 ID입니다: " + menuId));
         menu.updateDisplayMenu(displayMenu);
         menuRepository.save(menu);
+        transactionCacheEvictor.evictCacheAfterCommit("menu");
     }
 
     public void saveCafeteriaAndMenus(MenuCrawlResultDto dto) {

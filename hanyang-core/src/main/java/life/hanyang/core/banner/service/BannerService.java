@@ -7,7 +7,9 @@ import life.hanyang.core.banner.dto.BannerUserResponse;
 import life.hanyang.core.banner.dto.BannersUpdateDto;
 import life.hanyang.core.banner.repository.BannerRepository;
 import life.hanyang.core.global.storage.StorageService;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +24,7 @@ import java.util.stream.Collectors;
 public class BannerService {
     private final BannerRepository bannerRepository;
     private final StorageService storageService;
+    private final TransactionCacheEvictor transactionCacheEvictor;
 
     @Transactional
     public BannerResponse createBanner(MultipartFile file, BannerRequest request) {
@@ -41,6 +44,7 @@ public class BannerService {
 
         Banner savedBanner = bannerRepository.save(banner);
         reorderDisplaySequence();
+        transactionCacheEvictor.evictCacheAfterCommit("banner");
         return new BannerResponse(savedBanner);
     }
 
@@ -67,12 +71,14 @@ public class BannerService {
             );
         }
         reorderDisplaySequence();
+        transactionCacheEvictor.evictCacheAfterCommit("banner");
     }
 
     @Transactional
     public void deleteBanner(List<Long> bannerIds) {
         bannerRepository.deleteAllByIdInBatch(bannerIds);
         reorderDisplaySequence();
+        transactionCacheEvictor.evictCacheAfterCommit("banner");
     }
 
     private void reorderDisplaySequence() {
@@ -82,7 +88,7 @@ public class BannerService {
         }
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<BannerResponse> getAllBanners(){
         List<Banner> banners = bannerRepository.findAllByOrderByDisplayOrderAsc();
         return banners.stream()
@@ -90,7 +96,7 @@ public class BannerService {
                 .toList();
     }
 
-    @Transactional
+    @Cacheable(cacheNames = "banner", key = "'active'")
     public List<BannerUserResponse> getActiveBanners(){
         List<Banner> banners = bannerRepository.findAllByIsActiveTrueOrderByDisplayOrderAsc();
         return banners.stream()
