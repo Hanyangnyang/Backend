@@ -3,6 +3,7 @@ package life.hanyang.user.menu.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import life.hanyang.core.global.response.ApiResponse;
+import life.hanyang.core.menu.dto.DailyMenuResponse;
 import life.hanyang.core.menu.dto.MenuResponse;
 import life.hanyang.core.menu.entity.CafeteriaCode;
 import life.hanyang.core.menu.service.MenuService;
@@ -15,8 +16,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/menu")
@@ -33,7 +36,14 @@ public class MenuController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) List<CafeteriaCode> codes
     ) {
-        Map<LocalDate, List<MenuResponse>> response = menuService.getMenusGroupByDate(startDate, endDate, codes);
+        List<DailyMenuResponse> dailyMenus = menuService.getDailyMenus(startDate, endDate, codes);
+        Map<LocalDate, List<MenuResponse>> response = dailyMenus.stream()
+                .collect(Collectors.toMap(
+                        DailyMenuResponse::date,
+                        DailyMenuResponse::cafeterias,
+                        (existing, replacement) -> existing,
+                        LinkedHashMap::new
+                ));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
