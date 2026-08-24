@@ -1,5 +1,6 @@
 package life.hanyang.core.global.config;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.redis.cache.RedisCache;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
@@ -10,6 +11,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.concurrent.Callable;
 
 public class CustomXCacheRedisCache extends RedisCache {
+
+    public static final String X_CACHE_ATTRIBUTE = "X_CACHE_STATUS";
 
     public CustomXCacheRedisCache(String name, RedisCacheWriter cacheWriter, RedisCacheConfiguration cacheConfig) {
         super(name, cacheWriter, cacheConfig);
@@ -44,9 +47,14 @@ public class CustomXCacheRedisCache extends RedisCache {
         try {
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes != null) {
+                String status = hit ? "HIT" : "MISS";
+                HttpServletRequest request = attributes.getRequest();
+                if (request != null) {
+                    request.setAttribute(X_CACHE_ATTRIBUTE, status);
+                }
                 HttpServletResponse response = attributes.getResponse();
                 if (response != null && !response.isCommitted()) {
-                    response.setHeader("X-Cache", hit ? "HIT" : "MISS");
+                    response.setHeader("X-Cache", status);
                 }
             }
         } catch (Exception ignored) {
