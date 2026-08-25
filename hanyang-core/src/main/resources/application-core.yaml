@@ -41,6 +41,10 @@ aws:
 api:
   public-data-key: ${PUBLIC_DATA_PORTAL_KEY}
 
+  holiday:
+    base-url: ${HOLIDAY_API_BASE_URL:https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService}
+    service-key: ${HOLIDAY_API_SERVICE_KEY:${api.public-data-key}}
+
   subway:
     api-key: ${api.public-data-key}
 

@@ -7,9 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.JdbcType;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.dialect.PostgreSQLEnumJdbcType;
 
 import java.time.Instant;
 import java.time.LocalTime;
@@ -28,18 +26,15 @@ public class ShuttleTimetable {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "route", nullable = false)
+    @Column(name = "route", nullable = false, length = 50)
     private ShuttleRoute shuttleRoute;
 
     @Enumerated(EnumType.STRING)
-    @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "period", nullable = false)
+    @Column(name = "period", nullable = false, length = 50)
     private ShuttlePeriod shuttlePeriod;
 
     @Enumerated(EnumType.STRING)
-    @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "day_type", nullable = false)
+    @Column(name = "day_type", nullable = false, length = 50)
     private ShuttleDayType shuttleDayType;
 
     @Column(name = "departure_time", nullable = false)
