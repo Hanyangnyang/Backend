@@ -6,9 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.JdbcType;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.dialect.PostgreSQLEnumJdbcType;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -36,13 +34,11 @@ public class GymPeriod {
     private Integer year;
 
     @Enumerated(EnumType.STRING)
-    @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "semester", nullable = false)
+    @Column(name = "semester", nullable = false, length = 30)
     private GymSemesterNo semester;
 
     @Enumerated(EnumType.STRING)
-    @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "period_type", nullable = false)
+    @Column(name = "period_type", nullable = false, length = 30)
     private GymPeriodType periodType;
 
     @Column(name = "title", nullable = false, length = 50)
