@@ -2,6 +2,7 @@ package life.hanyang.core.holiday.service;
 
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.exception.ErrorCode;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.holiday.client.PublicHolidayApiClient;
 import life.hanyang.core.holiday.domain.DayType;
 import life.hanyang.core.holiday.domain.Holiday;
@@ -12,6 +13,7 @@ import life.hanyang.core.holiday.dto.HolidayUpdateRequest;
 import life.hanyang.core.holiday.repository.HolidayRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,10 +30,12 @@ public class HolidayService {
 
     private final HolidayRepository holidayRepository;
     private final PublicHolidayApiClient publicHolidayApiClient;
+    private final TransactionCacheEvictor transactionCacheEvictor;
 
     /**
      * 날짜 상태 판별 (단건)
      */
+    @Cacheable(cacheNames = "holidayDateInfo", key = "#date.toString()")
     public DateInfoResponse getDateInfo(LocalDate date) {
         // 1. DB 등록 확인 (HOLIDAY 또는 NO_OPERATION)
         Optional<Holiday> holidayOpt = holidayRepository.findByDate(date);
@@ -52,6 +56,7 @@ public class HolidayService {
     /**
      * 공휴일 목록 조회 (연도 / 월)
      */
+    @Cacheable(cacheNames = "holidays", key = "#year + '_' + (#month != null ? #month : 'all')")
     public List<HolidayResponse> getHolidays(int year, Integer month) {
         LocalDate start = (month != null) ? LocalDate.of(year, month, 1) : LocalDate.of(year, 1, 1);
         LocalDate end = (month != null) ? start.plusMonths(1).minusDays(1) : LocalDate.of(year, 12, 31);
@@ -75,7 +80,9 @@ public class HolidayService {
                 .name(request.name())
                 .dayType(request.dayType() != null ? request.dayType() : DayType.HOLIDAY)
                 .build();
-        return HolidayResponse.from(holidayRepository.save(holiday));
+        Holiday saved = holidayRepository.save(holiday);
+        evictHolidayCaches();
+        return HolidayResponse.from(saved);
     }
 
     /**
@@ -87,6 +94,7 @@ public class HolidayService {
                 .orElseThrow(() -> new BusinessException("해당 공휴일 리소스가 존재하지 않습니다. id: " + id, ErrorCode.ENTITY_NOT_FOUND));
 
         holiday.update(request.name(), request.dayType());
+        evictHolidayCaches();
         return HolidayResponse.from(holiday);
     }
 
@@ -99,6 +107,7 @@ public class HolidayService {
             throw new BusinessException("해당 공휴일 리소스가 존재하지 않습니다. id: " + id, ErrorCode.ENTITY_NOT_FOUND);
         }
         holidayRepository.deleteById(id);
+        evictHolidayCaches();
     }
 
     /**
@@ -123,7 +132,13 @@ public class HolidayService {
             }
             count++;
         }
+        evictHolidayCaches();
         log.info("공휴일 동기화 완료 - 연도: {}, 총 건수: {}", year, count);
         return count;
+    }
+
+    private void evictHolidayCaches() {
+        transactionCacheEvictor.evictCacheAfterCommit("holidayDateInfo");
+        transactionCacheEvictor.evictCacheAfterCommit("holidays");
     }
 }
