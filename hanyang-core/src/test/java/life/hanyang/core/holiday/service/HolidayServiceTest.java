@@ -1,5 +1,6 @@
 package life.hanyang.core.holiday.service;
 
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.holiday.client.PublicHolidayApiClient;
 import life.hanyang.core.holiday.domain.DayType;
 import life.hanyang.core.holiday.domain.Holiday;
@@ -32,6 +33,9 @@ class HolidayServiceTest {
 
     @Mock
     private PublicHolidayApiClient publicHolidayApiClient;
+
+    @Mock
+    private TransactionCacheEvictor transactionCacheEvictor;
 
     @InjectMocks
     private HolidayService holidayService;

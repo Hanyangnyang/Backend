@@ -8,14 +8,23 @@ import org.springframework.data.redis.cache.RedisCacheWriter;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
 
 public class CustomXCacheRedisCache extends RedisCache {
 
     public static final String X_CACHE_ATTRIBUTE = "X_CACHE_STATUS";
+    private final RedisCacheWriter cacheWriter;
 
     public CustomXCacheRedisCache(String name, RedisCacheWriter cacheWriter, RedisCacheConfiguration cacheConfig) {
         super(name, cacheWriter, cacheConfig);
+        this.cacheWriter = cacheWriter;
+    }
+
+    @Override
+    public void clear() {
+        byte[] pattern = (getName() + "::*").getBytes(StandardCharsets.UTF_8);
+        cacheWriter.clean(getName(), pattern);
     }
 
     @Override
