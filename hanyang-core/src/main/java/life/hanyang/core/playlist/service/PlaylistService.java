@@ -37,6 +37,10 @@ public class PlaylistService {
      */
     @Transactional
     public PlaylistSongResponse createSong(PlaylistSongCreateRequest request, String clientIp) {
+        if (request.genres() == null || request.genres().isEmpty() || request.genres().size() > 3) {
+            throw new BusinessException("장르는 최소 1개에서 최대 3개까지 선택해야 합니다.", ErrorCode.INVALID_INPUT_VALUE);
+        }
+
         PlaylistSong song = PlaylistSong.builder()
                 .trackId(request.trackId())
                 .title(request.title())

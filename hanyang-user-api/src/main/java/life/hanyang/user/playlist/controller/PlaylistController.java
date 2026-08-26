@@ -28,7 +28,13 @@ public class PlaylistController {
 
     private final PlaylistService playlistService;
 
-    @Operation(summary = "곡 추천 및 등록", description = "Spotify 곡 정보와 1~3개의 장르 태그 및 코멘트를 입력하여 플레이리스트에 등록합니다.")
+    @Operation(
+            summary = "곡 추천 및 등록",
+            description = "Spotify 곡 정보(trackId, title, artist, albumArtUrl)와 1~3개의 장르 태그 및 추천 코멘트를 입력하여 플레이리스트에 등록합니다.\n\n" +
+                    "• **장르 종류**: KPOP(K-POP), ROCK(락), R_AND_B(R&B), HIPHOP(힙합), INDIE(인디), BALLAD(발라드), POP(POP), JPOP(J-POP), OTHER(기타)\n" +
+                    "• **장르 선택 수**: 최소 1개 ~ 최대 3개\n" +
+                    "• **등록자 IP**: 클라이언트 헤더를 통해 백엔드에서 자동으로 수집/기록됩니다."
+    )
     @PostMapping
     public ResponseEntity<ApiResponse<PlaylistSongResponse>> createSong(
             @Valid @RequestBody PlaylistSongCreateRequest requestDto,
@@ -39,12 +45,18 @@ public class PlaylistController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
-    @Operation(summary = "피드 곡 목록 조회", description = "최신순으로 등록된 곡 목록을 페이징 조회합니다. 장르 필터링 및 현재 사용자 좋아요(isLiked) 여부를 지원합니다.")
+    @Operation(
+            summary = "피드 곡 목록 조회",
+            description = "등록된 곡 목록을 최신순으로 페이징 조회합니다.\n\n" +
+                    "• **genre**: 특정 장르만 필터링 (KPOP, ROCK, R_AND_B, HIPHOP, INDIE, BALLAD, POP, JPOP, OTHER). 미입력 시 전체 장르 조회\n" +
+                    "• **userId**: 현재 사용자 ID 전달 시 내가 누른 좋아요 여부(`isLiked: true/false`)를 계산하여 반환\n" +
+                    "• **page/size**: 0부터 시작하는 페이지 번호와 페이지당 개수 (기본값: size=20)"
+    )
     @GetMapping
     public ResponseEntity<ApiResponse<Page<PlaylistSongResponse>>> getFeedSongs(
-            @Parameter(description = "장르 필터 (미입력 시 전체 조회)")
+            @Parameter(description = "장르 필터 (미입력 시 전체 조회, 예: KPOP, INDIE, ROCK 등)")
             @RequestParam(required = false) Genre genre,
-            @Parameter(description = "현재 로그인 사용자 ID (좋아요 누름 여부 계산용)")
+            @Parameter(description = "현재 로그인 사용자 ID (좋아요 누름 여부 isLiked 계산용)")
             @RequestParam(required = false) UUID userId,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
@@ -52,8 +64,12 @@ public class PlaylistController {
         return ResponseEntity.ok(ApiResponse.success(songs));
     }
 
-
-    @Operation(summary = "좋아요 토글", description = "좋아요를 등록하거나 취소합니다. 동시성 제어 및 원자적 카운트 증감이 적용됩니다.")
+    @Operation(
+            summary = "좋아요 토글",
+            description = "좋아요를 등록하거나 취소합니다. 동시성 제어 및 원자적 카운트 증감이 적용됩니다.\n\n" +
+                    "• 이미 좋아요를 누른 상태 ➡️ 취소 처리 (`isLiked: false`, `heartCount` -1)\n" +
+                    "• 아직 누르지 않은 상태 ➡️ 등록 처리 (`isLiked: true`, `heartCount` +1)"
+    )
     @PostMapping("/{id}/like")
     public ResponseEntity<ApiResponse<PlaylistLikeToggleResponse>> toggleLike(
             @PathVariable UUID id,
@@ -63,7 +79,10 @@ public class PlaylistController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @Operation(summary = "내가 좋아요 누른 곡 목록 조회", description = "사용자가 좋아요를 누른 곡 목록을 최신순으로 페이징 조회합니다.")
+    @Operation(
+            summary = "내가 좋아요 누른 곡 목록 조회",
+            description = "사용자가 좋아요를 누른 곡 목록을 최신순으로 페이징 조회합니다."
+    )
     @GetMapping("/liked")
     public ResponseEntity<ApiResponse<Page<PlaylistSongResponse>>> getLikedSongs(
             @Parameter(description = "사용자 ID", required = true)
@@ -74,7 +93,10 @@ public class PlaylistController {
         return ResponseEntity.ok(ApiResponse.success(songs));
     }
 
-    @Operation(summary = "곡 신고하기", description = "부적절하거나 문제가 있는 곡을 신고 접수합니다.")
+    @Operation(
+            summary = "곡 신고하기",
+            description = "부적절한 내용이나 비속어가 포함된 곡을 운영자에게 신고 접수합니다."
+    )
     @PostMapping("/{id}/reports")
     public ResponseEntity<ApiResponse<PlaylistSongReportResponse>> reportSong(
             @PathVariable UUID id,

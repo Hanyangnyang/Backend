@@ -80,6 +80,35 @@ class PlaylistServiceTest {
     }
 
     @Test
+    @DisplayName("장르가 비어있으면 곡 등록 시 예외가 발생한다")
+    void createSong_ThrowsException_WhenGenresEmpty() {
+        // given
+        PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
+                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", UUID.randomUUID(), Set.of()
+        );
+
+        // when & then
+        assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("장르는 최소 1개에서 최대 3개까지");
+    }
+
+    @Test
+    @DisplayName("장르가 4개 이상이면 곡 등록 시 예외가 발생한다")
+    void createSong_ThrowsException_WhenGenresExceed3() {
+        // given
+        PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
+                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", UUID.randomUUID(),
+                Set.of(Genre.KPOP, Genre.ROCK, Genre.INDIE, Genre.BALLAD)
+        );
+
+        // when & then
+        assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("장르는 최소 1개에서 최대 3개까지");
+    }
+
+    @Test
     @DisplayName("피드 조회 시 현재 유저의 좋아요(isLiked) 여부가 올바르게 계산된다")
     void getFeedSongs_Success_WithIsLiked() {
         // given
