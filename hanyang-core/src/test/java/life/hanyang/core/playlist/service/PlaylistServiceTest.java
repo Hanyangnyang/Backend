@@ -110,53 +110,6 @@ class PlaylistServiceTest {
         assertThat(result.getContent().get(0).title()).isEqualTo("Ditto");
     }
 
-    @Test
-    @DisplayName("등록자 본인은 곡을 삭제(소프트 딜리트)할 수 있다")
-    void deleteSong_Success_WhenOwner() {
-        // given
-        UUID userId = UUID.randomUUID();
-        UUID songId = UUID.randomUUID();
-        PlaylistSong song = PlaylistSong.builder()
-                .trackId("track-1")
-                .title("Ditto")
-                .artist("NewJeans")
-                .userId(userId)
-                .ipAddress("127.0.0.1")
-                .genres(Set.of(Genre.KPOP))
-                .build();
-
-        given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-
-        // when
-        playlistService.deleteSong(songId, userId);
-
-        // then
-        assertThat(song.isDeleted()).isTrue();
-    }
-
-    @Test
-    @DisplayName("다른 사람의 곡을 삭제하려고 하면 예외가 발생한다")
-    void deleteSong_ThrowsException_WhenNotOwner() {
-        // given
-        UUID ownerId = UUID.randomUUID();
-        UUID otherUserId = UUID.randomUUID();
-        UUID songId = UUID.randomUUID();
-        PlaylistSong song = PlaylistSong.builder()
-                .trackId("track-1")
-                .title("Ditto")
-                .artist("NewJeans")
-                .userId(ownerId)
-                .ipAddress("127.0.0.1")
-                .genres(Set.of(Genre.KPOP))
-                .build();
-
-        given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-
-        // when & then
-        assertThatThrownBy(() -> playlistService.deleteSong(songId, otherUserId))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("본인이 등록한 곡만");
-    }
 
     @Test
     @DisplayName("좋아요 등록 토글 성공")

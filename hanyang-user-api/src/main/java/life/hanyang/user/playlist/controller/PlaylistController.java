@@ -52,16 +52,6 @@ public class PlaylistController {
         return ResponseEntity.ok(ApiResponse.success(songs));
     }
 
-    @Operation(summary = "내가 등록한 곡 삭제", description = "본인이 등록한 곡을 플레이리스트에서 삭제(소프트 딜리트)합니다.")
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteSong(
-            @PathVariable UUID id,
-            @Parameter(description = "소유자 검증용 사용자 ID", required = true)
-            @RequestParam UUID userId
-    ) {
-        playlistService.deleteSong(id, userId);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
 
     @Operation(summary = "좋아요 토글", description = "좋아요를 등록하거나 취소합니다. 동시성 제어 및 원자적 카운트 증감이 적용됩니다.")
     @PostMapping("/{id}/like")

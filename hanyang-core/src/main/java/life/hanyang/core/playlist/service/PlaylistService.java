@@ -78,20 +78,6 @@ public class PlaylistService {
         return new PageImpl<>(responses, pageable, songPage.getTotalElements());
     }
 
-    /**
-     * 3. 내가 등록한 곡 삭제 (소프트 딜리트)
-     */
-    @Transactional
-    public void deleteSong(UUID songId, UUID userId) {
-        PlaylistSong song = playlistSongRepository.findByIdAndDeletedAtIsNull(songId)
-                .orElseThrow(() -> new EntityNotFoundException("존재하지 않거나 이미 삭제된 곡입니다. id: " + songId));
-
-        if (!song.isOwnedBy(userId)) {
-            throw new BusinessException("본인이 등록한 곡만 삭제할 수 있습니다.", ErrorCode.ACCESS_DENIED);
-        }
-
-        song.softDelete();
-    }
 
     /**
      * 4. 좋아요 토글 (동시성 제어 및 원자적 카운트 증감)
