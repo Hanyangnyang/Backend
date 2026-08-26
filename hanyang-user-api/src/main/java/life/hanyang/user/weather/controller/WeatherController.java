@@ -45,6 +45,7 @@ public class WeatherController {
                     - `6 ~ 7`: 높음 🟠
                     - `8 ~ 10`: 매우높음 🔴
                     - `11 이상`: 위험 🟣
+                    - `null`: 점검중 또는 데이터 없음
                     
                     **3. 날씨 상태 문자열 (`weatherCondition`)**
                     - `SUNNY`: 맑음 ☀️
