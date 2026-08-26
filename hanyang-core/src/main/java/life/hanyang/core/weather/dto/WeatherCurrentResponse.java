@@ -15,7 +15,7 @@ public record WeatherCurrentResponse(
         Integer pm10Grade,         // 미세먼지 등급 (1:좋음, 2:보통, 3:나쁨, 4:매우나쁨)
         Integer pm25Value,         // 초미세먼지 농도 (µg/m³)
         Integer pm25Grade,         // 초미세먼지 등급
-        Integer uvIndex            // 자외선 지수
+        Integer uvIndex            // 자외선 지수 (null: 점검중 또는 데이터 없음)
 ) {
     public static WeatherCurrentResponse from(
             HourlyWeather weather,
