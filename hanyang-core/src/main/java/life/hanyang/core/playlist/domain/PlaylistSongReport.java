@@ -15,8 +15,8 @@ import java.util.UUID;
 @Getter
 @Entity
 @Table(name = "playlist_song_reports", indexes = {
-        @Index(name = "idx_playlist_song_reports_status_created", columnList = "status, created_at"),
-        @Index(name = "idx_playlist_song_reports_created_at", columnList = "created_at")
+        @Index(name = "idx_playlist_song_reports_status_created", columnList = "status, created_at DESC"),
+        @Index(name = "idx_playlist_song_reports_created_at", columnList = "created_at DESC")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PlaylistSongReport {

@@ -17,11 +17,11 @@ import java.util.UUID;
 @Getter
 @Entity
 @Table(name = "playlist_songs", indexes = {
-        @Index(name = "idx_playlist_songs_created_at", columnList = "created_at"),
-        @Index(name = "idx_playlist_songs_heart_count", columnList = "heart_count"),
-        @Index(name = "idx_playlist_songs_device_created", columnList = "device_id, created_at"),
-        @Index(name = "idx_playlist_songs_track_id", columnList = "track_id"),
-        @Index(name = "idx_playlist_songs_deleted_at", columnList = "deleted_at")
+        @Index(name = "idx_playlist_songs_created_at", columnList = "created_at DESC"),
+        @Index(name = "idx_playlist_songs_heart_count", columnList = "heart_count DESC"),
+        @Index(name = "idx_playlist_songs_device_created", columnList = "device_id, created_at DESC"),
+        @Index(name = "idx_playlist_songs_track_created", columnList = "track_id, created_at DESC"),
+        @Index(name = "idx_playlist_songs_track_heart_created", columnList = "track_id, heart_count DESC, created_at DESC")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PlaylistSong {
@@ -30,17 +30,9 @@ public class PlaylistSong {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "track_id", nullable = false)
-    private String trackId;
-
-    @Column(name = "title", nullable = false)
-    private String title;
-
-    @Column(name = "artist", nullable = false)
-    private String artist;
-
-    @Column(name = "album_art_url")
-    private String albumArtUrl;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "track_id", nullable = false)
+    private PlaylistTrack track;
 
     @Column(name = "comment", columnDefinition = "TEXT")
     private String comment;
@@ -82,25 +74,35 @@ public class PlaylistSong {
 
     @Builder
     public PlaylistSong(
-            String trackId,
-            String title,
-            String artist,
-            String albumArtUrl,
+            PlaylistTrack track,
             String comment,
             UUID deviceId,
             String ipAddress,
             Set<Genre> genres
     ) {
-        this.trackId = trackId;
-        this.title = title;
-        this.artist = artist;
-        this.albumArtUrl = albumArtUrl;
+        this.track = track;
         this.comment = comment;
         this.deviceId = deviceId;
         this.ipAddress = ipAddress;
         this.heartCount = 0;
         this.totalPlayCount = 0;
         this.genres = (genres != null) ? genres : new HashSet<>();
+    }
+
+    public String getTrackId() {
+        return this.track != null ? this.track.getTrackId() : null;
+    }
+
+    public String getTitle() {
+        return this.track != null ? this.track.getTitle() : null;
+    }
+
+    public String getArtist() {
+        return this.track != null ? this.track.getArtist() : null;
+    }
+
+    public String getAlbumArtUrl() {
+        return this.track != null ? this.track.getAlbumArtUrl() : null;
     }
 
     public void incrementPlayCount() {

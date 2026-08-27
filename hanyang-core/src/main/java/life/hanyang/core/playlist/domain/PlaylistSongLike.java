@@ -18,8 +18,8 @@ import java.util.UUID;
                 @UniqueConstraint(name = "uk_playlist_song_likes_song_device", columnNames = {"song_id", "device_id"})
         },
         indexes = {
-                @Index(name = "idx_playlist_song_likes_device_created", columnList = "device_id, created_at"),
-                @Index(name = "idx_playlist_song_likes_created_at", columnList = "created_at")
+                @Index(name = "idx_playlist_song_likes_device_created", columnList = "device_id, created_at DESC"),
+                @Index(name = "idx_playlist_song_likes_created_at", columnList = "created_at DESC")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

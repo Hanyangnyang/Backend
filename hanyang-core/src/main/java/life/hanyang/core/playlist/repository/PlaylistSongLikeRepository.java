@@ -22,6 +22,6 @@ public interface PlaylistSongLikeRepository extends JpaRepository<PlaylistSongLi
     @Query("SELECT l.song.id FROM PlaylistSongLike l WHERE l.deviceId = :deviceId AND l.song.id IN :songIds")
     Set<UUID> findLikedSongIdsByDeviceIdAndSongIdIn(@Param("deviceId") UUID deviceId, @Param("songIds") Collection<UUID> songIds);
 
-    @Query("SELECT l.song FROM PlaylistSongLike l WHERE l.deviceId = :deviceId AND l.song.deletedAt IS NULL ORDER BY l.createdAt DESC")
+    @Query("SELECT l.song FROM PlaylistSongLike l JOIN FETCH l.song.track WHERE l.deviceId = :deviceId AND l.song.deletedAt IS NULL ORDER BY l.createdAt DESC")
     Page<PlaylistSong> findLikedSongsByDeviceId(@Param("deviceId") UUID deviceId, Pageable pageable);
 }

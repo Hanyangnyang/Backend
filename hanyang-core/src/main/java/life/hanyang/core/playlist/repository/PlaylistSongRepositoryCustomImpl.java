@@ -21,6 +21,7 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
     public Page<PlaylistSong> searchSongs(Genre genre, Pageable pageable) {
         List<PlaylistSong> content = queryFactory
                 .selectFrom(playlistSong)
+                .join(playlistSong.track).fetchJoin()
                 .where(
                         playlistSong.deletedAt.isNull(),
                         containsGenre(genre)
@@ -46,6 +47,7 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
     public Page<PlaylistSong> searchSongsForAdmin(Genre genre, Boolean isDeleted, Pageable pageable) {
         List<PlaylistSong> content = queryFactory
                 .selectFrom(playlistSong)
+                .join(playlistSong.track).fetchJoin()
                 .where(
                         containsGenre(genre),
                         eqDeleted(isDeleted)
