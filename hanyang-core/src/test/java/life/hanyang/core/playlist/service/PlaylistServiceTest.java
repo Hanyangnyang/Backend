@@ -8,6 +8,7 @@ import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackDailyPlayRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,9 @@ class PlaylistServiceTest {
 
     @Mock
     private PlaylistModerationService playlistModerationService;
+
+    @Mock
+    private PlaylistTrackDailyPlayRepository playlistTrackDailyPlayRepository;
 
     @InjectMocks
     private PlaylistService playlistService;
@@ -484,5 +488,32 @@ class PlaylistServiceTest {
         assertThat(response.songTitle()).isEqualTo("Ditto");
         assertThat(response.reason()).isEqualTo("부적절한 멘트");
         assertThat(response.reporterDeviceId()).isEqualTo(reporterDeviceId);
+    }
+
+    @Test
+    @DisplayName("음원 재생수 기록 성공")
+    void recordTrackPlay_Success() {
+        // given
+        String trackId = "track-123";
+        given(playlistTrackRepository.existsById(trackId)).willReturn(true);
+
+        // when
+        playlistService.recordTrackPlay(trackId);
+
+        // then
+        verify(playlistTrackDailyPlayRepository).upsertDailyPlayCount(org.mockito.ArgumentMatchers.eq(trackId), any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 음원 트랙 재생수 기록 시 예외 발생")
+    void recordTrackPlay_ThrowsException_WhenTrackNotFound() {
+        // given
+        String trackId = "invalid-track";
+        given(playlistTrackRepository.existsById(trackId)).willReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> playlistService.recordTrackPlay(trackId))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("존재하지 않는 음원 트랙입니다.");
     }
 }

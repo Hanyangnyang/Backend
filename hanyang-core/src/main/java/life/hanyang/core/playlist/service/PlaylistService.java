@@ -8,6 +8,7 @@ import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackDailyPlayRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ public class PlaylistService {
     private final PlaylistSongLikeRepository playlistSongLikeRepository;
     private final PlaylistSongReportRepository playlistSongReportRepository;
     private final PlaylistModerationService playlistModerationService;
+    private final PlaylistTrackDailyPlayRepository playlistTrackDailyPlayRepository;
 
     /**
      * 1. 곡 추천/등록
@@ -272,5 +274,19 @@ public class PlaylistService {
 
         PlaylistSongReport saved = playlistSongReportRepository.save(report);
         return PlaylistSongReportResponse.from(saved);
+    }
+
+    /**
+     * 7. 음원 재생수 카운트 1 증가 (원자적 일자별 Upsert)
+     */
+    @Transactional
+    public void recordTrackPlay(String trackId) {
+        if (!playlistTrackRepository.existsById(trackId)) {
+            throw new EntityNotFoundException("존재하지 않는 음원 트랙입니다. trackId: " + trackId);
+        }
+
+        LocalDate today = LocalDate.now(KST);
+        playlistTrackDailyPlayRepository.upsertDailyPlayCount(trackId, today);
+        log.debug("[PlaylistPlay] 음원 재생수 기록 완료 - trackId: {}, playDate: {}", trackId, today);
     }
 }

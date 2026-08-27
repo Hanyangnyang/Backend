@@ -17,4 +17,13 @@ public interface PlaylistTrackDailyPlayRepository extends JpaRepository<Playlist
     @Modifying
     @Query("UPDATE PlaylistTrackDailyPlay p SET p.playCount = p.playCount + 1 WHERE p.id = :id")
     void incrementPlayCount(@Param("id") UUID id);
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO playlist_track_daily_plays (id, track_id, play_date, play_count, created_at, updated_at)
+            VALUES (gen_random_uuid(), :trackId, :playDate, 1, now(), now())
+            ON CONFLICT (track_id, play_date)
+            DO UPDATE SET play_count = playlist_track_daily_plays.play_count + 1, updated_at = now()
+            """, nativeQuery = true)
+    void upsertDailyPlayCount(@Param("trackId") String trackId, @Param("playDate") LocalDate playDate);
 }

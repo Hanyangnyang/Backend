@@ -137,6 +137,19 @@ public class PlaylistController {
     }
 
     @Operation(
+            summary = "음원 재생수 기록 (인기 차트 집계용)",
+            description = "사용자가 특정 음원의 재생 버튼(▶️)을 누를 때 호출하여 오늘 일자별 재생수를 1 증가시킵니다."
+    )
+    @PostMapping("/tracks/{trackId}/play")
+    public ResponseEntity<ApiResponse<Void>> recordTrackPlay(
+            @Parameter(description = "Spotify 트랙 ID", example = "4cOdK2wGLETKBW3PvgPWqT")
+            @PathVariable String trackId
+    ) {
+        playlistService.recordTrackPlay(trackId);
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    @Operation(
             summary = "추천글 단건 상세 조회",
             description = "특정 추천글 ID(UUID)로 상세 정보를 단건 조회합니다. 딥링크, SNS 공유, 알림 연동에 사용됩니다.\n\n" +
                     "• **deviceId**: 현재 기기 식별자 ID 전달 시 내가 누른 좋아요 여부(`isLiked: true/false`)를 계산하여 반환"
