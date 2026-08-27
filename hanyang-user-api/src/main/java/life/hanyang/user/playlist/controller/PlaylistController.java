@@ -153,17 +153,14 @@ public class PlaylistController {
     @Operation(
             summary = "인기 차트 순위 조회 (실시간 급상승 / 주간 / 월간)",
             description = "한양대 에리카 인기 음악 차트 순위를 조회합니다.\n\n" +
-                    "• **type**: `RISING`(실시간 급상승 - 최근 24시간 + 3시간 부스터, 기본값), `WEEKLY`(주간 차트 - 최근 7일), `MONTHLY`(월간 차트 - 최근 30일)\n" +
-                    "• **limit**: 조회할 순위 개수 (기본값: 100)"
+                    "• **type**: `RISING`(실시간 급상승 - 직전 정각 기준 24시간 + 3시간 부스터, 기본값), `WEEKLY`(주간 차트 - 지난주 월~일), `MONTHLY`(월간 차트 - 지난달 1일~말일)"
     )
     @GetMapping("/charts")
     public ResponseEntity<ApiResponse<PlaylistChartResponse>> getChart(
             @Parameter(description = "차트 유형 (RISING, WEEKLY, MONTHLY)", example = "RISING")
-            @RequestParam(required = false, defaultValue = "RISING") ChartType type,
-            @Parameter(description = "조회할 최대 곡 수 (기본값: 100)")
-            @RequestParam(required = false, defaultValue = "100") int limit
+            @RequestParam(required = false, defaultValue = "RISING") ChartType type
     ) {
-        PlaylistChartResponse response = playlistService.getChart(type, limit);
+        PlaylistChartResponse response = playlistService.getChart(type);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

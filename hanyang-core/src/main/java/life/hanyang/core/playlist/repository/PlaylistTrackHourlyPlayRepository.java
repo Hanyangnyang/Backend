@@ -31,18 +31,18 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             WITH hourly_plays AS (
                 SELECT 
                     track_id,
-                    SUM(CASE WHEN play_hour >= :h24 THEN play_count ELSE 0 END) AS play_24h,
-                    SUM(CASE WHEN play_hour >= :h3 THEN play_count ELSE 0 END) AS play_3h
+                    SUM(CASE WHEN play_hour >= :h24 AND play_hour < :upperBound THEN play_count ELSE 0 END) AS play_24h,
+                    SUM(CASE WHEN play_hour >= :h3 AND play_hour < :upperBound THEN play_count ELSE 0 END) AS play_3h
                 FROM playlist_track_hourly_plays
-                WHERE play_hour >= :h24
+                WHERE play_hour >= :h24 AND play_hour < :upperBound
                 GROUP BY track_id
             ),
             song_stats AS (
                 SELECT 
                     s.track_id,
                     COUNT(s.id) AS total_posts,
-                    COUNT(CASE WHEN s.created_at >= :h24 THEN 1 END) AS posts_24h,
-                    COUNT(CASE WHEN s.created_at >= :h3 THEN 1 END) AS posts_3h
+                    COUNT(CASE WHEN s.created_at >= :h24 AND s.created_at < :upperBound THEN 1 END) AS posts_24h,
+                    COUNT(CASE WHEN s.created_at >= :h3 AND s.created_at < :upperBound THEN 1 END) AS posts_3h
                 FROM playlist_songs s
                 WHERE s.deleted_at IS NULL
                 GROUP BY s.track_id
@@ -50,11 +50,11 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             like_stats AS (
                 SELECT 
                     s.track_id,
-                    COUNT(CASE WHEN l.created_at >= :h24 THEN 1 END) AS likes_24h,
-                    COUNT(CASE WHEN l.created_at >= :h3 THEN 1 END) AS likes_3h
+                    COUNT(CASE WHEN l.created_at >= :h24 AND l.created_at < :upperBound THEN 1 END) AS likes_24h,
+                    COUNT(CASE WHEN l.created_at >= :h3 AND l.created_at < :upperBound THEN 1 END) AS likes_3h
                 FROM playlist_song_likes l
                 JOIN playlist_songs s ON l.song_id = s.id
-                WHERE s.deleted_at IS NULL AND l.created_at >= :h24
+                WHERE s.deleted_at IS NULL AND l.created_at >= :h24 AND l.created_at < :upperBound
                 GROUP BY s.track_id
             )
             SELECT 
@@ -81,11 +81,12 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
     List<Object[]> findRisingChartRaw(
             @Param("h24") Instant h24,
             @Param("h3") Instant h3,
+            @Param("upperBound") Instant upperBound,
             @Param("limit") int limit
     );
 
     /**
-     * 📅 주간 인기 차트 집계 (최근 7일)
+     * 📅 주간 인기 차트 집계 (완결된 지난주 월~일)
      */
     @Query(value = """
             WITH weekly_plays AS (
@@ -93,7 +94,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                     track_id,
                     SUM(play_count) AS play_7d
                 FROM playlist_track_hourly_plays
-                WHERE play_hour >= :d7
+                WHERE play_hour >= :startPeriod AND play_hour < :endPeriod
                 GROUP BY track_id
             ),
             song_stats AS (
@@ -101,7 +102,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                     s.track_id,
                     COUNT(s.id) AS posts_7d
                 FROM playlist_songs s
-                WHERE s.deleted_at IS NULL AND s.created_at >= :d7
+                WHERE s.deleted_at IS NULL AND s.created_at >= :startPeriod AND s.created_at < :endPeriod
                 GROUP BY s.track_id
             ),
             like_stats AS (
@@ -110,7 +111,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                     COUNT(l.id) AS likes_7d
                 FROM playlist_song_likes l
                 JOIN playlist_songs s ON l.song_id = s.id
-                WHERE s.deleted_at IS NULL AND l.created_at >= :d7
+                WHERE s.deleted_at IS NULL AND l.created_at >= :startPeriod AND l.created_at < :endPeriod
                 GROUP BY s.track_id
             )
             SELECT 
@@ -132,12 +133,13 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findWeeklyChartRaw(
-            @Param("d7") Instant d7,
+            @Param("startPeriod") Instant startPeriod,
+            @Param("endPeriod") Instant endPeriod,
             @Param("limit") int limit
     );
 
     /**
-     * 🏆 월간 인기 차트 집계 (최근 30일)
+     * 🏆 월간 인기 차트 집계 (완결된 지난달 1일~말일)
      */
     @Query(value = """
             WITH monthly_plays AS (
@@ -145,7 +147,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                     track_id,
                     SUM(play_count) AS play_30d
                 FROM playlist_track_hourly_plays
-                WHERE play_hour >= :d30
+                WHERE play_hour >= :startPeriod AND play_hour < :endPeriod
                 GROUP BY track_id
             ),
             song_stats AS (
@@ -153,7 +155,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                     s.track_id,
                     COUNT(s.id) AS posts_30d
                 FROM playlist_songs s
-                WHERE s.deleted_at IS NULL AND s.created_at >= :d30
+                WHERE s.deleted_at IS NULL AND s.created_at >= :startPeriod AND s.created_at < :endPeriod
                 GROUP BY s.track_id
             ),
             like_stats AS (
@@ -162,7 +164,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                     COUNT(l.id) AS likes_30d
                 FROM playlist_song_likes l
                 JOIN playlist_songs s ON l.song_id = s.id
-                WHERE s.deleted_at IS NULL AND l.created_at >= :d30
+                WHERE s.deleted_at IS NULL AND l.created_at >= :startPeriod AND l.created_at < :endPeriod
                 GROUP BY s.track_id
             )
             SELECT 
@@ -184,7 +186,8 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findMonthlyChartRaw(
-            @Param("d30") Instant d30,
+            @Param("startPeriod") Instant startPeriod,
+            @Param("endPeriod") Instant endPeriod,
             @Param("limit") int limit
     );
 }

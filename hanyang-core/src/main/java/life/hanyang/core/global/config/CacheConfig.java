@@ -60,7 +60,8 @@ public class CacheConfig implements CachingConfigurer {
                 "menu", config.entryTtl(Duration.ofHours(12)),
                 "banner", config.entryTtl(Duration.ofHours(12)),
                 "holidayDateInfo", config.entryTtl(Duration.ofHours(24)),
-                "holidays", config.entryTtl(Duration.ofHours(24))
+                "holidays", config.entryTtl(Duration.ofHours(24)),
+                "playlistChart", config.entryTtl(Duration.ofHours(24))
         );
 
         RedisCacheWriter cacheWriter = RedisCacheWriter.nonLockingRedisCacheWriter(connectionFactory);

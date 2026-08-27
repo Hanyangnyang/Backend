@@ -5,6 +5,7 @@ import life.hanyang.core.global.exception.EntityNotFoundException;
 import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.playlist.domain.*;
 import life.hanyang.core.playlist.dto.*;
+import life.hanyang.core.playlist.repository.PlaylistChartRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
@@ -12,6 +13,8 @@ import life.hanyang.core.playlist.repository.PlaylistTrackHourlyPlayRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -19,10 +22,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
+import java.time.temporal.WeekFields;
 import java.util.*;
 
 @Slf4j
@@ -32,6 +36,7 @@ import java.util.*;
 public class PlaylistService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("MM.dd HH:00").withZone(KST);
     public static final int DAILY_MAX_CREATE_LIMIT = 3;
 
     private final PlaylistTrackRepository playlistTrackRepository;
@@ -40,6 +45,7 @@ public class PlaylistService {
     private final PlaylistSongReportRepository playlistSongReportRepository;
     private final PlaylistModerationService playlistModerationService;
     private final PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
+    private final PlaylistChartRepository playlistChartRepository;
 
     /**
      * 1. 곡 추천/등록
@@ -292,41 +298,159 @@ public class PlaylistService {
     }
 
     /**
-     * 8. 인기 차트 순위 조회 (실시간 급상승 / 주간 / 월간)
+     * 8. 인기 차트 순위 조회 (Redis 캐시 우선 조회 ➡️ DB 스냅샷 ➡️ 비어있을 시 즉시 계산 폴백)
      */
-    public PlaylistChartResponse getChart(ChartType type, int limit) {
+    @Cacheable(cacheNames = "playlistChart", key = "#type != null ? #type : T(life.hanyang.core.playlist.domain.ChartType).RISING")
+    public PlaylistChartResponse getChart(ChartType type) {
         ChartType chartType = (type != null) ? type : ChartType.RISING;
-        int maxLimit = (limit > 0 && limit <= 100) ? limit : 100;
-        Instant now = Instant.now();
 
-        List<Object[]> rows = switch (chartType) {
-            case RISING -> {
-                Instant h24 = now.minus(24, ChronoUnit.HOURS);
-                Instant h3 = now.minus(3, ChronoUnit.HOURS);
-                yield playlistTrackHourlyPlayRepository.findRisingChartRaw(h24, h3, maxLimit);
-            }
-            case WEEKLY -> {
-                Instant d7 = now.minus(7, ChronoUnit.DAYS);
-                yield playlistTrackHourlyPlayRepository.findWeeklyChartRaw(d7, maxLimit);
-            }
-            case MONTHLY -> {
-                Instant d30 = now.minus(30, ChronoUnit.DAYS);
-                yield playlistTrackHourlyPlayRepository.findMonthlyChartRaw(d30, maxLimit);
-            }
-        };
+        // 1. DB 스냅샷 테이블에서 최신 차트 목록 조회
+        List<PlaylistChart> latestChart = playlistChartRepository.findLatestChartByChartType(chartType);
+        if (!latestChart.isEmpty()) {
+            PlaylistChart first = latestChart.get(0);
+            List<PlaylistChartItemResponse> items = latestChart.stream()
+                    .map(c -> new PlaylistChartItemResponse(
+                            c.getRank(),
+                            c.getTrack().getTrackId(),
+                            c.getTrack().getTitle(),
+                            c.getTrack().getArtist(),
+                            c.getTrack().getAlbumArtUrl()
+                    ))
+                    .toList();
 
-        List<PlaylistChartItemResponse> items = new ArrayList<>(rows.size());
-        for (int i = 0; i < rows.size(); i++) {
-            Object[] row = rows.get(i);
-            items.add(new PlaylistChartItemResponse(
-                    i + 1,
-                    (String) row[0],
-                    (String) row[1],
-                    (String) row[2],
-                    (String) row[3]
-            ));
+            String displayTitle = formatDisplayTitle(chartType, first.getSnapshotTime(), first.getStartPeriod());
+            return PlaylistChartResponse.of(
+                    chartType,
+                    first.getSnapshotTime(),
+                    first.getStartPeriod(),
+                    first.getEndPeriod(),
+                    displayTitle,
+                    items
+            );
         }
 
-        return PlaylistChartResponse.of(chartType, items);
+        // 2. 만약 DB에도 스냅샷이 없다면 (최초 가동 폴백) 즉시 계산 및 영구 저장
+        log.info("[PlaylistChart] 저장된 차트 스냅샷이 없어 즉시 계산 및 저장을 수행합니다: {}", chartType);
+        return calculateAndSaveChart(chartType, Instant.now());
+    }
+
+    /**
+     * 9. 특정 시점 기준 차트 1~100위 계산, DB 영구 저장 및 Redis 캐시 갱신 (@CachePut)
+     */
+    @Transactional
+    @CachePut(cacheNames = "playlistChart", key = "#chartType")
+    public PlaylistChartResponse calculateAndSaveChart(ChartType chartType, Instant targetTime) {
+        Instant now = (targetTime != null) ? targetTime : Instant.now();
+        ZonedDateTime nowKst = now.atZone(KST);
+
+        Instant snapshotTime;
+        Instant startPeriod;
+        Instant endPeriod;
+        String displayTitle;
+
+        switch (chartType) {
+            case RISING -> {
+                // 직전 정각 기준 24시간 풀 + 3시간 부스터
+                ZonedDateTime targetHourKst = nowKst.truncatedTo(ChronoUnit.HOURS);
+                snapshotTime = targetHourKst.toInstant();
+                endPeriod = snapshotTime;
+                startPeriod = targetHourKst.minusHours(24).toInstant();
+                Instant h3 = targetHourKst.minusHours(3).toInstant();
+                displayTitle = TIME_FMT.format(targetHourKst) + " 기준 실시간 급상승";
+
+                List<Object[]> rows = playlistTrackHourlyPlayRepository.findRisingChartRaw(startPeriod, h3, endPeriod, 100);
+                return saveAndBuildResponse(ChartType.RISING, snapshotTime, startPeriod, endPeriod, displayTitle, rows);
+            }
+            case WEEKLY -> {
+                // 직전 월요일 자정 기준 지난주 월(00:00) ~ 일(23:59:59.999)
+                LocalDate today = nowKst.toLocalDate();
+                LocalDate lastMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                LocalDate prevMonday = lastMonday.minusWeeks(1);
+
+                snapshotTime = lastMonday.atStartOfDay(KST).toInstant();
+                startPeriod = prevMonday.atStartOfDay(KST).toInstant();
+                endPeriod = lastMonday.atStartOfDay(KST).toInstant();
+
+                int weekOfMonth = prevMonday.get(WeekFields.of(Locale.KOREA).weekOfMonth());
+                displayTitle = prevMonday.getMonthValue() + "월 " + weekOfMonth + "주차 주간 차트";
+
+                List<Object[]> rows = playlistTrackHourlyPlayRepository.findWeeklyChartRaw(startPeriod, endPeriod, 100);
+                return saveAndBuildResponse(ChartType.WEEKLY, snapshotTime, startPeriod, endPeriod, displayTitle, rows);
+            }
+            case MONTHLY -> {
+                // 이번 달 1일 자정 기준 지난달 1일(00:00) ~ 말일(23:59:59.999)
+                LocalDate today = nowKst.toLocalDate();
+                LocalDate firstDayOfThisMonth = today.withDayOfMonth(1);
+                LocalDate firstDayOfPrevMonth = firstDayOfThisMonth.minusMonths(1);
+
+                snapshotTime = firstDayOfThisMonth.atStartOfDay(KST).toInstant();
+                startPeriod = firstDayOfPrevMonth.atStartOfDay(KST).toInstant();
+                endPeriod = firstDayOfThisMonth.atStartOfDay(KST).toInstant();
+
+                displayTitle = firstDayOfPrevMonth.getYear() + "년 " + firstDayOfPrevMonth.getMonthValue() + "월 월간 차트";
+
+                List<Object[]> rows = playlistTrackHourlyPlayRepository.findMonthlyChartRaw(startPeriod, endPeriod, 100);
+                return saveAndBuildResponse(ChartType.MONTHLY, snapshotTime, startPeriod, endPeriod, displayTitle, rows);
+            }
+            default -> throw new IllegalArgumentException("지원하지 않는 차트 유형입니다: " + chartType);
+        }
+    }
+
+    private PlaylistChartResponse saveAndBuildResponse(
+            ChartType chartType,
+            Instant snapshotTime,
+            Instant startPeriod,
+            Instant endPeriod,
+            String displayTitle,
+            List<Object[]> rows
+    ) {
+        List<PlaylistChartItemResponse> items = new ArrayList<>(rows.size());
+        List<PlaylistChart> entities = new ArrayList<>(rows.size());
+
+        for (int i = 0; i < rows.size(); i++) {
+            Object[] row = rows.get(i);
+            String trackId = (String) row[0];
+            String title = (String) row[1];
+            String artist = (String) row[2];
+            String albumArtUrl = (String) row[3];
+            Long score = (row.length > 4 && row[4] instanceof Number n) ? n.longValue() : 0L;
+            int rank = i + 1;
+
+            items.add(new PlaylistChartItemResponse(rank, trackId, title, artist, albumArtUrl));
+
+            PlaylistTrack trackRef = playlistTrackRepository.getReferenceById(trackId);
+            entities.add(PlaylistChart.builder()
+                    .chartType(chartType)
+                    .snapshotTime(snapshotTime)
+                    .startPeriod(startPeriod)
+                    .endPeriod(endPeriod)
+                    .rank(rank)
+                    .track(trackRef)
+                    .totalScore(score)
+                    .build());
+        }
+
+        if (!entities.isEmpty()) {
+            playlistChartRepository.saveAll(entities);
+        }
+
+        log.info("[PlaylistChart] 차트 스냅샷 생성 및 캐싱 완료 - type: {}, snapshotTime: {}, totalTracks: {}",
+                chartType, snapshotTime, items.size());
+
+        return PlaylistChartResponse.of(chartType, snapshotTime, startPeriod, endPeriod, displayTitle, items);
+    }
+
+    private String formatDisplayTitle(ChartType chartType, Instant snapshotTime, Instant startPeriod) {
+        ZonedDateTime snapKst = snapshotTime.atZone(KST);
+        ZonedDateTime startKst = startPeriod.atZone(KST);
+
+        return switch (chartType) {
+            case RISING -> TIME_FMT.format(snapKst) + " 기준 실시간 급상승";
+            case WEEKLY -> {
+                int weekOfMonth = startKst.get(WeekFields.of(Locale.KOREA).weekOfMonth());
+                yield startKst.getMonthValue() + "월 " + weekOfMonth + "주차 주간 차트";
+            }
+            case MONTHLY -> startKst.getYear() + "년 " + startKst.getMonthValue() + "월 월간 차트";
+        };
     }
 }

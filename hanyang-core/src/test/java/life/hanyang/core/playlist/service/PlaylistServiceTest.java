@@ -5,6 +5,7 @@ import life.hanyang.core.global.exception.EntityNotFoundException;
 import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.playlist.domain.*;
 import life.hanyang.core.playlist.dto.*;
+import life.hanyang.core.playlist.repository.PlaylistChartRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
@@ -54,6 +55,9 @@ class PlaylistServiceTest {
 
     @Mock
     private PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
+
+    @Mock
+    private PlaylistChartRepository playlistChartRepository;
 
     @InjectMocks
     private PlaylistService playlistService;
@@ -520,60 +524,78 @@ class PlaylistServiceTest {
     }
 
     @Test
-    @DisplayName("실시간 급상승 차트 조회 성공")
-    void getChart_Rising_Success() {
+    @DisplayName("실시간 급상승 차트 조회 성공 (DB 스냅샷 존재 시)")
+    void getChart_Rising_FromSnapshot_Success() {
         // given
-        Object[] row1 = new Object[]{"track-1", "LOVE SONG", "유다빈밴드", "https://image1.url", 500L};
-        Object[] row2 = new Object[]{"track-2", "Ditto", "NewJeans", "https://image2.url", 300L};
-        List<Object[]> rows = List.of(row1, row2);
-        given(playlistTrackHourlyPlayRepository.findRisingChartRaw(any(), any(), anyInt()))
-                .willReturn(rows);
+        PlaylistTrack track = PlaylistTrack.builder()
+                .trackId("track-1")
+                .title("LOVE SONG")
+                .artist("유다빈밴드")
+                .albumArtUrl("https://image1.url")
+                .build();
+
+        PlaylistChart chartEntity = PlaylistChart.builder()
+                .chartType(ChartType.RISING)
+                .snapshotTime(java.time.Instant.now())
+                .startPeriod(java.time.Instant.now().minus(24, java.time.temporal.ChronoUnit.HOURS))
+                .endPeriod(java.time.Instant.now())
+                .rank(1)
+                .track(track)
+                .totalScore(500L)
+                .build();
+
+        given(playlistChartRepository.findLatestChartByChartType(ChartType.RISING))
+                .willReturn(List.of(chartEntity));
 
         // when
-        PlaylistChartResponse response = playlistService.getChart(ChartType.RISING, 100);
+        PlaylistChartResponse response = playlistService.getChart(ChartType.RISING);
 
         // then
         assertThat(response.chartType()).isEqualTo(ChartType.RISING);
-        assertThat(response.tracks()).hasSize(2);
+        assertThat(response.tracks()).hasSize(1);
         assertThat(response.tracks().get(0).rank()).isEqualTo(1);
         assertThat(response.tracks().get(0).title()).isEqualTo("LOVE SONG");
-        assertThat(response.tracks().get(1).rank()).isEqualTo(2);
-        assertThat(response.tracks().get(1).title()).isEqualTo("Ditto");
     }
 
     @Test
-    @DisplayName("주간 차트 조회 성공")
-    void getChart_Weekly_Success() {
+    @DisplayName("주간 차트 계산 및 저장 성공")
+    void calculateAndSaveChart_Weekly_Success() {
         // given
         Object[] row = new Object[]{"track-1", "LOVE SONG", "유다빈밴드", "https://image1.url", 1000L};
         List<Object[]> rows = Collections.singletonList(row);
-        given(playlistTrackHourlyPlayRepository.findWeeklyChartRaw(any(), anyInt()))
+        given(playlistTrackHourlyPlayRepository.findWeeklyChartRaw(any(), any(), anyInt()))
                 .willReturn(rows);
+        PlaylistTrack track = PlaylistTrack.builder().trackId("track-1").title("LOVE SONG").artist("유다빈밴드").build();
+        given(playlistTrackRepository.getReferenceById("track-1")).willReturn(track);
 
         // when
-        PlaylistChartResponse response = playlistService.getChart(ChartType.WEEKLY, 50);
+        PlaylistChartResponse response = playlistService.calculateAndSaveChart(ChartType.WEEKLY, java.time.Instant.now());
 
         // then
         assertThat(response.chartType()).isEqualTo(ChartType.WEEKLY);
         assertThat(response.tracks()).hasSize(1);
         assertThat(response.tracks().get(0).rank()).isEqualTo(1);
+        verify(playlistChartRepository).saveAll(any());
     }
 
     @Test
-    @DisplayName("월간 차트 조회 성공")
-    void getChart_Monthly_Success() {
+    @DisplayName("월간 차트 계산 및 저장 성공")
+    void calculateAndSaveChart_Monthly_Success() {
         // given
         Object[] row = new Object[]{"track-1", "Hype Boy", "NewJeans", "https://image.url", 5000L};
         List<Object[]> rows = Collections.singletonList(row);
-        given(playlistTrackHourlyPlayRepository.findMonthlyChartRaw(any(), anyInt()))
+        given(playlistTrackHourlyPlayRepository.findMonthlyChartRaw(any(), any(), anyInt()))
                 .willReturn(rows);
+        PlaylistTrack track = PlaylistTrack.builder().trackId("track-1").title("Hype Boy").artist("NewJeans").build();
+        given(playlistTrackRepository.getReferenceById("track-1")).willReturn(track);
 
         // when
-        PlaylistChartResponse response = playlistService.getChart(ChartType.MONTHLY, 100);
+        PlaylistChartResponse response = playlistService.calculateAndSaveChart(ChartType.MONTHLY, java.time.Instant.now());
 
         // then
         assertThat(response.chartType()).isEqualTo(ChartType.MONTHLY);
         assertThat(response.tracks()).hasSize(1);
         assertThat(response.tracks().get(0).title()).isEqualTo("Hype Boy");
+        verify(playlistChartRepository).saveAll(any());
     }
 }
