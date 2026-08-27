@@ -36,25 +36,26 @@ public class PlaylistService {
     private final PlaylistSongRepository playlistSongRepository;
     private final PlaylistSongLikeRepository playlistSongLikeRepository;
     private final PlaylistSongReportRepository playlistSongReportRepository;
+    private final PlaylistModerationService playlistModerationService;
 
     /**
      * 1. 곡 추천/등록
      */
     @Transactional
     public PlaylistSongResponse createSong(PlaylistSongCreateRequest request, String clientIp) {
-        // 1-1. 장르 개수(1~3개) 2차 방어 검증
+        // 1-1. 장르 개수(1~3개) 2차 방어 검증 (비용 0원)
         if (request.genres() == null || request.genres().isEmpty() || request.genres().size() > 3) {
             throw new BusinessException("장르는 최소 1개에서 최대 3개까지 선택해야 합니다.", ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        // 1-2. 오늘(00:00~23:59:59 KST) 등록 횟수 3곡 제한 검증
+        // 1-2. 오늘(00:00~23:59:59 KST) 등록 횟수 3곡 제한 검증 (비용 0원)
         Instant startOfToday = LocalDate.now(KST).atStartOfDay(KST).toInstant();
         long todayCount = playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(request.deviceId(), startOfToday);
         if (todayCount >= DAILY_MAX_CREATE_LIMIT) {
             throw new BusinessException("오늘 추천 가능한 곡 수(최대 3곡)를 초과했습니다.", ErrorCode.PLAYLIST_DAILY_LIMIT_EXCEEDED);
         }
 
-        // 1-3. 최근 7일(요일 기준) 동일 곡 중복 추천 검증
+        // 1-3. 최근 7일(요일 기준) 동일 곡 중복 추천 검증 (비용 0원)
         Instant startOf7DaysAgo = LocalDate.now(KST).minusDays(6).atStartOfDay(KST).toInstant();
         boolean alreadyCreatedIn7Days = playlistSongRepository.existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(
                 request.deviceId(), request.trackId(), startOf7DaysAgo
@@ -62,6 +63,13 @@ public class PlaylistService {
         if (alreadyCreatedIn7Days) {
             throw new BusinessException("최근 7일 이내에 이미 추천한 곡입니다. 다른 곡을 추천해 주세요.", ErrorCode.PLAYLIST_DUPLICATE_SONG_IN_WEEK);
         }
+
+        // 1-4. 위의 모든 검증 통과 시에만 AI 실시간 코멘트/세로드립 검열 수행 (과금 방어)
+        boolean isAiModerated = playlistModerationService.validateSongContent(
+                request.title(),
+                request.artist(),
+                request.comment()
+        );
 
         // 1-4. 음원 마스터(PlaylistTrack) 조회 또는 신규 생성
         PlaylistTrack track = playlistTrackRepository.findById(request.trackId())
@@ -80,6 +88,7 @@ public class PlaylistService {
                 .deviceId(request.deviceId())
                 .ipAddress(clientIp != null ? clientIp : "UNKNOWN")
                 .genres(request.genres())
+                .isAiModerated(isAiModerated)
                 .build();
 
         PlaylistSong saved = playlistSongRepository.save(song);

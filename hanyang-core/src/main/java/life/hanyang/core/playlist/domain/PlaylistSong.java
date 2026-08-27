@@ -60,6 +60,10 @@ public class PlaylistSong {
     @Column(name = "genre", nullable = false, length = 30)
     private Set<Genre> genres = new HashSet<>();
 
+    @ColumnDefault("true")
+    @Column(name = "is_ai_moderated", nullable = false)
+    private boolean isAiModerated = true;
+
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
@@ -78,7 +82,8 @@ public class PlaylistSong {
             String comment,
             UUID deviceId,
             String ipAddress,
-            Set<Genre> genres
+            Set<Genre> genres,
+            Boolean isAiModerated
     ) {
         this.track = track;
         this.comment = comment;
@@ -87,6 +92,7 @@ public class PlaylistSong {
         this.heartCount = 0;
         this.totalPlayCount = 0;
         this.genres = (genres != null) ? genres : new HashSet<>();
+        this.isAiModerated = (isAiModerated != null) ? isAiModerated : true;
     }
 
     public String getTrackId() {

@@ -21,7 +21,8 @@ public enum ErrorCode {
 
     // 플레이리스트 에러
     PLAYLIST_DAILY_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "PL001", "오늘 추천 가능한 곡 수(최대 3곡)를 초과했습니다."),
-    PLAYLIST_DUPLICATE_SONG_IN_WEEK(HttpStatus.BAD_REQUEST, "PL002", "최근 7일 이내에 이미 추천한 곡입니다. 다른 곡을 추천해 주세요.");
+    PLAYLIST_DUPLICATE_SONG_IN_WEEK(HttpStatus.BAD_REQUEST, "PL002", "최근 7일 이내에 이미 추천한 곡입니다. 다른 곡을 추천해 주세요."),
+    PLAYLIST_INAPPROPRIATE_COMMENT(HttpStatus.BAD_REQUEST, "PL003", "부적절하거나 비속어가 포함된 코멘트는 등록할 수 없습니다.");
 
     private final HttpStatus status;
     private final String code;

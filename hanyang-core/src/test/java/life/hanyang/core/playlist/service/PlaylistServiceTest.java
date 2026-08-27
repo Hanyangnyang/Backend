@@ -2,6 +2,7 @@ package life.hanyang.core.playlist.service;
 
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.exception.EntityNotFoundException;
+import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.playlist.domain.*;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
@@ -45,6 +46,9 @@ class PlaylistServiceTest {
     @Mock
     private PlaylistSongReportRepository playlistSongReportRepository;
 
+    @Mock
+    private PlaylistModerationService playlistModerationService;
+
     @InjectMocks
     private PlaylistService playlistService;
 
@@ -70,8 +74,10 @@ class PlaylistServiceTest {
                 .deviceId(request.deviceId())
                 .ipAddress("127.0.0.1")
                 .genres(request.genres())
+                .isAiModerated(true)
                 .build();
 
+        given(playlistModerationService.validateSongContent(any(), any(), any())).willReturn(true);
         given(playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any())).willReturn(0L);
         given(playlistSongRepository.existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any(), any())).willReturn(false);
         given(playlistTrackRepository.findById(request.trackId())).willReturn(Optional.empty());
@@ -86,6 +92,24 @@ class PlaylistServiceTest {
         assertThat(response.artist()).isEqualTo("NewJeans");
         assertThat(response.genres()).containsExactly(Genre.KPOP);
         assertThat(response.isLiked()).isFalse();
+    }
+
+    @Test
+    @DisplayName("유해 코멘트 감지 시 곡 등록이 차단된다")
+    void createSong_ThrowsException_WhenModerationFails() {
+        // given
+        UUID deviceId = UUID.randomUUID();
+        PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
+                "track-123", "곡명", "가수", "https://image.url", "부적절한 욕설 코멘트", deviceId, Set.of(Genre.KPOP)
+        );
+
+        given(playlistModerationService.validateSongContent(any(), any(), any()))
+                .willThrow(new BusinessException("부적절한 표현이 감지되었습니다.", ErrorCode.PLAYLIST_INAPPROPRIATE_COMMENT));
+
+        // when & then
+        assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("부적절한 표현이 감지되었습니다.");
     }
 
     @Test
