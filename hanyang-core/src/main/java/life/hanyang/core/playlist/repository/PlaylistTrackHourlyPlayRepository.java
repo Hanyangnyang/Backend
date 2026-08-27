@@ -41,7 +41,6 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                 SELECT 
                     s.track_id,
                     COUNT(s.id) AS total_posts,
-                    COALESCE(SUM(s.heart_count), 0) AS total_hearts,
                     COUNT(CASE WHEN s.created_at >= :h24 THEN 1 END) AS posts_24h,
                     COUNT(CASE WHEN s.created_at >= :h3 THEN 1 END) AS posts_3h
                 FROM playlist_songs s
@@ -64,20 +63,19 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                 t.artist,
                 t.album_art_url,
                 (
-                    COALESCE(hp.play_24h, 0) * 3
-                  + COALESCE(ls.likes_24h, 0) * 5
-                  + COALESCE(ss.posts_24h, 0) * 10
-                  + COALESCE(ss.total_hearts, 0) * 1
-                  + COALESCE(hp.play_3h, 0) * 10
-                  + COALESCE(ls.likes_3h, 0) * 20
-                  + COALESCE(ss.posts_3h, 0) * 40
+                    COALESCE(ls.likes_24h, 0) * 3
+                  + COALESCE(hp.play_24h, 0) * 1
+                  + COALESCE(ss.posts_24h, 0) * 1
+                  + COALESCE(ls.likes_3h, 0) * 5
+                  + COALESCE(hp.play_3h, 0) * 2
+                  + COALESCE(ss.posts_3h, 0) * 1
                 ) AS total_score
             FROM playlist_tracks t
             LEFT JOIN hourly_plays hp ON t.track_id = hp.track_id
             LEFT JOIN song_stats ss ON t.track_id = ss.track_id
             LEFT JOIN like_stats ls ON t.track_id = ls.track_id
-            WHERE COALESCE(hp.play_24h, 0) > 0 OR COALESCE(ss.total_posts, 0) > 0
-            ORDER BY total_score DESC, hp.play_24h DESC NULLS LAST, t.created_at DESC
+            WHERE COALESCE(hp.play_24h, 0) > 0 OR COALESCE(ls.likes_24h, 0) > 0 OR COALESCE(ss.posts_24h, 0) > 0 OR COALESCE(ss.total_posts, 0) > 0
+            ORDER BY total_score DESC, ls.likes_24h DESC NULLS LAST, hp.play_24h DESC NULLS LAST, t.created_at DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findRisingChartRaw(
@@ -101,10 +99,18 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             song_stats AS (
                 SELECT 
                     s.track_id,
-                    COUNT(s.id) AS total_posts,
-                    COALESCE(SUM(s.heart_count), 0) AS total_hearts
+                    COUNT(s.id) AS posts_7d
                 FROM playlist_songs s
-                WHERE s.deleted_at IS NULL
+                WHERE s.deleted_at IS NULL AND s.created_at >= :d7
+                GROUP BY s.track_id
+            ),
+            like_stats AS (
+                SELECT 
+                    s.track_id,
+                    COUNT(l.id) AS likes_7d
+                FROM playlist_song_likes l
+                JOIN playlist_songs s ON l.song_id = s.id
+                WHERE s.deleted_at IS NULL AND l.created_at >= :d7
                 GROUP BY s.track_id
             )
             SELECT 
@@ -113,15 +119,16 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                 t.artist,
                 t.album_art_url,
                 (
-                    COALESCE(wp.play_7d, 0) * 5
-                  + COALESCE(ss.total_hearts, 0) * 2
-                  + COALESCE(ss.total_posts, 0) * 10
+                    COALESCE(ls.likes_7d, 0) * 5
+                  + COALESCE(wp.play_7d, 0) * 1
+                  + COALESCE(ss.posts_7d, 0) * 1
                 ) AS total_score
             FROM playlist_tracks t
             LEFT JOIN weekly_plays wp ON t.track_id = wp.track_id
             LEFT JOIN song_stats ss ON t.track_id = ss.track_id
-            WHERE COALESCE(wp.play_7d, 0) > 0 OR COALESCE(ss.total_posts, 0) > 0
-            ORDER BY total_score DESC, wp.play_7d DESC NULLS LAST, t.created_at DESC
+            LEFT JOIN like_stats ls ON t.track_id = ls.track_id
+            WHERE COALESCE(wp.play_7d, 0) > 0 OR COALESCE(ls.likes_7d, 0) > 0 OR COALESCE(ss.posts_7d, 0) > 0
+            ORDER BY total_score DESC, ls.likes_7d DESC NULLS LAST, wp.play_7d DESC NULLS LAST, t.created_at DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findWeeklyChartRaw(
@@ -144,10 +151,18 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             song_stats AS (
                 SELECT 
                     s.track_id,
-                    COUNT(s.id) AS total_posts,
-                    COALESCE(SUM(s.heart_count), 0) AS total_hearts
+                    COUNT(s.id) AS posts_30d
                 FROM playlist_songs s
-                WHERE s.deleted_at IS NULL
+                WHERE s.deleted_at IS NULL AND s.created_at >= :d30
+                GROUP BY s.track_id
+            ),
+            like_stats AS (
+                SELECT 
+                    s.track_id,
+                    COUNT(l.id) AS likes_30d
+                FROM playlist_song_likes l
+                JOIN playlist_songs s ON l.song_id = s.id
+                WHERE s.deleted_at IS NULL AND l.created_at >= :d30
                 GROUP BY s.track_id
             )
             SELECT 
@@ -156,15 +171,16 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                 t.artist,
                 t.album_art_url,
                 (
-                    COALESCE(mp.play_30d, 0) * 3
-                  + COALESCE(ss.total_hearts, 0) * 3
-                  + COALESCE(ss.total_posts, 0) * 20
+                    COALESCE(ls.likes_30d, 0) * 5
+                  + COALESCE(mp.play_30d, 0) * 1
+                  + COALESCE(ss.posts_30d, 0) * 2
                 ) AS total_score
             FROM playlist_tracks t
             LEFT JOIN monthly_plays mp ON t.track_id = mp.track_id
             LEFT JOIN song_stats ss ON t.track_id = ss.track_id
-            WHERE COALESCE(mp.play_30d, 0) > 0 OR COALESCE(ss.total_posts, 0) > 0
-            ORDER BY total_score DESC, mp.play_30d DESC NULLS LAST, t.created_at DESC
+            LEFT JOIN like_stats ls ON t.track_id = ls.track_id
+            WHERE COALESCE(mp.play_30d, 0) > 0 OR COALESCE(ls.likes_30d, 0) > 0 OR COALESCE(ss.posts_30d, 0) > 0
+            ORDER BY total_score DESC, ls.likes_30d DESC NULLS LAST, mp.play_30d DESC NULLS LAST, t.created_at DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findMonthlyChartRaw(
