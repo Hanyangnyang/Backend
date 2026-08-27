@@ -8,7 +8,7 @@ import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
-import life.hanyang.core.playlist.repository.PlaylistTrackDailyPlayRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackHourlyPlayRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Slf4j
@@ -38,7 +39,7 @@ public class PlaylistService {
     private final PlaylistSongLikeRepository playlistSongLikeRepository;
     private final PlaylistSongReportRepository playlistSongReportRepository;
     private final PlaylistModerationService playlistModerationService;
-    private final PlaylistTrackDailyPlayRepository playlistTrackDailyPlayRepository;
+    private final PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
 
     /**
      * 1. 곡 추천/등록
@@ -277,7 +278,7 @@ public class PlaylistService {
     }
 
     /**
-     * 7. 음원 재생수 카운트 1 증가 (원자적 일자별 Upsert)
+     * 7. 음원 재생수 카운트 1 증가 (원자적 1시간 단위 Upsert)
      */
     @Transactional
     public void recordTrackPlay(String trackId) {
@@ -285,8 +286,47 @@ public class PlaylistService {
             throw new EntityNotFoundException("존재하지 않는 음원 트랙입니다. trackId: " + trackId);
         }
 
-        LocalDate today = LocalDate.now(KST);
-        playlistTrackDailyPlayRepository.upsertDailyPlayCount(trackId, today);
-        log.debug("[PlaylistPlay] 음원 재생수 기록 완료 - trackId: {}, playDate: {}", trackId, today);
+        Instant currentHour = Instant.now().truncatedTo(ChronoUnit.HOURS);
+        playlistTrackHourlyPlayRepository.upsertHourlyPlayCount(trackId, currentHour);
+        log.debug("[PlaylistPlay] 음원 재생수 기록 완료 - trackId: {}, playHour: {}", trackId, currentHour);
+    }
+
+    /**
+     * 8. 인기 차트 순위 조회 (실시간 급상승 / 주간 / 월간)
+     */
+    public PlaylistChartResponse getChart(ChartType type, int limit) {
+        ChartType chartType = (type != null) ? type : ChartType.RISING;
+        int maxLimit = (limit > 0 && limit <= 100) ? limit : 100;
+        Instant now = Instant.now();
+
+        List<Object[]> rows = switch (chartType) {
+            case RISING -> {
+                Instant h24 = now.minus(24, ChronoUnit.HOURS);
+                Instant h3 = now.minus(3, ChronoUnit.HOURS);
+                yield playlistTrackHourlyPlayRepository.findRisingChartRaw(h24, h3, maxLimit);
+            }
+            case WEEKLY -> {
+                Instant d7 = now.minus(7, ChronoUnit.DAYS);
+                yield playlistTrackHourlyPlayRepository.findWeeklyChartRaw(d7, maxLimit);
+            }
+            case MONTHLY -> {
+                Instant d30 = now.minus(30, ChronoUnit.DAYS);
+                yield playlistTrackHourlyPlayRepository.findMonthlyChartRaw(d30, maxLimit);
+            }
+        };
+
+        List<PlaylistChartItemResponse> items = new ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            Object[] row = rows.get(i);
+            items.add(new PlaylistChartItemResponse(
+                    i + 1,
+                    (String) row[0],
+                    (String) row[1],
+                    (String) row[2],
+                    (String) row[3]
+            ));
+        }
+
+        return PlaylistChartResponse.of(chartType, items);
     }
 }

@@ -10,22 +10,22 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.UUID;
 
 @Getter
 @Entity
 @Table(
-        name = "playlist_track_daily_plays",
+        name = "playlist_track_hourly_plays",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_track_daily_plays", columnNames = {"track_id", "play_date"})
+                @UniqueConstraint(name = "uk_track_hourly_plays", columnNames = {"track_id", "play_hour"})
         },
         indexes = {
-                @Index(name = "idx_track_daily_plays_date_count", columnList = "play_date, play_count DESC")
+                @Index(name = "idx_track_hourly_plays_hour_count", columnList = "play_hour, play_count DESC"),
+                @Index(name = "idx_track_hourly_plays_track_hour", columnList = "track_id, play_hour")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class PlaylistTrackDailyPlay {
+public class PlaylistTrackHourlyPlay {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -34,8 +34,8 @@ public class PlaylistTrackDailyPlay {
     @Column(name = "track_id", nullable = false)
     private String trackId;
 
-    @Column(name = "play_date", nullable = false)
-    private LocalDate playDate;
+    @Column(name = "play_hour", nullable = false)
+    private Instant playHour;
 
     @ColumnDefault("0")
     @Column(name = "play_count", nullable = false)
@@ -51,18 +51,10 @@ public class PlaylistTrackDailyPlay {
     private Instant updatedAt;
 
     @Builder
-    public PlaylistTrackDailyPlay(String trackId, LocalDate playDate, Integer playCount) {
+    public PlaylistTrackHourlyPlay(String trackId, Instant playHour, Integer playCount) {
         this.trackId = trackId;
-        this.playDate = playDate;
+        this.playHour = playHour;
         this.playCount = (playCount != null) ? playCount : 0;
-    }
-
-    public static PlaylistTrackDailyPlay createFirstPlay(String trackId, LocalDate playDate) {
-        return PlaylistTrackDailyPlay.builder()
-                .trackId(trackId)
-                .playDate(playDate)
-                .playCount(1)
-                .build();
     }
 
     public void incrementPlayCount() {

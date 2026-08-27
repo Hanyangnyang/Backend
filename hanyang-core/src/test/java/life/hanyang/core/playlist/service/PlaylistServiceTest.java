@@ -8,7 +8,7 @@ import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
-import life.hanyang.core.playlist.repository.PlaylistTrackDailyPlayRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackHourlyPlayRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +21,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -29,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -51,7 +53,7 @@ class PlaylistServiceTest {
     private PlaylistModerationService playlistModerationService;
 
     @Mock
-    private PlaylistTrackDailyPlayRepository playlistTrackDailyPlayRepository;
+    private PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
 
     @InjectMocks
     private PlaylistService playlistService;
@@ -501,7 +503,7 @@ class PlaylistServiceTest {
         playlistService.recordTrackPlay(trackId);
 
         // then
-        verify(playlistTrackDailyPlayRepository).upsertDailyPlayCount(org.mockito.ArgumentMatchers.eq(trackId), any());
+        verify(playlistTrackHourlyPlayRepository).upsertHourlyPlayCount(org.mockito.ArgumentMatchers.eq(trackId), any());
     }
 
     @Test
@@ -515,5 +517,63 @@ class PlaylistServiceTest {
         assertThatThrownBy(() -> playlistService.recordTrackPlay(trackId))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("존재하지 않는 음원 트랙입니다.");
+    }
+
+    @Test
+    @DisplayName("실시간 급상승 차트 조회 성공")
+    void getChart_Rising_Success() {
+        // given
+        Object[] row1 = new Object[]{"track-1", "LOVE SONG", "유다빈밴드", "https://image1.url", 500L};
+        Object[] row2 = new Object[]{"track-2", "Ditto", "NewJeans", "https://image2.url", 300L};
+        List<Object[]> rows = List.of(row1, row2);
+        given(playlistTrackHourlyPlayRepository.findRisingChartRaw(any(), any(), anyInt()))
+                .willReturn(rows);
+
+        // when
+        PlaylistChartResponse response = playlistService.getChart(ChartType.RISING, 100);
+
+        // then
+        assertThat(response.chartType()).isEqualTo(ChartType.RISING);
+        assertThat(response.tracks()).hasSize(2);
+        assertThat(response.tracks().get(0).rank()).isEqualTo(1);
+        assertThat(response.tracks().get(0).title()).isEqualTo("LOVE SONG");
+        assertThat(response.tracks().get(1).rank()).isEqualTo(2);
+        assertThat(response.tracks().get(1).title()).isEqualTo("Ditto");
+    }
+
+    @Test
+    @DisplayName("주간 차트 조회 성공")
+    void getChart_Weekly_Success() {
+        // given
+        Object[] row = new Object[]{"track-1", "LOVE SONG", "유다빈밴드", "https://image1.url", 1000L};
+        List<Object[]> rows = Collections.singletonList(row);
+        given(playlistTrackHourlyPlayRepository.findWeeklyChartRaw(any(), anyInt()))
+                .willReturn(rows);
+
+        // when
+        PlaylistChartResponse response = playlistService.getChart(ChartType.WEEKLY, 50);
+
+        // then
+        assertThat(response.chartType()).isEqualTo(ChartType.WEEKLY);
+        assertThat(response.tracks()).hasSize(1);
+        assertThat(response.tracks().get(0).rank()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("월간 차트 조회 성공")
+    void getChart_Monthly_Success() {
+        // given
+        Object[] row = new Object[]{"track-1", "Hype Boy", "NewJeans", "https://image.url", 5000L};
+        List<Object[]> rows = Collections.singletonList(row);
+        given(playlistTrackHourlyPlayRepository.findMonthlyChartRaw(any(), anyInt()))
+                .willReturn(rows);
+
+        // when
+        PlaylistChartResponse response = playlistService.getChart(ChartType.MONTHLY, 100);
+
+        // then
+        assertThat(response.chartType()).isEqualTo(ChartType.MONTHLY);
+        assertThat(response.tracks()).hasSize(1);
+        assertThat(response.tracks().get(0).title()).isEqualTo("Hype Boy");
     }
 }
