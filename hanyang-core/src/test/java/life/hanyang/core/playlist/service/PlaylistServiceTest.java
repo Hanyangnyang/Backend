@@ -51,9 +51,9 @@ class PlaylistServiceTest {
     @DisplayName("곡 등록 성공")
     void createSong_Success() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
         PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
-                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", userId, Set.of(Genre.KPOP)
+                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", deviceId, Set.of(Genre.KPOP)
         );
 
         PlaylistSong song = PlaylistSong.builder()
@@ -62,7 +62,7 @@ class PlaylistServiceTest {
                 .artist(request.artist())
                 .albumArtUrl(request.albumArtUrl())
                 .comment(request.comment())
-                .userId(request.userId())
+                .deviceId(request.deviceId())
                 .ipAddress("127.0.0.1")
                 .genres(request.genres())
                 .build();
@@ -109,16 +109,16 @@ class PlaylistServiceTest {
     }
 
     @Test
-    @DisplayName("피드 조회 시 현재 유저의 좋아요(isLiked) 여부가 올바르게 계산된다")
+    @DisplayName("피드 조회 시 현재 기기의 좋아요(isLiked) 여부가 올바르게 계산된다")
     void getFeedSongs_Success_WithIsLiked() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
         UUID songId = UUID.randomUUID();
         PlaylistSong song = PlaylistSong.builder()
                 .trackId("track-1")
                 .title("Ditto")
                 .artist("NewJeans")
-                .userId(UUID.randomUUID())
+                .deviceId(UUID.randomUUID())
                 .ipAddress("127.0.0.1")
                 .genres(Set.of(Genre.KPOP))
                 .build();
@@ -128,11 +128,11 @@ class PlaylistServiceTest {
         Page<PlaylistSong> page = new PageImpl<>(List.of(song), pageable, 1);
 
         given(playlistSongRepository.searchSongs(Genre.KPOP, pageable)).willReturn(page);
-        given(playlistSongLikeRepository.findLikedSongIdsByUserIdAndSongIdIn(any(UUID.class), any()))
+        given(playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(any(UUID.class), any()))
                 .willReturn(Set.of(songId));
 
         // when
-        Page<PlaylistSongResponse> result = playlistService.getFeedSongs(Genre.KPOP, pageable, userId);
+        Page<PlaylistSongResponse> result = playlistService.getFeedSongs(Genre.KPOP, pageable, deviceId);
 
         // then
         assertThat(result.getContent()).hasSize(1);
@@ -145,22 +145,22 @@ class PlaylistServiceTest {
     void toggleLike_Success_AddLike() {
         // given
         UUID songId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
         PlaylistSong song = PlaylistSong.builder()
                 .trackId("track-1")
                 .title("Ditto")
                 .artist("NewJeans")
-                .userId(UUID.randomUUID())
+                .deviceId(UUID.randomUUID())
                 .ipAddress("127.0.0.1")
                 .genres(Set.of(Genre.KPOP))
                 .build();
 
         given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-        given(playlistSongLikeRepository.findBySongIdAndUserId(songId, userId)).willReturn(Optional.empty());
+        given(playlistSongLikeRepository.findBySongIdAndDeviceId(songId, deviceId)).willReturn(Optional.empty());
         given(playlistSongRepository.getHeartCount(songId)).willReturn(Optional.of(1));
 
         // when
-        PlaylistLikeToggleResponse response = playlistService.toggleLike(songId, userId);
+        PlaylistLikeToggleResponse response = playlistService.toggleLike(songId, deviceId);
 
         // then
         assertThat(response.isLiked()).isTrue();
@@ -174,24 +174,24 @@ class PlaylistServiceTest {
     void toggleLike_Success_RemoveLike() {
         // given
         UUID songId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
         PlaylistSong song = PlaylistSong.builder()
                 .trackId("track-1")
                 .title("Ditto")
                 .artist("NewJeans")
-                .userId(UUID.randomUUID())
+                .deviceId(UUID.randomUUID())
                 .ipAddress("127.0.0.1")
                 .genres(Set.of(Genre.KPOP))
                 .build();
 
-        PlaylistSongLike existingLike = PlaylistSongLike.builder().song(song).userId(userId).build();
+        PlaylistSongLike existingLike = PlaylistSongLike.builder().song(song).deviceId(deviceId).build();
 
         given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-        given(playlistSongLikeRepository.findBySongIdAndUserId(songId, userId)).willReturn(Optional.of(existingLike));
+        given(playlistSongLikeRepository.findBySongIdAndDeviceId(songId, deviceId)).willReturn(Optional.of(existingLike));
         given(playlistSongRepository.getHeartCount(songId)).willReturn(Optional.of(0));
 
         // when
-        PlaylistLikeToggleResponse response = playlistService.toggleLike(songId, userId);
+        PlaylistLikeToggleResponse response = playlistService.toggleLike(songId, deviceId);
 
         // then
         assertThat(response.isLiked()).isFalse();
@@ -205,20 +205,20 @@ class PlaylistServiceTest {
     void reportSong_Success() {
         // given
         UUID songId = UUID.randomUUID();
-        UUID reporterUserId = UUID.randomUUID();
+        UUID reporterDeviceId = UUID.randomUUID();
         PlaylistSong song = PlaylistSong.builder()
                 .trackId("track-1")
                 .title("Ditto")
                 .artist("NewJeans")
-                .userId(UUID.randomUUID())
+                .deviceId(UUID.randomUUID())
                 .ipAddress("127.0.0.1")
                 .genres(Set.of(Genre.KPOP))
                 .build();
 
-        PlaylistSongReportRequest request = new PlaylistSongReportRequest(reporterUserId, "부적절한 멘트");
+        PlaylistSongReportRequest request = new PlaylistSongReportRequest(reporterDeviceId, "부적절한 멘트");
         PlaylistSongReport report = PlaylistSongReport.builder()
                 .song(song)
-                .reporterUserId(reporterUserId)
+                .reporterDeviceId(reporterDeviceId)
                 .reason("부적절한 멘트")
                 .build();
 
@@ -231,6 +231,6 @@ class PlaylistServiceTest {
         // then
         assertThat(response.songTitle()).isEqualTo("Ditto");
         assertThat(response.reason()).isEqualTo("부적절한 멘트");
-        assertThat(response.reporterUserId()).isEqualTo(reporterUserId);
+        assertThat(response.reporterDeviceId()).isEqualTo(reporterDeviceId);
     }
 }

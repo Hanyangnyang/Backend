@@ -15,10 +15,11 @@ import java.util.UUID;
 @Table(
         name = "playlist_song_likes",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_playlist_song_likes_song_user", columnNames = {"song_id", "user_id"})
+                @UniqueConstraint(name = "uk_playlist_song_likes_song_device", columnNames = {"song_id", "device_id"})
         },
         indexes = {
-                @Index(name = "idx_playlist_song_likes_user_id", columnList = "user_id")
+                @Index(name = "idx_playlist_song_likes_device_created", columnList = "device_id, created_at"),
+                @Index(name = "idx_playlist_song_likes_created_at", columnList = "created_at")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -32,16 +33,16 @@ public class PlaylistSongLike {
     @JoinColumn(name = "song_id", nullable = false)
     private PlaylistSong song;
 
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    @Column(name = "device_id", nullable = false)
+    private UUID deviceId;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @Builder
-    public PlaylistSongLike(PlaylistSong song, UUID userId) {
+    public PlaylistSongLike(PlaylistSong song, UUID deviceId) {
         this.song = song;
-        this.userId = userId;
+        this.deviceId = deviceId;
     }
 }

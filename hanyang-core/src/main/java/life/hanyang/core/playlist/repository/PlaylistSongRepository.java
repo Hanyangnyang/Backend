@@ -25,4 +25,6 @@ public interface PlaylistSongRepository extends JpaRepository<PlaylistSong, UUID
 
     @Query("SELECT s.heartCount FROM PlaylistSong s WHERE s.id = :id")
     Optional<Integer> getHeartCount(@Param("id") UUID id);
+
+    long countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(UUID deviceId, java.time.Instant createdAt);
 }

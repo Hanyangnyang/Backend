@@ -19,7 +19,8 @@ import java.util.UUID;
 @Table(name = "playlist_songs", indexes = {
         @Index(name = "idx_playlist_songs_created_at", columnList = "created_at"),
         @Index(name = "idx_playlist_songs_heart_count", columnList = "heart_count"),
-        @Index(name = "idx_playlist_songs_user_id", columnList = "user_id"),
+        @Index(name = "idx_playlist_songs_device_created", columnList = "device_id, created_at"),
+        @Index(name = "idx_playlist_songs_track_id", columnList = "track_id"),
         @Index(name = "idx_playlist_songs_deleted_at", columnList = "deleted_at")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -44,8 +45,8 @@ public class PlaylistSong {
     @Column(name = "comment", columnDefinition = "TEXT")
     private String comment;
 
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    @Column(name = "device_id", nullable = false)
+    private UUID deviceId;
 
     @Column(name = "ip_address", nullable = false, length = 45)
     private String ipAddress;
@@ -53,6 +54,10 @@ public class PlaylistSong {
     @ColumnDefault("0")
     @Column(name = "heart_count", nullable = false)
     private Integer heartCount = 0;
+
+    @ColumnDefault("0")
+    @Column(name = "total_play_count", nullable = false)
+    private Integer totalPlayCount = 0;
 
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
@@ -82,7 +87,7 @@ public class PlaylistSong {
             String artist,
             String albumArtUrl,
             String comment,
-            UUID userId,
+            UUID deviceId,
             String ipAddress,
             Set<Genre> genres
     ) {
@@ -91,10 +96,15 @@ public class PlaylistSong {
         this.artist = artist;
         this.albumArtUrl = albumArtUrl;
         this.comment = comment;
-        this.userId = userId;
+        this.deviceId = deviceId;
         this.ipAddress = ipAddress;
         this.heartCount = 0;
+        this.totalPlayCount = 0;
         this.genres = (genres != null) ? genres : new HashSet<>();
+    }
+
+    public void incrementPlayCount() {
+        this.totalPlayCount = (this.totalPlayCount == null ? 0 : this.totalPlayCount) + 1;
     }
 
     public void incrementHeartCount() {
@@ -117,7 +127,7 @@ public class PlaylistSong {
         return this.deletedAt != null;
     }
 
-    public boolean isOwnedBy(UUID userId) {
-        return this.userId != null && this.userId.equals(userId);
+    public boolean isOwnedBy(UUID deviceId) {
+        return this.deviceId != null && this.deviceId.equals(deviceId);
     }
 }

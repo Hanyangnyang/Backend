@@ -15,7 +15,7 @@ import java.util.UUID;
 @Getter
 @Entity
 @Table(name = "playlist_song_reports", indexes = {
-        @Index(name = "idx_playlist_song_reports_status", columnList = "status"),
+        @Index(name = "idx_playlist_song_reports_status_created", columnList = "status, created_at"),
         @Index(name = "idx_playlist_song_reports_created_at", columnList = "created_at")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -29,8 +29,8 @@ public class PlaylistSongReport {
     @JoinColumn(name = "song_id", nullable = false)
     private PlaylistSong song;
 
-    @Column(name = "reporter_user_id", nullable = false)
-    private UUID reporterUserId;
+    @Column(name = "reporter_device_id", nullable = false)
+    private UUID reporterDeviceId;
 
     @Column(name = "reason", nullable = false, columnDefinition = "TEXT")
     private String reason;
@@ -56,9 +56,9 @@ public class PlaylistSongReport {
     private Instant updatedAt;
 
     @Builder
-    public PlaylistSongReport(PlaylistSong song, UUID reporterUserId, String reason) {
+    public PlaylistSongReport(PlaylistSong song, UUID reporterDeviceId, String reason) {
         this.song = song;
-        this.reporterUserId = reporterUserId;
+        this.reporterDeviceId = reporterDeviceId;
         this.reason = reason;
         this.status = ReportStatus.PENDING;
     }

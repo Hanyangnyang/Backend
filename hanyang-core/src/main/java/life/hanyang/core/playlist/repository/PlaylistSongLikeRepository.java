@@ -15,13 +15,13 @@ import java.util.UUID;
 
 public interface PlaylistSongLikeRepository extends JpaRepository<PlaylistSongLike, UUID> {
 
-    Optional<PlaylistSongLike> findBySongIdAndUserId(UUID songId, UUID userId);
+    Optional<PlaylistSongLike> findBySongIdAndDeviceId(UUID songId, UUID deviceId);
 
-    boolean existsBySongIdAndUserId(UUID songId, UUID userId);
+    boolean existsBySongIdAndDeviceId(UUID songId, UUID deviceId);
 
-    @Query("SELECT l.song.id FROM PlaylistSongLike l WHERE l.userId = :userId AND l.song.id IN :songIds")
-    Set<UUID> findLikedSongIdsByUserIdAndSongIdIn(@Param("userId") UUID userId, @Param("songIds") Collection<UUID> songIds);
+    @Query("SELECT l.song.id FROM PlaylistSongLike l WHERE l.deviceId = :deviceId AND l.song.id IN :songIds")
+    Set<UUID> findLikedSongIdsByDeviceIdAndSongIdIn(@Param("deviceId") UUID deviceId, @Param("songIds") Collection<UUID> songIds);
 
-    @Query("SELECT l.song FROM PlaylistSongLike l WHERE l.userId = :userId AND l.song.deletedAt IS NULL ORDER BY l.createdAt DESC")
-    Page<PlaylistSong> findLikedSongsByUserId(@Param("userId") UUID userId, Pageable pageable);
+    @Query("SELECT l.song FROM PlaylistSongLike l WHERE l.deviceId = :deviceId AND l.song.deletedAt IS NULL ORDER BY l.createdAt DESC")
+    Page<PlaylistSong> findLikedSongsByDeviceId(@Param("deviceId") UUID deviceId, Pageable pageable);
 }

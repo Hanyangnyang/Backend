@@ -30,9 +30,9 @@ public record PlaylistSongCreateRequest(
         @Schema(description = "추천 멘트 및 코멘트", example = "과제할 때 집중하기 좋아요!")
         String comment,
 
-        @Schema(description = "등록 사용자 ID (UUID)", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
-        @NotNull(message = "사용자 ID는 필수입니다.")
-        UUID userId,
+        @Schema(description = "등록 기기 식별자 ID (UUID)", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
+        @NotNull(message = "기기 식별자 ID는 필수입니다.")
+        UUID deviceId,
 
         @Schema(
                 description = "선택 장르 목록 (최소 1개 ~ 최대 3개 선택 가능)\n" +

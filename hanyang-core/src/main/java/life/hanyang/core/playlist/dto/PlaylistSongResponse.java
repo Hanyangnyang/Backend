@@ -14,9 +14,10 @@ public record PlaylistSongResponse(
         String artist,
         String albumArtUrl,
         String comment,
-        UUID userId,
+        UUID deviceId,
         Set<Genre> genres,
         Integer heartCount,
+        Integer totalPlayCount,
         boolean isLiked,
         Instant createdAt,
         Instant updatedAt
@@ -29,9 +30,10 @@ public record PlaylistSongResponse(
                 song.getArtist(),
                 song.getAlbumArtUrl(),
                 song.getComment(),
-                song.getUserId(),
+                song.getDeviceId(),
                 song.getGenres(),
                 song.getHeartCount(),
+                song.getTotalPlayCount() != null ? song.getTotalPlayCount() : 0,
                 isLiked,
                 song.getCreatedAt(),
                 song.getUpdatedAt()

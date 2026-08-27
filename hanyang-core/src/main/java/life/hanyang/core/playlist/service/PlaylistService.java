@@ -47,7 +47,7 @@ public class PlaylistService {
                 .artist(request.artist())
                 .albumArtUrl(request.albumArtUrl())
                 .comment(request.comment())
-                .userId(request.userId())
+                .deviceId(request.deviceId())
                 .ipAddress(clientIp != null ? clientIp : "UNKNOWN")
                 .genres(request.genres())
                 .build();
@@ -59,7 +59,7 @@ public class PlaylistService {
     /**
      * 2. 피드 목록 조회 (장르 선택 필터, 최신순 페이징, isLiked 배치 조회)
      */
-    public Page<PlaylistSongResponse> getFeedSongs(Genre genre, Pageable pageable, UUID currentUserId) {
+    public Page<PlaylistSongResponse> getFeedSongs(Genre genre, Pageable pageable, UUID currentDeviceId) {
         Page<PlaylistSong> songPage = playlistSongRepository.searchSongs(genre, pageable);
         List<PlaylistSong> songs = songPage.getContent();
 
@@ -68,9 +68,9 @@ public class PlaylistService {
         }
 
         // isLiked N+1 방지를 위한 1번의 Batch IN 쿼리
-        Set<UUID> likedSongIds = (currentUserId != null)
-                ? playlistSongLikeRepository.findLikedSongIdsByUserIdAndSongIdIn(
-                        currentUserId,
+        Set<UUID> likedSongIds = (currentDeviceId != null)
+                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(
+                        currentDeviceId,
                         songs.stream().map(PlaylistSong::getId).toList()
                 )
                 : Collections.emptySet();
@@ -87,11 +87,11 @@ public class PlaylistService {
      * 4. 좋아요 토글 (동시성 제어 및 원자적 카운트 증감)
      */
     @Transactional
-    public PlaylistLikeToggleResponse toggleLike(UUID songId, UUID userId) {
+    public PlaylistLikeToggleResponse toggleLike(UUID songId, UUID deviceId) {
         PlaylistSong song = playlistSongRepository.findByIdAndDeletedAtIsNull(songId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않거나 삭제된 곡입니다. id: " + songId));
 
-        Optional<PlaylistSongLike> existingLike = playlistSongLikeRepository.findBySongIdAndUserId(songId, userId);
+        Optional<PlaylistSongLike> existingLike = playlistSongLikeRepository.findBySongIdAndDeviceId(songId, deviceId);
 
         boolean isLiked;
         if (existingLike.isPresent()) {
@@ -104,13 +104,13 @@ public class PlaylistService {
             try {
                 PlaylistSongLike newLike = PlaylistSongLike.builder()
                         .song(song)
-                        .userId(userId)
+                        .deviceId(deviceId)
                         .build();
                 playlistSongLikeRepository.save(newLike);
                 playlistSongRepository.incrementHeartCount(songId);
                 isLiked = true;
             } catch (DataIntegrityViolationException e) {
-                log.warn("[PlaylistLike] 중복 좋아요 요청 감지 (동시성 방어됨) - songId: {}, userId: {}", songId, userId);
+                log.warn("[PlaylistLike] 중복 좋아요 요청 감지 (동시성 방어됨) - songId: {}, deviceId: {}", songId, deviceId);
                 isLiked = true;
             }
         }
@@ -122,8 +122,8 @@ public class PlaylistService {
     /**
      * 5. 내가 좋아요 누른 곡 목록 조회
      */
-    public Page<PlaylistSongResponse> getLikedSongs(UUID userId, Pageable pageable) {
-        Page<PlaylistSong> likedSongs = playlistSongLikeRepository.findLikedSongsByUserId(userId, pageable);
+    public Page<PlaylistSongResponse> getLikedSongs(UUID deviceId, Pageable pageable) {
+        Page<PlaylistSong> likedSongs = playlistSongLikeRepository.findLikedSongsByDeviceId(deviceId, pageable);
         List<PlaylistSongResponse> responses = likedSongs.getContent().stream()
                 .map(song -> PlaylistSongResponse.of(song, true))
                 .toList();
@@ -141,7 +141,7 @@ public class PlaylistService {
 
         PlaylistSongReport report = PlaylistSongReport.builder()
                 .song(song)
-                .reporterUserId(request.reporterUserId())
+                .reporterDeviceId(request.reporterDeviceId())
                 .reason(request.reason())
                 .build();
 
