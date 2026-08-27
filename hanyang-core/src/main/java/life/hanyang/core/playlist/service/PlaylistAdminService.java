@@ -1,5 +1,6 @@
 package life.hanyang.core.playlist.service;
 
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.global.exception.EntityNotFoundException;
 import life.hanyang.core.playlist.domain.Genre;
 import life.hanyang.core.playlist.domain.PlaylistSong;
@@ -29,6 +30,7 @@ public class PlaylistAdminService {
 
     private final PlaylistSongRepository playlistSongRepository;
     private final PlaylistSongReportRepository playlistSongReportRepository;
+    private final TransactionCacheEvictor transactionCacheEvictor;
 
     /**
      * 1. 관리자 곡 목록 조회 (장르 필터, 삭제 여부 필터, 최신순 페이징)
@@ -60,6 +62,9 @@ public class PlaylistAdminService {
                 java.time.Instant.now(),
                 ReportStatus.PENDING
         );
+
+        // 삭제 즉시 차트 캐시 무효화 (차트에서 즉각 제거)
+        transactionCacheEvictor.evictCacheAfterCommit("playlistChart");
 
         log.info("[PlaylistAdmin] 관리자에 의한 곡 삭제 및 관련 미처리 신고 일괄 완료 - songId: {}, title: {}, reason: {}",
                 songId, song.getTitle(), memo);

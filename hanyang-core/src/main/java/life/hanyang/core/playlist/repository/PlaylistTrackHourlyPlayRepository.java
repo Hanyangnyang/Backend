@@ -74,7 +74,15 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             LEFT JOIN hourly_plays hp ON t.track_id = hp.track_id
             LEFT JOIN song_stats ss ON t.track_id = ss.track_id
             LEFT JOIN like_stats ls ON t.track_id = ls.track_id
-            WHERE COALESCE(hp.play_24h, 0) > 0 OR COALESCE(ls.likes_24h, 0) > 0 OR COALESCE(ss.posts_24h, 0) > 0 OR COALESCE(ss.total_posts, 0) > 0
+            WHERE COALESCE(ss.total_posts, 0) > 0
+              AND (
+                    COALESCE(ls.likes_24h, 0) * 3
+                  + COALESCE(hp.play_24h, 0) * 1
+                  + COALESCE(ss.posts_24h, 0) * 1
+                  + COALESCE(ls.likes_3h, 0) * 5
+                  + COALESCE(hp.play_3h, 0) * 2
+                  + COALESCE(ss.posts_3h, 0) * 1
+              ) > 0
             ORDER BY total_score DESC, ls.likes_24h DESC NULLS LAST, hp.play_24h DESC NULLS LAST, t.created_at DESC
             LIMIT :limit
             """, nativeQuery = true)
@@ -100,9 +108,10 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             song_stats AS (
                 SELECT 
                     s.track_id,
-                    COUNT(s.id) AS posts_7d
+                    COUNT(s.id) AS total_posts,
+                    COUNT(CASE WHEN s.created_at >= :startPeriod AND s.created_at < :endPeriod THEN 1 END) AS posts_7d
                 FROM playlist_songs s
-                WHERE s.deleted_at IS NULL AND s.created_at >= :startPeriod AND s.created_at < :endPeriod
+                WHERE s.deleted_at IS NULL
                 GROUP BY s.track_id
             ),
             like_stats AS (
@@ -128,7 +137,12 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             LEFT JOIN weekly_plays wp ON t.track_id = wp.track_id
             LEFT JOIN song_stats ss ON t.track_id = ss.track_id
             LEFT JOIN like_stats ls ON t.track_id = ls.track_id
-            WHERE COALESCE(wp.play_7d, 0) > 0 OR COALESCE(ls.likes_7d, 0) > 0 OR COALESCE(ss.posts_7d, 0) > 0
+            WHERE COALESCE(ss.total_posts, 0) > 0
+              AND (
+                    COALESCE(ls.likes_7d, 0) * 5
+                  + COALESCE(wp.play_7d, 0) * 1
+                  + COALESCE(ss.posts_7d, 0) * 1
+              ) > 0
             ORDER BY total_score DESC, ls.likes_7d DESC NULLS LAST, wp.play_7d DESC NULLS LAST, t.created_at DESC
             LIMIT :limit
             """, nativeQuery = true)
@@ -153,9 +167,10 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             song_stats AS (
                 SELECT 
                     s.track_id,
-                    COUNT(s.id) AS posts_30d
+                    COUNT(s.id) AS total_posts,
+                    COUNT(CASE WHEN s.created_at >= :startPeriod AND s.created_at < :endPeriod THEN 1 END) AS posts_30d
                 FROM playlist_songs s
-                WHERE s.deleted_at IS NULL AND s.created_at >= :startPeriod AND s.created_at < :endPeriod
+                WHERE s.deleted_at IS NULL
                 GROUP BY s.track_id
             ),
             like_stats AS (
@@ -181,7 +196,12 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             LEFT JOIN monthly_plays mp ON t.track_id = mp.track_id
             LEFT JOIN song_stats ss ON t.track_id = ss.track_id
             LEFT JOIN like_stats ls ON t.track_id = ls.track_id
-            WHERE COALESCE(mp.play_30d, 0) > 0 OR COALESCE(ls.likes_30d, 0) > 0 OR COALESCE(ss.posts_30d, 0) > 0
+            WHERE COALESCE(ss.total_posts, 0) > 0
+              AND (
+                    COALESCE(ls.likes_30d, 0) * 5
+                  + COALESCE(mp.play_30d, 0) * 1
+                  + COALESCE(ss.posts_30d, 0) * 2
+              ) > 0
             ORDER BY total_score DESC, ls.likes_30d DESC NULLS LAST, mp.play_30d DESC NULLS LAST, t.created_at DESC
             LIMIT :limit
             """, nativeQuery = true)
