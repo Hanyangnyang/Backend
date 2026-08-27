@@ -83,6 +83,75 @@ public class PlaylistController {
     }
 
     @Operation(
+            summary = "추천글 가중치 통합 검색 (제목/가수/코멘트)",
+            description = "검색 키워드로 추천글을 검색합니다. 곡 제목(100점) > 가수명(80점) > 코멘트 내용(20점) 가중치 점수 및 하트 수 순으로 정렬됩니다.\n\n" +
+                    "• **keyword**: 검색어 (곡명, 가수명, 코멘트 내용)\n" +
+                    "• **deviceId**: 현재 기기 ID 전달 시 각 글의 `isLiked: true/false` 반환\n" +
+                    "• **page/size**: 페이징 정보 (기본값: size=20)"
+    )
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<Page<PlaylistSongResponse>>> searchSongs(
+            @Parameter(description = "검색 키워드 (곡명, 가수명, 코멘트 본문)", required = true)
+            @RequestParam String keyword,
+            @Parameter(description = "현재 로그인 기기 식별자 ID (좋아요 누름 여부 isLiked 계산용)")
+            @RequestParam(required = false) UUID deviceId,
+            @PageableDefault(size = 20) Pageable pageable
+    ) {
+        Page<PlaylistSongResponse> songs = playlistService.searchSongsWithWeight(keyword, pageable, deviceId);
+        return ResponseEntity.ok(ApiResponse.success(songs));
+    }
+
+    @Operation(
+            summary = "음원 트랙 목록 검색 (검색 화면 상단 트랙 섹션용)",
+            description = "검색 키워드로 등록된 음원 마스터(Spotify 곡) 목록을 검색합니다. 곡명 또는 가수명이 일치하는 트랙과 해당 음원에 달린 총 추천글 수/하트 총합을 반환합니다.\n\n" +
+                    "• **keyword**: 검색어 (곡명, 가수명)\n" +
+                    "• **page/size**: 페이징 정보 (기본값: size=10)"
+    )
+    @GetMapping("/tracks/search")
+    public ResponseEntity<ApiResponse<Page<PlaylistTrackSearchResponse>>> searchTracks(
+            @Parameter(description = "검색 키워드 (곡명, 가수명)", required = true)
+            @RequestParam String keyword,
+            @PageableDefault(size = 10) Pageable pageable
+    ) {
+        Page<PlaylistTrackSearchResponse> tracks = playlistService.searchTracks(keyword, pageable);
+        return ResponseEntity.ok(ApiResponse.success(tracks));
+    }
+
+    @Operation(
+            summary = "특정 곡의 추천글 모아보기 (상세 조회)",
+            description = "특정 음원(trackId)의 메타데이터 및 해당 곡에 학생들이 작성한 추천글 목록을 인기순(기본값) 또는 최신순으로 페이징 조회합니다.\n\n" +
+                    "• **deviceId**: 현재 기기 식별자 ID 전달 시 각 글의 `isLiked: true/false` 반환\n" +
+                    "• **sort**: 인기순(기본값: `heartCount,desc`) / 최신순(`createdAt,desc`)\n" +
+                    "• **page/size**: 0부터 시작하는 페이지 번호와 페이지당 개수 (기본값: size=20)"
+    )
+    @GetMapping("/tracks/{trackId}")
+    public ResponseEntity<ApiResponse<PlaylistTrackDetailResponse>> getTrackDetailAndSongs(
+            @Parameter(description = "Spotify 트랙 ID", example = "4cOdK2wGLETKBW3PvgPWqT")
+            @PathVariable String trackId,
+            @Parameter(description = "현재 로그인 기기 식별자 ID (좋아요 누름 여부 isLiked 계산용)")
+            @RequestParam(required = false) UUID deviceId,
+            @PageableDefault(size = 20) Pageable pageable
+    ) {
+        PlaylistTrackDetailResponse response = playlistService.getTrackDetailAndSongs(trackId, pageable, deviceId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(
+            summary = "추천글 단건 상세 조회",
+            description = "특정 추천글 ID(UUID)로 상세 정보를 단건 조회합니다. 딥링크, SNS 공유, 알림 연동에 사용됩니다.\n\n" +
+                    "• **deviceId**: 현재 기기 식별자 ID 전달 시 내가 누른 좋아요 여부(`isLiked: true/false`)를 계산하여 반환"
+    )
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<PlaylistSongResponse>> getSong(
+            @PathVariable UUID id,
+            @Parameter(description = "현재 로그인 기기 식별자 ID (좋아요 누름 여부 isLiked 계산용)")
+            @RequestParam(required = false) UUID deviceId
+    ) {
+        PlaylistSongResponse response = playlistService.getSong(id, deviceId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(
             summary = "좋아요 토글",
             description = "좋아요를 등록하거나 취소합니다. 동시성 제어 및 원자적 카운트 증감이 적용됩니다.\n\n" +
                     "• 이미 좋아요를 누른 상태 ➡️ 취소 처리 (`isLiked: false`, `heartCount` -1)\n" +

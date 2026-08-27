@@ -125,6 +125,79 @@ public class PlaylistService {
         return new PageImpl<>(responses, pageable, songPage.getTotalElements());
     }
 
+    /**
+     * 2-1. 특정 추천글 단건 상세 조회 (딥링크/공유/알림 연동용)
+     */
+    public PlaylistSongResponse getSong(UUID songId, UUID currentDeviceId) {
+        PlaylistSong song = playlistSongRepository.findByIdAndDeletedAtIsNull(songId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않거나 삭제된 추천글입니다. id: " + songId));
+
+        boolean isLiked = (currentDeviceId != null) &&
+                playlistSongLikeRepository.existsBySongIdAndDeviceId(songId, currentDeviceId);
+
+        return PlaylistSongResponse.of(song, isLiked);
+    }
+
+    /**
+     * 2-2. 추천글 통합 가중치 검색 (곡 제목 100점 > 가수명 80점 > 코멘트 내용 20점)
+     */
+    public Page<PlaylistSongResponse> searchSongsWithWeight(String keyword, Pageable pageable, UUID currentDeviceId) {
+        Page<PlaylistSong> songPage = playlistSongRepository.searchSongsWithWeight(keyword, pageable);
+        List<PlaylistSong> songs = songPage.getContent();
+
+        if (songs.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, songPage.getTotalElements());
+        }
+
+        Set<UUID> likedSongIds = (currentDeviceId != null)
+                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(
+                        currentDeviceId,
+                        songs.stream().map(PlaylistSong::getId).toList()
+                )
+                : Collections.emptySet();
+
+        List<PlaylistSongResponse> responses = songs.stream()
+                .map(song -> PlaylistSongResponse.of(song, likedSongIds.contains(song.getId())))
+                .toList();
+
+        return new PageImpl<>(responses, pageable, songPage.getTotalElements());
+    }
+
+    /**
+     * 2-3. 음원 트랙 목록 검색 (곡명/가수명 일치 트랙 목록 반환)
+     */
+    public Page<PlaylistTrackSearchResponse> searchTracks(String keyword, Pageable pageable) {
+        return playlistTrackRepository.searchTracks(keyword, pageable);
+    }
+
+
+    /**
+     * 3. 특정 곡(트랙)의 상세 정보 및 추천글 페이징 조회 (베스트 하트순/최신순)
+     */
+    public PlaylistTrackDetailResponse getTrackDetailAndSongs(String trackId, Pageable pageable, UUID currentDeviceId) {
+        PlaylistTrack track = playlistTrackRepository.findById(trackId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 음원 트랙입니다. trackId: " + trackId));
+
+        Page<PlaylistSong> songPage = playlistSongRepository.searchSongsByTrackId(trackId, pageable);
+        List<PlaylistSong> songs = songPage.getContent();
+
+        // isLiked Batch IN 쿼리 판별
+        Set<UUID> likedSongIds = (currentDeviceId != null && !songs.isEmpty())
+                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(
+                        currentDeviceId,
+                        songs.stream().map(PlaylistSong::getId).toList()
+                )
+                : Collections.emptySet();
+
+        List<PlaylistSongResponse> responses = songs.stream()
+                .map(song -> PlaylistSongResponse.of(song, likedSongIds.contains(song.getId())))
+                .toList();
+
+        Page<PlaylistSongResponse> responsePage = new PageImpl<>(responses, pageable, songPage.getTotalElements());
+        long totalHeartCount = playlistSongRepository.sumHeartCountByTrackId(trackId);
+
+        return PlaylistTrackDetailResponse.of(track, songPage.getTotalElements(), totalHeartCount, responsePage);
+    }
 
     /**
      * 4. 좋아요 토글 (동시성 제어 및 원자적 카운트 증감)

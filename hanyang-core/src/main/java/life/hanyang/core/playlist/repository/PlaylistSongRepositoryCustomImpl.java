@@ -69,6 +69,77 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
         return new PageImpl<>(content, pageable, total != null ? total : 0L);
     }
 
+    @Override
+    public Page<PlaylistSong> searchSongsByTrackId(String trackId, Pageable pageable) {
+        List<PlaylistSong> content = queryFactory
+                .selectFrom(playlistSong)
+                .join(playlistSong.track).fetchJoin()
+                .where(
+                        playlistSong.track.trackId.eq(trackId),
+                        playlistSong.deletedAt.isNull()
+                )
+                .orderBy(playlistSong.heartCount.desc(), playlistSong.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(playlistSong.count())
+                .from(playlistSong)
+                .where(
+                        playlistSong.track.trackId.eq(trackId),
+                        playlistSong.deletedAt.isNull()
+                )
+                .fetchOne();
+
+        return new PageImpl<>(content, pageable, total != null ? total : 0L);
+    }
+
+    @Override
+    public Page<PlaylistSong> searchSongsWithWeight(String keyword, Pageable pageable) {
+        if (keyword == null || keyword.isBlank()) {
+            return searchSongs(null, pageable);
+        }
+
+        BooleanExpression matchCondition = playlistSong.track.title.containsIgnoreCase(keyword)
+                .or(playlistSong.track.artist.containsIgnoreCase(keyword))
+                .or(playlistSong.comment.containsIgnoreCase(keyword));
+
+        // 💡 가중치 계산: 곡 제목(100점) > 가수명(80점) > 코멘트 내용(20점)
+        com.querydsl.core.types.dsl.NumberExpression<Integer> relevanceScore = new com.querydsl.core.types.dsl.CaseBuilder()
+                .when(playlistSong.track.title.containsIgnoreCase(keyword)).then(100)
+                .when(playlistSong.track.artist.containsIgnoreCase(keyword)).then(80)
+                .when(playlistSong.comment.containsIgnoreCase(keyword)).then(20)
+                .otherwise(0);
+
+        List<PlaylistSong> content = queryFactory
+                .selectFrom(playlistSong)
+                .join(playlistSong.track).fetchJoin()
+                .where(
+                        playlistSong.deletedAt.isNull(),
+                        matchCondition
+                )
+                .orderBy(
+                        relevanceScore.desc(),
+                        playlistSong.heartCount.desc(),
+                        playlistSong.createdAt.desc()
+                )
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(playlistSong.count())
+                .from(playlistSong)
+                .where(
+                        playlistSong.deletedAt.isNull(),
+                        matchCondition
+                )
+                .fetchOne();
+
+        return new PageImpl<>(content, pageable, total != null ? total : 0L);
+    }
+
     private BooleanExpression containsGenre(Genre genre) {
         return genre != null ? playlistSong.genres.contains(genre) : null;
     }

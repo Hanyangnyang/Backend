@@ -205,6 +205,159 @@ class PlaylistServiceTest {
         assertThat(result.getContent().get(0).title()).isEqualTo("Ditto");
     }
 
+    @Test
+    @DisplayName("특정 곡의 상세 정보 및 추천글 목록 조회 성공")
+    void getTrackDetailAndSongs_Success() {
+        // given
+        String trackId = "track-123";
+        UUID deviceId = UUID.randomUUID();
+        UUID songId = UUID.randomUUID();
+
+        PlaylistTrack track = PlaylistTrack.builder()
+                .trackId(trackId)
+                .title("LOVE SONG")
+                .artist("유다빈밴드")
+                .albumArtUrl("https://image.url")
+                .build();
+
+        PlaylistSong song = PlaylistSong.builder()
+                .track(track)
+                .comment("과제할 때 들으면 극락")
+                .deviceId(UUID.randomUUID())
+                .ipAddress("127.0.0.1")
+                .genres(Set.of(Genre.ROCK))
+                .build();
+        org.springframework.test.util.ReflectionTestUtils.setField(song, "id", songId);
+        org.springframework.test.util.ReflectionTestUtils.setField(song, "heartCount", 150);
+
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<PlaylistSong> page = new PageImpl<>(List.of(song), pageable, 1);
+
+        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
+        given(playlistSongRepository.searchSongsByTrackId(trackId, pageable)).willReturn(page);
+        given(playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(any(UUID.class), any()))
+                .willReturn(Set.of(songId));
+        given(playlistSongRepository.sumHeartCountByTrackId(trackId)).willReturn(150L);
+
+        // when
+        PlaylistTrackDetailResponse response = playlistService.getTrackDetailAndSongs(trackId, pageable, deviceId);
+
+        // then
+        assertThat(response.trackId()).isEqualTo(trackId);
+        assertThat(response.title()).isEqualTo("LOVE SONG");
+        assertThat(response.artist()).isEqualTo("유다빈밴드");
+        assertThat(response.totalSongsCount()).isEqualTo(1L);
+        assertThat(response.totalHeartCount()).isEqualTo(150L);
+        assertThat(response.songs().getContent()).hasSize(1);
+        assertThat(response.songs().getContent().get(0).isLiked()).isTrue();
+        assertThat(response.songs().getContent().get(0).heartCount()).isEqualTo(150);
+    }
+
+    @Test
+    @DisplayName("추천글 가중치 검색 성공")
+    void searchSongsWithWeight_Success() {
+        // given
+        String keyword = "유다빈";
+        UUID deviceId = UUID.randomUUID();
+        UUID songId = UUID.randomUUID();
+
+        PlaylistTrack track = PlaylistTrack.builder()
+                .trackId("track-1")
+                .title("LOVE SONG")
+                .artist("유다빈밴드")
+                .build();
+        PlaylistSong song = PlaylistSong.builder()
+                .track(track)
+                .comment("추천합니다")
+                .deviceId(UUID.randomUUID())
+                .ipAddress("127.0.0.1")
+                .genres(Set.of(Genre.ROCK))
+                .build();
+        org.springframework.test.util.ReflectionTestUtils.setField(song, "id", songId);
+
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<PlaylistSong> page = new PageImpl<>(List.of(song), pageable, 1);
+
+        given(playlistSongRepository.searchSongsWithWeight(keyword, pageable)).willReturn(page);
+        given(playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(any(UUID.class), any()))
+                .willReturn(Set.of(songId));
+
+        // when
+        Page<PlaylistSongResponse> result = playlistService.searchSongsWithWeight(keyword, pageable, deviceId);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).artist()).isEqualTo("유다빈밴드");
+        assertThat(result.getContent().get(0).isLiked()).isTrue();
+    }
+
+    @Test
+    @DisplayName("음원 트랙 검색 성공")
+    void searchTracks_Success() {
+        // given
+        String keyword = "유다빈";
+        Pageable pageable = PageRequest.of(0, 10);
+        PlaylistTrackSearchResponse item = new PlaylistTrackSearchResponse(
+                "track-1", "LOVE SONG", "유다빈밴드", "https://image.url", 3L, 298L
+        );
+        Page<PlaylistTrackSearchResponse> page = new PageImpl<>(List.of(item), pageable, 1);
+
+        given(playlistTrackRepository.searchTracks(keyword, pageable)).willReturn(page);
+
+        // when
+        Page<PlaylistTrackSearchResponse> result = playlistService.searchTracks(keyword, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).title()).isEqualTo("LOVE SONG");
+        assertThat(result.getContent().get(0).totalSongsCount()).isEqualTo(3L);
+        assertThat(result.getContent().get(0).totalHeartCount()).isEqualTo(298L);
+    }
+
+    @Test
+    @DisplayName("추천글 단건 상세 조회 성공")
+    void getSong_Success() {
+        // given
+        UUID songId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
+        PlaylistTrack track = PlaylistTrack.builder()
+                .trackId("track-1")
+                .title("Ditto")
+                .artist("NewJeans")
+                .build();
+        PlaylistSong song = PlaylistSong.builder()
+                .track(track)
+                .deviceId(UUID.randomUUID())
+                .ipAddress("127.0.0.1")
+                .genres(Set.of(Genre.KPOP))
+                .build();
+        org.springframework.test.util.ReflectionTestUtils.setField(song, "id", songId);
+
+        given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
+        given(playlistSongLikeRepository.existsBySongIdAndDeviceId(songId, deviceId)).willReturn(true);
+
+        // when
+        PlaylistSongResponse response = playlistService.getSong(songId, deviceId);
+
+        // then
+        assertThat(response.id()).isEqualTo(songId);
+        assertThat(response.title()).isEqualTo("Ditto");
+        assertThat(response.isLiked()).isTrue();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 추천글 단건 조회 시 예외 발생")
+    void getSong_ThrowsException_WhenNotFound() {
+        // given
+        UUID songId = UUID.randomUUID();
+        given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> playlistService.getSong(songId, UUID.randomUUID()))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("존재하지 않거나 삭제된 추천글입니다.");
+    }
+
 
     @Test
     @DisplayName("좋아요 등록 토글 성공")

@@ -32,4 +32,7 @@ public interface PlaylistSongRepository extends JpaRepository<PlaylistSong, UUID
 
     @Query("SELECT s.track.trackId FROM PlaylistSong s WHERE s.deviceId = :deviceId AND s.createdAt >= :createdAt AND s.deletedAt IS NULL")
     java.util.Set<String> findRecentTrackIdsByDeviceIdAndCreatedAtAfter(@Param("deviceId") UUID deviceId, @Param("createdAt") java.time.Instant createdAt);
+
+    @Query("SELECT COALESCE(SUM(s.heartCount), 0) FROM PlaylistSong s WHERE s.track.trackId = :trackId AND s.deletedAt IS NULL")
+    long sumHeartCountByTrackId(@Param("trackId") String trackId);
 }
