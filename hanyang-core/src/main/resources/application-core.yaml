@@ -11,10 +11,12 @@ spring:
     driver-class-name: org.postgresql.Driver
 
     hikari:
-      maximum-pool-size: 3  # 로컬 개발 환경에서 Supabase Session Mode 연결 고갈 방지를 위해 3으로 축소
-      minimum-idle: 1       # 최소 대기 커넥션도 1로 축소
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:10}  # 기본 10개 (운영 환경변수 주입 가능)
+      minimum-idle: ${HIKARI_MIN_IDLE:2}             # 최소 유휴 커넥션 2개 유지
       idle-timeout: 300000
-      connection-timeout: 20000
+      connection-timeout: 5000                       # 커넥션 획득 대기시간을 5초로 줄여 톰캣 쓰레드 무한 대기 방지
+      max-lifetime: 1800000                          # 30분마다 안전하게 커넥션 갱신 (Supabase 세션 종료 방어)
+      keepalive-time: 60000                          # 1분마다 ping 날려 Supabase 유휴 연결 끊김 방지
 
   jpa:
     hibernate:
@@ -30,6 +32,9 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD}
+      timeout: 2000ms                                # Redis 커맨드 타임아웃 2초 제한 (무한 대기 방지)
+      lettuce:
+        shutdown-timeout: 100ms
 
 aws:
   s3:
