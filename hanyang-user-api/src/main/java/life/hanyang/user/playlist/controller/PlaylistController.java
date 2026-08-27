@@ -33,6 +33,7 @@ public class PlaylistController {
             description = "Spotify 곡 정보(trackId, title, artist, albumArtUrl)와 1~3개의 장르 태그 및 추천 코멘트를 입력하여 플레이리스트에 등록합니다.\n\n" +
                     "• **장르 종류**: KPOP(K-POP), ROCK(락), R_AND_B(R&B), HIPHOP(힙합), INDIE(인디), BALLAD(발라드), POP(POP), JPOP(J-POP), OTHER(기타)\n" +
                     "• **장르 선택 수**: 최소 1개 ~ 최대 3개\n" +
+                    "• **등록 제한**: 1일 최대 3곡 / 최근 7일 내 동일 곡 중복 추천 불가\n" +
                     "• **등록자 IP**: 클라이언트 헤더를 통해 백엔드에서 자동으로 수집/기록됩니다."
     )
     @PostMapping
@@ -43,6 +44,23 @@ public class PlaylistController {
         String clientIp = extractClientIp(request);
         PlaylistSongResponse response = playlistService.createSong(requestDto, clientIp);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @Operation(
+            summary = "곡 작성 전 사용자 기기 상태 조회 (등록 제한 사전 확인)",
+            description = "사용자가 곡 등록 화면에 진입할 때 오늘 남은 등록 가능 횟수 및 최근 7일 내 이미 추천한 곡 목록을 조회합니다.\n\n" +
+                    "• **canCreate**: 오늘 추가 등록 가능 여부 (오늘 등록 수 < 3)\n" +
+                    "• **dailyCount**: 오늘 이미 등록한 곡 수 (0~3)\n" +
+                    "• **remainingCount**: 오늘 남은 등록 가능 횟수\n" +
+                    "• **recentTrackIdsIn7Days**: 최근 7일 이내에 이미 추천한 Spotify 트랙 ID 목록 (검색 시 중복 선택 방지용)"
+    )
+    @GetMapping("/creation-status")
+    public ResponseEntity<ApiResponse<PlaylistCreationStatusResponse>> getCreationStatus(
+            @Parameter(description = "기기 식별자 ID (UUID)", required = true)
+            @RequestParam UUID deviceId
+    ) {
+        PlaylistCreationStatusResponse response = playlistService.getCreationStatus(deviceId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @Operation(

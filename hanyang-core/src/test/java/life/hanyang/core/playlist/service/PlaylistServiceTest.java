@@ -2,14 +2,12 @@ package life.hanyang.core.playlist.service;
 
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.exception.EntityNotFoundException;
-import life.hanyang.core.playlist.domain.Genre;
-import life.hanyang.core.playlist.domain.PlaylistSong;
-import life.hanyang.core.playlist.domain.PlaylistSongLike;
-import life.hanyang.core.playlist.domain.PlaylistSongReport;
+import life.hanyang.core.playlist.domain.*;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +34,9 @@ import static org.mockito.Mockito.verify;
 class PlaylistServiceTest {
 
     @Mock
+    private PlaylistTrackRepository playlistTrackRepository;
+
+    @Mock
     private PlaylistSongRepository playlistSongRepository;
 
     @Mock
@@ -56,17 +57,25 @@ class PlaylistServiceTest {
                 "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", deviceId, Set.of(Genre.KPOP)
         );
 
-        PlaylistSong song = PlaylistSong.builder()
+        PlaylistTrack track = PlaylistTrack.builder()
                 .trackId(request.trackId())
                 .title(request.title())
                 .artist(request.artist())
                 .albumArtUrl(request.albumArtUrl())
+                .build();
+
+        PlaylistSong song = PlaylistSong.builder()
+                .track(track)
                 .comment(request.comment())
                 .deviceId(request.deviceId())
                 .ipAddress("127.0.0.1")
                 .genres(request.genres())
                 .build();
 
+        given(playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any())).willReturn(0L);
+        given(playlistSongRepository.existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any(), any())).willReturn(false);
+        given(playlistTrackRepository.findById(request.trackId())).willReturn(Optional.empty());
+        given(playlistTrackRepository.save(any(PlaylistTrack.class))).willReturn(track);
         given(playlistSongRepository.save(any(PlaylistSong.class))).willReturn(song);
 
         // when
@@ -77,6 +86,60 @@ class PlaylistServiceTest {
         assertThat(response.artist()).isEqualTo("NewJeans");
         assertThat(response.genres()).containsExactly(Genre.KPOP);
         assertThat(response.isLiked()).isFalse();
+    }
+
+    @Test
+    @DisplayName("하루에 3곡 이상 등록 시 예외가 발생한다")
+    void createSong_ThrowsException_WhenDailyLimitExceeded() {
+        // given
+        UUID deviceId = UUID.randomUUID();
+        PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
+                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", deviceId, Set.of(Genre.KPOP)
+        );
+
+        given(playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any())).willReturn(3L);
+
+        // when & then
+        assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("오늘 추천 가능한 곡 수(최대 3곡)를 초과했습니다.");
+    }
+
+    @Test
+    @DisplayName("최근 7일 이내에 이미 추천한 곡이면 예외가 발생한다")
+    void createSong_ThrowsException_WhenDuplicateSongIn7Days() {
+        // given
+        UUID deviceId = UUID.randomUUID();
+        PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
+                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", deviceId, Set.of(Genre.KPOP)
+        );
+
+        given(playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any())).willReturn(1L);
+        given(playlistSongRepository.existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any(), any())).willReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("최근 7일 이내에 이미 추천한 곡입니다.");
+    }
+
+    @Test
+    @DisplayName("기기 상태 사전 조회 시 잔여 횟수 및 최근 트랙 목록이 정상 반환된다")
+    void getCreationStatus_Success() {
+        // given
+        UUID deviceId = UUID.randomUUID();
+        given(playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any())).willReturn(1L);
+        given(playlistSongRepository.findRecentTrackIdsByDeviceIdAndCreatedAtAfter(any(), any())).willReturn(Set.of("track-123"));
+
+        // when
+        PlaylistCreationStatusResponse status = playlistService.getCreationStatus(deviceId);
+
+        // then
+        assertThat(status.canCreate()).isTrue();
+        assertThat(status.dailyCount()).isEqualTo(1L);
+        assertThat(status.remainingCount()).isEqualTo(2L);
+        assertThat(status.dailyMaxLimit()).isEqualTo(3);
+        assertThat(status.recentTrackIdsIn7Days()).containsExactly("track-123");
     }
 
     @Test
@@ -114,10 +177,13 @@ class PlaylistServiceTest {
         // given
         UUID deviceId = UUID.randomUUID();
         UUID songId = UUID.randomUUID();
-        PlaylistSong song = PlaylistSong.builder()
+        PlaylistTrack track = PlaylistTrack.builder()
                 .trackId("track-1")
                 .title("Ditto")
                 .artist("NewJeans")
+                .build();
+        PlaylistSong song = PlaylistSong.builder()
+                .track(track)
                 .deviceId(UUID.randomUUID())
                 .ipAddress("127.0.0.1")
                 .genres(Set.of(Genre.KPOP))
@@ -146,10 +212,13 @@ class PlaylistServiceTest {
         // given
         UUID songId = UUID.randomUUID();
         UUID deviceId = UUID.randomUUID();
-        PlaylistSong song = PlaylistSong.builder()
+        PlaylistTrack track = PlaylistTrack.builder()
                 .trackId("track-1")
                 .title("Ditto")
                 .artist("NewJeans")
+                .build();
+        PlaylistSong song = PlaylistSong.builder()
+                .track(track)
                 .deviceId(UUID.randomUUID())
                 .ipAddress("127.0.0.1")
                 .genres(Set.of(Genre.KPOP))
@@ -175,10 +244,13 @@ class PlaylistServiceTest {
         // given
         UUID songId = UUID.randomUUID();
         UUID deviceId = UUID.randomUUID();
-        PlaylistSong song = PlaylistSong.builder()
+        PlaylistTrack track = PlaylistTrack.builder()
                 .trackId("track-1")
                 .title("Ditto")
                 .artist("NewJeans")
+                .build();
+        PlaylistSong song = PlaylistSong.builder()
+                .track(track)
                 .deviceId(UUID.randomUUID())
                 .ipAddress("127.0.0.1")
                 .genres(Set.of(Genre.KPOP))
@@ -206,10 +278,13 @@ class PlaylistServiceTest {
         // given
         UUID songId = UUID.randomUUID();
         UUID reporterDeviceId = UUID.randomUUID();
-        PlaylistSong song = PlaylistSong.builder()
+        PlaylistTrack track = PlaylistTrack.builder()
                 .trackId("track-1")
                 .title("Ditto")
                 .artist("NewJeans")
+                .build();
+        PlaylistSong song = PlaylistSong.builder()
+                .track(track)
                 .deviceId(UUID.randomUUID())
                 .ipAddress("127.0.0.1")
                 .genres(Set.of(Genre.KPOP))

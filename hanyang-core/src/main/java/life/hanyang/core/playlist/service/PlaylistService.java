@@ -3,14 +3,12 @@ package life.hanyang.core.playlist.service;
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.exception.EntityNotFoundException;
 import life.hanyang.core.global.exception.ErrorCode;
-import life.hanyang.core.playlist.domain.Genre;
-import life.hanyang.core.playlist.domain.PlaylistSong;
-import life.hanyang.core.playlist.domain.PlaylistSongLike;
-import life.hanyang.core.playlist.domain.PlaylistSongReport;
+import life.hanyang.core.playlist.domain.*;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -20,6 +18,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 
 @Slf4j
@@ -28,6 +29,10 @@ import java.util.*;
 @Transactional(readOnly = true)
 public class PlaylistService {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    public static final int DAILY_MAX_CREATE_LIMIT = 3;
+
+    private final PlaylistTrackRepository playlistTrackRepository;
     private final PlaylistSongRepository playlistSongRepository;
     private final PlaylistSongLikeRepository playlistSongLikeRepository;
     private final PlaylistSongReportRepository playlistSongReportRepository;
@@ -37,15 +42,40 @@ public class PlaylistService {
      */
     @Transactional
     public PlaylistSongResponse createSong(PlaylistSongCreateRequest request, String clientIp) {
+        // 1-1. 장르 개수(1~3개) 2차 방어 검증
         if (request.genres() == null || request.genres().isEmpty() || request.genres().size() > 3) {
             throw new BusinessException("장르는 최소 1개에서 최대 3개까지 선택해야 합니다.", ErrorCode.INVALID_INPUT_VALUE);
         }
 
+        // 1-2. 오늘(00:00~23:59:59 KST) 등록 횟수 3곡 제한 검증
+        Instant startOfToday = LocalDate.now(KST).atStartOfDay(KST).toInstant();
+        long todayCount = playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(request.deviceId(), startOfToday);
+        if (todayCount >= DAILY_MAX_CREATE_LIMIT) {
+            throw new BusinessException("오늘 추천 가능한 곡 수(최대 3곡)를 초과했습니다.", ErrorCode.PLAYLIST_DAILY_LIMIT_EXCEEDED);
+        }
+
+        // 1-3. 최근 7일(요일 기준) 동일 곡 중복 추천 검증
+        Instant startOf7DaysAgo = LocalDate.now(KST).minusDays(6).atStartOfDay(KST).toInstant();
+        boolean alreadyCreatedIn7Days = playlistSongRepository.existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(
+                request.deviceId(), request.trackId(), startOf7DaysAgo
+        );
+        if (alreadyCreatedIn7Days) {
+            throw new BusinessException("최근 7일 이내에 이미 추천한 곡입니다. 다른 곡을 추천해 주세요.", ErrorCode.PLAYLIST_DUPLICATE_SONG_IN_WEEK);
+        }
+
+        // 1-4. 음원 마스터(PlaylistTrack) 조회 또는 신규 생성
+        PlaylistTrack track = playlistTrackRepository.findById(request.trackId())
+                .orElseGet(() -> playlistTrackRepository.save(
+                        PlaylistTrack.builder()
+                                .trackId(request.trackId())
+                                .title(request.title())
+                                .artist(request.artist())
+                                .albumArtUrl(request.albumArtUrl())
+                                .build()
+                ));
+
         PlaylistSong song = PlaylistSong.builder()
-                .trackId(request.trackId())
-                .title(request.title())
-                .artist(request.artist())
-                .albumArtUrl(request.albumArtUrl())
+                .track(track)
                 .comment(request.comment())
                 .deviceId(request.deviceId())
                 .ipAddress(clientIp != null ? clientIp : "UNKNOWN")
@@ -54,6 +84,19 @@ public class PlaylistService {
 
         PlaylistSong saved = playlistSongRepository.save(song);
         return PlaylistSongResponse.of(saved, false);
+    }
+
+    /**
+     * 1-1. 곡 작성 전 사용자 상태 조회 (오늘 등록 잔여 횟수 + 최근 7일 추천 트랙 ID 목록)
+     */
+    public PlaylistCreationStatusResponse getCreationStatus(UUID deviceId) {
+        Instant startOfToday = LocalDate.now(KST).atStartOfDay(KST).toInstant();
+        long todayCount = playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(deviceId, startOfToday);
+
+        Instant startOf7DaysAgo = LocalDate.now(KST).minusDays(6).atStartOfDay(KST).toInstant();
+        Set<String> recentTrackIds = playlistSongRepository.findRecentTrackIdsByDeviceIdAndCreatedAtAfter(deviceId, startOf7DaysAgo);
+
+        return PlaylistCreationStatusResponse.of(todayCount, DAILY_MAX_CREATE_LIMIT, recentTrackIds);
     }
 
     /**

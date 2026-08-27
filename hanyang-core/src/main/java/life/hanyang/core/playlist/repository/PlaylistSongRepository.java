@@ -27,4 +27,9 @@ public interface PlaylistSongRepository extends JpaRepository<PlaylistSong, UUID
     Optional<Integer> getHeartCount(@Param("id") UUID id);
 
     long countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(UUID deviceId, java.time.Instant createdAt);
+
+    boolean existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(UUID deviceId, String trackId, java.time.Instant createdAt);
+
+    @Query("SELECT s.track.trackId FROM PlaylistSong s WHERE s.deviceId = :deviceId AND s.createdAt >= :createdAt AND s.deletedAt IS NULL")
+    java.util.Set<String> findRecentTrackIdsByDeviceIdAndCreatedAtAfter(@Param("deviceId") UUID deviceId, @Param("createdAt") java.time.Instant createdAt);
 }
