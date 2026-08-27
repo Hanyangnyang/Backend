@@ -8,6 +8,7 @@ import life.hanyang.core.global.response.ApiResponse;
 import life.hanyang.core.playlist.domain.Genre;
 import life.hanyang.core.playlist.domain.ReportStatus;
 import life.hanyang.core.playlist.dto.PlaylistReportProcessRequest;
+import life.hanyang.core.playlist.dto.PlaylistSongDeleteRequest;
 import life.hanyang.core.playlist.dto.PlaylistSongReportResponse;
 import life.hanyang.core.playlist.dto.PlaylistSongResponse;
 import life.hanyang.core.playlist.service.PlaylistAdminService;
@@ -42,10 +43,17 @@ public class PlaylistAdminController {
         return ResponseEntity.ok(ApiResponse.success(songs));
     }
 
-    @Operation(summary = "곡 강제 삭제 (소프트 딜리트)", description = "관리자 권한으로 부적절한 곡을 플레이리스트에서 삭제(숨김) 처리합니다.")
+    @Operation(
+            summary = "곡 강제 삭제 (소프트 딜리트 및 관련 신고 자동 처리)",
+            description = "관리자 권한으로 부적절한 곡을 플레이리스트에서 삭제(숨김) 처리하고, 해당 곡에 접수된 모든 미처리(PENDING) 신고를 전달받은 사유와 함께 '처리 완료(REVIEWED)' 상태로 일괄 변경합니다."
+    )
     @DeleteMapping("/songs/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteSong(@PathVariable UUID id) {
-        playlistAdminService.deleteSongByAdmin(id);
+    public ResponseEntity<ApiResponse<Void>> deleteSong(
+            @PathVariable UUID id,
+            @RequestBody(required = false) PlaylistSongDeleteRequest request
+    ) {
+        String reason = (request != null) ? request.reason() : null;
+        playlistAdminService.deleteSongByAdmin(id, reason);
         return ResponseEntity.ok(ApiResponse.success());
     }
 

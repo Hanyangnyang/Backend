@@ -43,15 +43,26 @@ public class PlaylistAdminService {
     }
 
     /**
-     * 2. 관리자 권한 강제 삭제 (소프트 딜리트)
+     * 2. 관리자 권한 강제 삭제 (소프트 딜리트 및 관련 신고 일괄 완료 처리)
      */
     @Transactional
-    public void deleteSongByAdmin(UUID songId) {
+    public void deleteSongByAdmin(UUID songId, String reason) {
         PlaylistSong song = playlistSongRepository.findById(songId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 곡입니다. id: " + songId));
 
         song.softDelete();
-        log.info("[PlaylistAdmin] 관리자에 의한 곡 삭제 완료 - songId: {}, title: {}", songId, song.getTitle());
+
+        String memo = (reason != null && !reason.isBlank()) ? reason : "관리자에 의한 곡 삭제 조치 완료";
+        playlistSongReportRepository.resolvePendingReportsBySongId(
+                songId,
+                ReportStatus.REVIEWED,
+                memo,
+                java.time.Instant.now(),
+                ReportStatus.PENDING
+        );
+
+        log.info("[PlaylistAdmin] 관리자에 의한 곡 삭제 및 관련 미처리 신고 일괄 완료 - songId: {}, title: {}, reason: {}",
+                songId, song.getTitle(), memo);
     }
 
     /**
