@@ -1,0 +1,38 @@
+package life.hanyang.core.playlist.repository;
+
+import life.hanyang.core.playlist.domain.PlaylistSong;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.Optional;
+import java.util.UUID;
+
+public interface PlaylistSongRepository extends JpaRepository<PlaylistSong, UUID>, PlaylistSongRepositoryCustom {
+
+    Optional<PlaylistSong> findByIdAndDeletedAtIsNull(UUID id);
+
+    boolean existsByIdAndDeletedAtIsNull(UUID id);
+
+    @Modifying
+    @Query("UPDATE PlaylistSong s SET s.heartCount = s.heartCount + 1 WHERE s.id = :id")
+    void incrementHeartCount(@Param("id") UUID id);
+
+    @Modifying
+    @Query("UPDATE PlaylistSong s SET s.heartCount = CASE WHEN s.heartCount > 0 THEN s.heartCount - 1 ELSE 0 END WHERE s.id = :id")
+    void decrementHeartCount(@Param("id") UUID id);
+
+    @Query("SELECT s.heartCount FROM PlaylistSong s WHERE s.id = :id")
+    Optional<Integer> getHeartCount(@Param("id") UUID id);
+
+    long countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(UUID deviceId, java.time.Instant createdAt);
+
+    boolean existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(UUID deviceId, String trackId, java.time.Instant createdAt);
+
+    @Query("SELECT s.track.trackId FROM PlaylistSong s WHERE s.deviceId = :deviceId AND s.createdAt >= :createdAt AND s.deletedAt IS NULL")
+    java.util.Set<String> findRecentTrackIdsByDeviceIdAndCreatedAtAfter(@Param("deviceId") UUID deviceId, @Param("createdAt") java.time.Instant createdAt);
+
+    @Query("SELECT COALESCE(SUM(s.heartCount), 0) FROM PlaylistSong s WHERE s.track.trackId = :trackId AND s.deletedAt IS NULL")
+    long sumHeartCountByTrackId(@Param("trackId") String trackId);
+}

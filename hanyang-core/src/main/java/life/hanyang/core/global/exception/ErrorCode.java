@@ -17,7 +17,12 @@ public enum ErrorCode {
     // 인증/인가(보안) 에러
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "A001", "인증에 실패하였습니다."),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "A002", "접근 권한이 없습니다."),
-    BAD_CREDENTIALS(HttpStatus.UNAUTHORIZED, "A003", "아이디 또는 비밀번호가 일치하지 않습니다.");
+    BAD_CREDENTIALS(HttpStatus.UNAUTHORIZED, "A003", "아이디 또는 비밀번호가 일치하지 않습니다."),
+
+    // 플레이리스트 에러
+    PLAYLIST_DAILY_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "PL001", "오늘 추천 가능한 곡 수(최대 3곡)를 초과했습니다."),
+    PLAYLIST_DUPLICATE_SONG_IN_WEEK(HttpStatus.BAD_REQUEST, "PL002", "최근 7일 이내에 이미 추천한 곡입니다. 다른 곡을 추천해 주세요."),
+    PLAYLIST_INAPPROPRIATE_COMMENT(HttpStatus.BAD_REQUEST, "PL003", "부적절하거나 비속어가 포함된 코멘트는 등록할 수 없습니다.");
 
     private final HttpStatus status;
     private final String code;
