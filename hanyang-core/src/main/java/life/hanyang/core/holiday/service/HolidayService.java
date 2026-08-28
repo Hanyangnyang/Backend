@@ -140,5 +140,6 @@ public class HolidayService {
     private void evictHolidayCaches() {
         transactionCacheEvictor.evictCacheAfterCommit("holidayDateInfo");
         transactionCacheEvictor.evictCacheAfterCommit("holidays");
+        transactionCacheEvictor.evictCacheAfterCommit("academicOperationStatus");
     }
 }
