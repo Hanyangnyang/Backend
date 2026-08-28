@@ -24,6 +24,7 @@ cors:
     - https://www.admin.hanyang.life
     - http://localhost:5173
     - http://localhost:3000
+    - https://*-kdjidkrs-projects.vercel.app
 
 server:
   port: 8081
