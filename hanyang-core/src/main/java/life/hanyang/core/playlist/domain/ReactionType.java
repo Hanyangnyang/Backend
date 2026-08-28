@@ -7,11 +7,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum ReactionType {
 
-    // [1] 얼굴/표정 이모지 (5종)
+    // [1] 얼굴/표정 이모지 (4종)
     LOVE("😍", "반함"),
     EMOTIONAL("🥹", "감동"),
     BITTERSWEET("🥲", "아련"),
-    TIPSY("🥴", "취함"),
     COOL("😎", "힙함"),
 
     // [2] 텐션/액션 이모지 (4종)

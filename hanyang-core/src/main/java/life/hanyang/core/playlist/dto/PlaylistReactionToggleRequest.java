@@ -13,7 +13,7 @@ public record PlaylistReactionToggleRequest(
         UUID deviceId,
 
         @NotNull(message = "리액션 이모지 유형은 필수입니다.")
-        @Schema(description = "리액션 이모지 유형 (LOVE, EMOTIONAL, BITTERSWEET, TIPSY, COOL, FIRE, ROCK, DANCE, THUMBS_UP, BEER)", example = "FIRE")
+        @Schema(description = "리액션 이모지 유형 (LOVE, EMOTIONAL, BITTERSWEET, COOL, FIRE, ROCK, DANCE, THUMBS_UP, BEER)", example = "FIRE")
         ReactionType reactionType
 ) {
 }

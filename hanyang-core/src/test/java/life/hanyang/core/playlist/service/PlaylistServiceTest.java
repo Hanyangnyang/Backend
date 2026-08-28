@@ -629,7 +629,7 @@ class PlaylistServiceTest {
         assertThat(response.songId()).isEqualTo(songId);
         assertThat(response.reactionType()).isEqualTo(ReactionType.FIRE);
         assertThat(response.isReacted()).isTrue();
-        assertThat(response.reactions()).hasSize(10);
+        assertThat(response.reactions()).hasSize(9);
         PlaylistReactionItemResponse fireItem = response.reactions().stream()
                 .filter(r -> r.type() == ReactionType.FIRE)
                 .findFirst().orElseThrow();
