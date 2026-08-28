@@ -7,6 +7,7 @@ import life.hanyang.core.playlist.domain.*;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.repository.PlaylistChartRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
+import life.hanyang.core.playlist.repository.PlaylistSongReactionRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackHourlyPlayRepository;
@@ -46,6 +47,9 @@ class PlaylistServiceTest {
 
     @Mock
     private PlaylistSongLikeRepository playlistSongLikeRepository;
+
+    @Mock
+    private PlaylistSongReactionRepository playlistSongReactionRepository;
 
     @Mock
     private PlaylistSongReportRepository playlistSongReportRepository;
@@ -597,5 +601,67 @@ class PlaylistServiceTest {
         assertThat(response.tracks()).hasSize(1);
         assertThat(response.tracks().get(0).title()).isEqualTo("Hype Boy");
         verify(playlistChartRepository).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("이모지 리액션 추가 성공 (최초 등록)")
+    void toggleReaction_Add_Success() {
+        // given
+        UUID songId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
+        PlaylistSong song = PlaylistSong.builder().build();
+
+        given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
+        given(playlistSongReactionRepository.findBySongIdAndDeviceIdAndReactionType(songId, deviceId, ReactionType.FIRE))
+                .willReturn(Optional.empty());
+        List<Object[]> countRows = Collections.singletonList(new Object[]{ReactionType.FIRE, 1L});
+        given(playlistSongReactionRepository.countReactionsBySongId(songId))
+                .willReturn(countRows);
+        given(playlistSongReactionRepository.findUserReactionTypesByDeviceIdAndSongId(deviceId, songId))
+                .willReturn(Set.of(ReactionType.FIRE));
+
+        PlaylistReactionToggleRequest request = new PlaylistReactionToggleRequest(deviceId, ReactionType.FIRE);
+
+        // when
+        PlaylistReactionToggleResponse response = playlistService.toggleReaction(songId, request);
+
+        // then
+        assertThat(response.songId()).isEqualTo(songId);
+        assertThat(response.reactionType()).isEqualTo(ReactionType.FIRE);
+        assertThat(response.isReacted()).isTrue();
+        assertThat(response.reactions()).hasSize(10);
+        PlaylistReactionItemResponse fireItem = response.reactions().stream()
+                .filter(r -> r.type() == ReactionType.FIRE)
+                .findFirst().orElseThrow();
+        assertThat(fireItem.count()).isEqualTo(1L);
+        assertThat(fireItem.isReacted()).isTrue();
+        verify(playlistSongReactionRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("이모지 리액션 취소 성공 (이미 등록된 경우)")
+    void toggleReaction_Cancel_Success() {
+        // given
+        UUID songId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
+        PlaylistSong song = PlaylistSong.builder().build();
+        PlaylistSongReaction existing = PlaylistSongReaction.builder().song(song).deviceId(deviceId).reactionType(ReactionType.FIRE).build();
+
+        given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
+        given(playlistSongReactionRepository.findBySongIdAndDeviceIdAndReactionType(songId, deviceId, ReactionType.FIRE))
+                .willReturn(Optional.of(existing));
+        given(playlistSongReactionRepository.countReactionsBySongId(songId))
+                .willReturn(Collections.emptyList());
+        given(playlistSongReactionRepository.findUserReactionTypesByDeviceIdAndSongId(deviceId, songId))
+                .willReturn(Collections.emptySet());
+
+        PlaylistReactionToggleRequest request = new PlaylistReactionToggleRequest(deviceId, ReactionType.FIRE);
+
+        // when
+        PlaylistReactionToggleResponse response = playlistService.toggleReaction(songId, request);
+
+        // then
+        assertThat(response.isReacted()).isFalse();
+        verify(playlistSongReactionRepository).deleteBySongIdAndDeviceIdAndReactionType(songId, deviceId, ReactionType.FIRE);
     }
 }

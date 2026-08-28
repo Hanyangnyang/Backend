@@ -7,6 +7,7 @@ import life.hanyang.core.playlist.domain.*;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.repository.PlaylistChartRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
+import life.hanyang.core.playlist.repository.PlaylistSongReactionRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackHourlyPlayRepository;
@@ -42,6 +43,7 @@ public class PlaylistService {
     private final PlaylistTrackRepository playlistTrackRepository;
     private final PlaylistSongRepository playlistSongRepository;
     private final PlaylistSongLikeRepository playlistSongLikeRepository;
+    private final PlaylistSongReactionRepository playlistSongReactionRepository;
     private final PlaylistSongReportRepository playlistSongReportRepository;
     private final PlaylistModerationService playlistModerationService;
     private final PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
@@ -128,16 +130,22 @@ public class PlaylistService {
             return new PageImpl<>(List.of(), pageable, songPage.getTotalElements());
         }
 
+        List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
+
         // isLiked N+1 방지를 위한 1번의 Batch IN 쿼리
         Set<UUID> likedSongIds = (currentDeviceId != null)
-                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(
-                        currentDeviceId,
-                        songs.stream().map(PlaylistSong::getId).toList()
-                )
+                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(currentDeviceId, songIds)
                 : Collections.emptySet();
 
+        // Reactions N+1 방지를 위한 2번의 Batch IN 쿼리 (카운트 + 내 반응)
+        Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
+
         List<PlaylistSongResponse> responses = songs.stream()
-                .map(song -> PlaylistSongResponse.of(song, likedSongIds.contains(song.getId())))
+                .map(song -> PlaylistSongResponse.of(
+                        song,
+                        likedSongIds.contains(song.getId()),
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                ))
                 .toList();
 
         return new PageImpl<>(responses, pageable, songPage.getTotalElements());
@@ -153,7 +161,9 @@ public class PlaylistService {
         boolean isLiked = (currentDeviceId != null) &&
                 playlistSongLikeRepository.existsBySongIdAndDeviceId(songId, currentDeviceId);
 
-        return PlaylistSongResponse.of(song, isLiked);
+        List<PlaylistReactionItemResponse> reactions = buildSingleReactionList(songId, currentDeviceId);
+
+        return PlaylistSongResponse.of(song, isLiked, reactions);
     }
 
     /**
@@ -167,15 +177,20 @@ public class PlaylistService {
             return new PageImpl<>(List.of(), pageable, songPage.getTotalElements());
         }
 
+        List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
+
         Set<UUID> likedSongIds = (currentDeviceId != null)
-                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(
-                        currentDeviceId,
-                        songs.stream().map(PlaylistSong::getId).toList()
-                )
+                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(currentDeviceId, songIds)
                 : Collections.emptySet();
 
+        Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
+
         List<PlaylistSongResponse> responses = songs.stream()
-                .map(song -> PlaylistSongResponse.of(song, likedSongIds.contains(song.getId())))
+                .map(song -> PlaylistSongResponse.of(
+                        song,
+                        likedSongIds.contains(song.getId()),
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                ))
                 .toList();
 
         return new PageImpl<>(responses, pageable, songPage.getTotalElements());
@@ -188,7 +203,6 @@ public class PlaylistService {
         return playlistTrackRepository.searchTracks(keyword, pageable);
     }
 
-
     /**
      * 3. 특정 곡(트랙)의 상세 정보 및 추천글 페이징 조회 (베스트 하트순/최신순)
      */
@@ -199,16 +213,22 @@ public class PlaylistService {
         Page<PlaylistSong> songPage = playlistSongRepository.searchSongsByTrackId(trackId, pageable);
         List<PlaylistSong> songs = songPage.getContent();
 
+        List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
+
         // isLiked Batch IN 쿼리 판별
         Set<UUID> likedSongIds = (currentDeviceId != null && !songs.isEmpty())
-                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(
-                        currentDeviceId,
-                        songs.stream().map(PlaylistSong::getId).toList()
-                )
+                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(currentDeviceId, songIds)
                 : Collections.emptySet();
 
+        // Reactions Batch IN 쿼리 판별
+        Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
+
         List<PlaylistSongResponse> responses = songs.stream()
-                .map(song -> PlaylistSongResponse.of(song, likedSongIds.contains(song.getId())))
+                .map(song -> PlaylistSongResponse.of(
+                        song,
+                        likedSongIds.contains(song.getId()),
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                ))
                 .toList();
 
         Page<PlaylistSongResponse> responsePage = new PageImpl<>(responses, pageable, songPage.getTotalElements());
@@ -254,15 +274,130 @@ public class PlaylistService {
     }
 
     /**
+     * 4-1. 이모지 리액션 토글 (10종 이모지 동시성 제어 및 최신 반응 요약 반환)
+     */
+    @Transactional
+    public PlaylistReactionToggleResponse toggleReaction(UUID songId, PlaylistReactionToggleRequest request) {
+        PlaylistSong song = playlistSongRepository.findByIdAndDeletedAtIsNull(songId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않거나 삭제된 곡입니다. id: " + songId));
+
+        Optional<PlaylistSongReaction> existing = playlistSongReactionRepository
+                .findBySongIdAndDeviceIdAndReactionType(songId, request.deviceId(), request.reactionType());
+
+        boolean isReacted;
+        if (existing.isPresent()) {
+            // [리액션 취소]
+            playlistSongReactionRepository.deleteBySongIdAndDeviceIdAndReactionType(
+                    songId, request.deviceId(), request.reactionType()
+            );
+            isReacted = false;
+        } else {
+            // [리액션 추가]
+            try {
+                PlaylistSongReaction newReaction = PlaylistSongReaction.builder()
+                        .song(song)
+                        .deviceId(request.deviceId())
+                        .reactionType(request.reactionType())
+                        .build();
+                playlistSongReactionRepository.save(newReaction);
+                isReacted = true;
+            } catch (DataIntegrityViolationException e) {
+                log.warn("[PlaylistReaction] 중복 리액션 동시성 방어 - songId: {}, deviceId: {}, type: {}",
+                        songId, request.deviceId(), request.reactionType());
+                isReacted = true;
+            }
+        }
+
+        List<PlaylistReactionItemResponse> reactions = buildSingleReactionList(songId, request.deviceId());
+        return PlaylistReactionToggleResponse.of(songId, request.reactionType(), isReacted, reactions);
+    }
+
+    /**
      * 5. 내가 좋아요 누른 곡 목록 조회
      */
     public Page<PlaylistSongResponse> getLikedSongs(UUID deviceId, Pageable pageable) {
         Page<PlaylistSong> likedSongs = playlistSongLikeRepository.findLikedSongsByDeviceId(deviceId, pageable);
-        List<PlaylistSongResponse> responses = likedSongs.getContent().stream()
-                .map(song -> PlaylistSongResponse.of(song, true))
+        List<PlaylistSong> songs = likedSongs.getContent();
+        List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
+
+        Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, deviceId);
+
+        List<PlaylistSongResponse> responses = songs.stream()
+                .map(song -> PlaylistSongResponse.of(
+                        song,
+                        true,
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                ))
                 .toList();
 
         return new PageImpl<>(responses, pageable, likedSongs.getTotalElements());
+    }
+
+    private List<PlaylistReactionItemResponse> buildSingleReactionList(UUID songId, UUID deviceId) {
+        List<Object[]> counts = playlistSongReactionRepository.countReactionsBySongId(songId);
+        Map<ReactionType, Long> countMap = new EnumMap<>(ReactionType.class);
+        for (Object[] row : counts) {
+            ReactionType type = (ReactionType) row[0];
+            Long cnt = ((Number) row[1]).longValue();
+            countMap.put(type, cnt);
+        }
+
+        Set<ReactionType> userReactions = (deviceId != null)
+                ? playlistSongReactionRepository.findUserReactionTypesByDeviceIdAndSongId(deviceId, songId)
+                : Collections.emptySet();
+
+        return Arrays.stream(ReactionType.values())
+                .map(type -> PlaylistReactionItemResponse.of(
+                        type,
+                        countMap.getOrDefault(type, 0L),
+                        userReactions.contains(type)
+                ))
+                .toList();
+    }
+
+    private Map<UUID, List<PlaylistReactionItemResponse>> buildBatchReactionMap(List<UUID> songIds, UUID deviceId) {
+        if (songIds == null || songIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // 1. Batch IN Query 1: 전체 이모지 카운트 집계
+        List<Object[]> counts = playlistSongReactionRepository.countReactionsBySongIdIn(songIds);
+        Map<UUID, Map<ReactionType, Long>> songCountMap = new HashMap<>();
+        for (Object[] row : counts) {
+            UUID sId = (UUID) row[0];
+            ReactionType type = (ReactionType) row[1];
+            Long cnt = ((Number) row[2]).longValue();
+            songCountMap.computeIfAbsent(sId, k -> new EnumMap<>(ReactionType.class)).put(type, cnt);
+        }
+
+        // 2. Batch IN Query 2: 현재 기기가 누른 이모지 집계
+        Map<UUID, Set<ReactionType>> userReactionMap = new HashMap<>();
+        if (deviceId != null) {
+            List<Object[]> userRows = playlistSongReactionRepository.findUserReactionsByDeviceIdAndSongIdIn(deviceId, songIds);
+            for (Object[] row : userRows) {
+                UUID sId = (UUID) row[0];
+                ReactionType type = (ReactionType) row[1];
+                userReactionMap.computeIfAbsent(sId, k -> EnumSet.noneOf(ReactionType.class)).add(type);
+            }
+        }
+
+        // 3. 메모리에서 10대 이모지 합성 (O(1))
+        Map<UUID, List<PlaylistReactionItemResponse>> resultMap = new HashMap<>();
+        for (UUID sId : songIds) {
+            Map<ReactionType, Long> countsForSong = songCountMap.getOrDefault(sId, Collections.emptyMap());
+            Set<ReactionType> userReactionsForSong = userReactionMap.getOrDefault(sId, Collections.emptySet());
+
+            List<PlaylistReactionItemResponse> list = Arrays.stream(ReactionType.values())
+                    .map(type -> PlaylistReactionItemResponse.of(
+                            type,
+                            countsForSong.getOrDefault(type, 0L),
+                            userReactionsForSong.contains(type)
+                    ))
+                    .toList();
+            resultMap.put(sId, list);
+        }
+
+        return resultMap;
     }
 
     /**

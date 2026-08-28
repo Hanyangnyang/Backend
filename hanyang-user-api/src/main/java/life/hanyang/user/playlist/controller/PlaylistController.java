@@ -195,6 +195,22 @@ public class PlaylistController {
     }
 
     @Operation(
+            summary = "이모지 리액션 토글 (10종)",
+            description = "특정 추천글에 10대 이모지 리액션(LOVE, EMOTIONAL, BITTERSWEET, TIPSY, COOL, FIRE, ROCK, DANCE, THUMBS_UP, BEER)을 남기거나 취소합니다.\n\n" +
+                    "• 이미 누른 이모지 ➡️ 취소 처리 (`isReacted: false`)\n" +
+                    "• 아직 누르지 않은 이모지 ➡️ 추가 처리 (`isReacted: true`)\n" +
+                    "• 응답으로 해당 곡의 10개 이모지 전체 최신 카운트 목록을 반환합니다."
+    )
+    @PostMapping("/{id}/reactions")
+    public ResponseEntity<ApiResponse<PlaylistReactionToggleResponse>> toggleReaction(
+            @PathVariable UUID id,
+            @Valid @RequestBody PlaylistReactionToggleRequest request
+    ) {
+        PlaylistReactionToggleResponse response = playlistService.toggleReaction(id, request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(
             summary = "내가 좋아요 누른 곡 목록 조회",
             description = "사용자가 좋아요를 누른 곡 목록을 최신순으로 페이징 조회합니다."
     )
