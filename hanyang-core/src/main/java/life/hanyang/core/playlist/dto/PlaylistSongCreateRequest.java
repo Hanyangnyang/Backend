@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import life.hanyang.core.playlist.domain.Genre;
 
@@ -24,7 +25,11 @@ public record PlaylistSongCreateRequest(
         @NotBlank(message = "아티스트명은 필수입니다.")
         String artist,
 
-        @Schema(description = "앨범 커버 이미지 URL", example = "https://i.scdn.co/image/ab67616d0000b273...")
+        @Schema(description = "앨범 커버 이미지 URL", example = "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290")
+        @Pattern(
+                regexp = "^https://i\\.scdn\\.co/image/[a-fA-F0-9]{40}$",
+                message = "스포티파이 공식 이미지 URL 형식이어야 합니다."
+        )
         String albumArtUrl,
 
         @Schema(description = "추천 멘트 및 코멘트", example = "과제할 때 집중하기 좋아요!")
