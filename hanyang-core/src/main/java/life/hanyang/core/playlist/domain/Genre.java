@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum Genre {
     KPOP("K-POP"),
+    BAND("밴드"),
     ROCK("락"),
     R_AND_B("R&B"),
     HIPHOP("힙합"),

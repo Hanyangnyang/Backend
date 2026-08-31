@@ -42,6 +42,7 @@ public record PlaylistSongCreateRequest(
         @Schema(
                 description = "선택 장르 목록 (최소 1개 ~ 최대 3개 선택 가능)\n" +
                         "• KPOP : K-POP\n" +
+                        "• BAND : 밴드\n" +
                         "• ROCK : 락\n" +
                         "• R_AND_B : R&B\n" +
                         "• HIPHOP : 힙합\n" +
@@ -50,7 +51,7 @@ public record PlaylistSongCreateRequest(
                         "• POP : POP\n" +
                         "• JPOP : J-POP\n" +
                         "• OTHER : 기타",
-                example = "[\"KPOP\", \"INDIE\"]"
+                example = "[\"KPOP\", \"BAND\"]"
         )
         @NotEmpty(message = "장르는 최소 1개 이상 선택해야 합니다.")
         @Size(min = 1, max = 3, message = "장르는 최소 1개에서 최대 3개까지 선택 가능합니다.")
