@@ -13,6 +13,7 @@ import life.hanyang.core.playlist.dto.PlaylistSongReportResponse;
 import life.hanyang.core.playlist.dto.PlaylistSongResponse;
 import life.hanyang.core.playlist.service.PlaylistAdminService;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -37,7 +38,7 @@ public class PlaylistAdminController {
             @RequestParam(required = false) Genre genre,
             @Parameter(description = "삭제 여부 (true: 삭제된 곡만, false: 활성 곡만, 미입력: 전체)")
             @RequestParam(required = false) Boolean isDeleted,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+            @ParameterObject @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<PlaylistSongResponse> songs = playlistAdminService.getSongsForAdmin(genre, isDeleted, pageable);
         return ResponseEntity.ok(ApiResponse.success(songs));

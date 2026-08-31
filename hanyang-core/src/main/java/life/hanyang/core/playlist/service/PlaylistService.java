@@ -197,7 +197,39 @@ public class PlaylistService {
     }
 
     /**
-     * 2-3. 음원 트랙 목록 검색 (곡명/가수명 일치 트랙 목록 반환)
+     * 2-3. 내가 작성한 추천글 목록 조회 (최신순 페이징, N+1 방지 배치 로딩)
+     */
+    public Page<PlaylistSongResponse> getMySongs(UUID deviceId, Pageable pageable) {
+        Page<PlaylistSong> songPage = playlistSongRepository.searchMySongs(deviceId, pageable);
+        List<PlaylistSong> songs = songPage.getContent();
+
+        if (songs.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, songPage.getTotalElements());
+        }
+
+        List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
+
+        // isLiked 배치 조회
+        Set<UUID> likedSongIds = (deviceId != null)
+                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(deviceId, songIds)
+                : Collections.emptySet();
+
+        // Reactions 배치 조회
+        Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, deviceId);
+
+        List<PlaylistSongResponse> responses = songs.stream()
+                .map(song -> PlaylistSongResponse.of(
+                        song,
+                        likedSongIds.contains(song.getId()),
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                ))
+                .toList();
+
+        return new PageImpl<>(responses, pageable, songPage.getTotalElements());
+    }
+
+    /**
+     * 2-4. 음원 트랙 목록 검색 (곡명/가수명 일치 트랙 목록 반환)
      */
     public Page<PlaylistTrackSearchResponse> searchTracks(String keyword, Pageable pageable) {
         return playlistTrackRepository.searchTracks(keyword, pageable);

@@ -11,7 +11,9 @@ import life.hanyang.core.playlist.domain.Genre;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.service.PlaylistService;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -77,9 +79,33 @@ public class PlaylistController {
             @RequestParam(required = false) Genre genre,
             @Parameter(description = "현재 로그인 기기 식별자 ID (좋아요 누름 여부 isLiked 계산용)")
             @RequestParam(required = false) UUID deviceId,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+            @ParameterObject @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<PlaylistSongResponse> songs = playlistService.getFeedSongs(genre, pageable, deviceId);
+        return ResponseEntity.ok(ApiResponse.success(songs));
+    }
+
+    @Operation(
+            summary = "내가 작성한 추천글 목록 조회",
+            description = "사용자 기기(deviceId)가 등록한 추천글 목록을 페이징 조회합니다.\n\n" +
+                    "• **deviceId**: 현재 기기 식별자 ID (필수)\n" +
+                    "• **direction**: 작성일시(createdAt) 기준 정렬 방향 (`DESC`: 최신순, `ASC`: 오래된순 / 기본값: `DESC`)\n" +
+                    "• **page**: 0부터 시작하는 페이지 번호 (기본값: 0)\n" +
+                    "• **size**: 페이지당 개수 (기본값: 20)"
+    )
+    @GetMapping("/my-songs")
+    public ResponseEntity<ApiResponse<Page<PlaylistSongResponse>>> getMySongs(
+            @Parameter(description = "기기 식별자 ID (UUID)", required = true)
+            @RequestParam UUID deviceId,
+            @Parameter(description = "정렬 방향 (DESC: 최신순, ASC: 오래된순)", example = "DESC")
+            @RequestParam(defaultValue = "DESC") Sort.Direction direction,
+            @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지당 개수", example = "20")
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "createdAt"));
+        Page<PlaylistSongResponse> songs = playlistService.getMySongs(deviceId, pageable);
         return ResponseEntity.ok(ApiResponse.success(songs));
     }
 
@@ -96,7 +122,7 @@ public class PlaylistController {
             @RequestParam String keyword,
             @Parameter(description = "현재 로그인 기기 식별자 ID (좋아요 누름 여부 isLiked 계산용)")
             @RequestParam(required = false) UUID deviceId,
-            @PageableDefault(size = 20) Pageable pageable
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
         Page<PlaylistSongResponse> songs = playlistService.searchSongsWithWeight(keyword, pageable, deviceId);
         return ResponseEntity.ok(ApiResponse.success(songs));
@@ -112,7 +138,7 @@ public class PlaylistController {
     public ResponseEntity<ApiResponse<Page<PlaylistTrackSearchResponse>>> searchTracks(
             @Parameter(description = "검색 키워드 (곡명, 가수명)", required = true)
             @RequestParam String keyword,
-            @PageableDefault(size = 10) Pageable pageable
+            @ParameterObject @PageableDefault(size = 10) Pageable pageable
     ) {
         Page<PlaylistTrackSearchResponse> tracks = playlistService.searchTracks(keyword, pageable);
         return ResponseEntity.ok(ApiResponse.success(tracks));
@@ -131,7 +157,7 @@ public class PlaylistController {
             @PathVariable String trackId,
             @Parameter(description = "현재 로그인 기기 식별자 ID (좋아요 누름 여부 isLiked 계산용)")
             @RequestParam(required = false) UUID deviceId,
-            @PageableDefault(size = 20) Pageable pageable
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
         PlaylistTrackDetailResponse response = playlistService.getTrackDetailAndSongs(trackId, pageable, deviceId);
         return ResponseEntity.ok(ApiResponse.success(response));

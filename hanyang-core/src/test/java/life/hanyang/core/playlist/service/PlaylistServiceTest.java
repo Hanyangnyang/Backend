@@ -244,6 +244,44 @@ class PlaylistServiceTest {
     }
 
     @Test
+    @DisplayName("내가 작성한 추천글 목록 조회 성공 (isLiked 배치 포함)")
+    void getMySongs_Success() {
+        // given
+        UUID deviceId = UUID.randomUUID();
+        UUID songId = UUID.randomUUID();
+        PlaylistTrack track = PlaylistTrack.builder()
+                .trackId("track-123")
+                .title("Ditto")
+                .artist("NewJeans")
+                .albumArtUrl("https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290")
+                .build();
+        PlaylistSong song = PlaylistSong.builder()
+                .track(track)
+                .deviceId(deviceId)
+                .ipAddress("127.0.0.1")
+                .comment("내가 쓴 추천글")
+                .genres(Set.of(Genre.KPOP))
+                .build();
+        org.springframework.test.util.ReflectionTestUtils.setField(song, "id", songId);
+
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<PlaylistSong> page = new PageImpl<>(List.of(song), pageable, 1);
+
+        given(playlistSongRepository.searchMySongs(deviceId, pageable)).willReturn(page);
+        given(playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(deviceId, List.of(songId)))
+                .willReturn(Set.of(songId));
+
+        // when
+        Page<PlaylistSongResponse> result = playlistService.getMySongs(deviceId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).title()).isEqualTo("Ditto");
+        assertThat(result.getContent().get(0).comment()).isEqualTo("내가 쓴 추천글");
+        assertThat(result.getContent().get(0).isLiked()).isTrue();
+    }
+
+    @Test
     @DisplayName("특정 곡의 상세 정보 및 추천글 목록 조회 성공")
     void getTrackDetailAndSongs_Success() {
         // given
