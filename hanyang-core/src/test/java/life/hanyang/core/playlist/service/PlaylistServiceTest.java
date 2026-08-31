@@ -72,7 +72,7 @@ class PlaylistServiceTest {
         // given
         UUID deviceId = UUID.randomUUID();
         PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
-                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", deviceId, Set.of(Genre.KPOP)
+                "track-123", "Ditto", "NewJeans", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", "좋아요", deviceId, Set.of(Genre.KPOP)
         );
 
         PlaylistTrack track = PlaylistTrack.builder()
@@ -114,7 +114,7 @@ class PlaylistServiceTest {
         // given
         UUID deviceId = UUID.randomUUID();
         PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
-                "track-123", "곡명", "가수", "https://image.url", "부적절한 욕설 코멘트", deviceId, Set.of(Genre.KPOP)
+                "track-123", "곡명", "가수", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", "부적절한 욕설 코멘트", deviceId, Set.of(Genre.KPOP)
         );
 
         given(playlistModerationService.validateSongContent(any(), any(), any()))
@@ -132,7 +132,7 @@ class PlaylistServiceTest {
         // given
         UUID deviceId = UUID.randomUUID();
         PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
-                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", deviceId, Set.of(Genre.KPOP)
+                "track-123", "Ditto", "NewJeans", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", "좋아요", deviceId, Set.of(Genre.KPOP)
         );
 
         given(playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any())).willReturn(3L);
@@ -149,7 +149,7 @@ class PlaylistServiceTest {
         // given
         UUID deviceId = UUID.randomUUID();
         PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
-                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", deviceId, Set.of(Genre.KPOP)
+                "track-123", "Ditto", "NewJeans", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", "좋아요", deviceId, Set.of(Genre.KPOP)
         );
 
         given(playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any())).willReturn(1L);
@@ -185,7 +185,7 @@ class PlaylistServiceTest {
     void createSong_ThrowsException_WhenGenresEmpty() {
         // given
         PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
-                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", UUID.randomUUID(), Set.of()
+                "track-123", "Ditto", "NewJeans", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", "좋아요", UUID.randomUUID(), Set.of()
         );
 
         // when & then
@@ -199,7 +199,7 @@ class PlaylistServiceTest {
     void createSong_ThrowsException_WhenGenresExceed3() {
         // given
         PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
-                "track-123", "Ditto", "NewJeans", "https://image.url", "좋아요", UUID.randomUUID(),
+                "track-123", "Ditto", "NewJeans", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", "좋아요", UUID.randomUUID(),
                 Set.of(Genre.KPOP, Genre.ROCK, Genre.INDIE, Genre.BALLAD)
         );
 
@@ -255,7 +255,7 @@ class PlaylistServiceTest {
                 .trackId(trackId)
                 .title("LOVE SONG")
                 .artist("유다빈밴드")
-                .albumArtUrl("https://image.url")
+                .albumArtUrl("https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290")
                 .build();
 
         PlaylistSong song = PlaylistSong.builder()
@@ -336,7 +336,7 @@ class PlaylistServiceTest {
         String keyword = "유다빈";
         Pageable pageable = PageRequest.of(0, 10);
         PlaylistTrackSearchResponse item = new PlaylistTrackSearchResponse(
-                "track-1", "LOVE SONG", "유다빈밴드", "https://image.url", 3L, 298L
+                "track-1", "LOVE SONG", "유다빈밴드", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", 3L, 298L
         );
         Page<PlaylistTrackSearchResponse> page = new PageImpl<>(List.of(item), pageable, 1);
 
@@ -535,7 +535,7 @@ class PlaylistServiceTest {
                 .trackId("track-1")
                 .title("LOVE SONG")
                 .artist("유다빈밴드")
-                .albumArtUrl("https://image1.url")
+                .albumArtUrl("https://i.scdn.co/image/ab67616d0000b273951f05b855b09c8b4d7d2ee5")
                 .build();
 
         PlaylistChart chartEntity = PlaylistChart.builder()
@@ -586,7 +586,7 @@ class PlaylistServiceTest {
     @DisplayName("월간 차트 계산 및 저장 성공")
     void calculateAndSaveChart_Monthly_Success() {
         // given
-        Object[] row = new Object[]{"track-1", "Hype Boy", "NewJeans", "https://image.url", 5000L};
+        Object[] row = new Object[]{"track-1", "Hype Boy", "NewJeans", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", 5000L};
         List<Object[]> rows = Collections.singletonList(row);
         given(playlistTrackHourlyPlayRepository.findMonthlyChartRaw(any(), any(), anyInt()))
                 .willReturn(rows);
