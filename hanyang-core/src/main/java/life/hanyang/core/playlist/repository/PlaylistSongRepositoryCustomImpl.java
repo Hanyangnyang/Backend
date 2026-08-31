@@ -140,6 +140,35 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
         return new PageImpl<>(content, pageable, total != null ? total : 0L);
     }
 
+    @Override
+    public Page<PlaylistSong> searchMySongs(java.util.UUID deviceId, Pageable pageable) {
+        boolean isAsc = pageable.getSort().stream()
+                .anyMatch(order -> order.getProperty().equalsIgnoreCase("createdAt") && order.isAscending());
+
+        List<PlaylistSong> content = queryFactory
+                .selectFrom(playlistSong)
+                .join(playlistSong.track).fetchJoin()
+                .where(
+                        playlistSong.deviceId.eq(deviceId),
+                        playlistSong.deletedAt.isNull()
+                )
+                .orderBy(isAsc ? playlistSong.createdAt.asc() : playlistSong.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(playlistSong.count())
+                .from(playlistSong)
+                .where(
+                        playlistSong.deviceId.eq(deviceId),
+                        playlistSong.deletedAt.isNull()
+                )
+                .fetchOne();
+
+        return new PageImpl<>(content, pageable, total != null ? total : 0L);
+    }
+
     private BooleanExpression containsGenre(Genre genre) {
         return genre != null ? playlistSong.genres.contains(genre) : null;
     }

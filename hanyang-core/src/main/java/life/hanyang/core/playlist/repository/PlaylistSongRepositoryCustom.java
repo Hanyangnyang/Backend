@@ -10,4 +10,5 @@ public interface PlaylistSongRepositoryCustom {
     Page<PlaylistSong> searchSongsForAdmin(Genre genre, Boolean isDeleted, Pageable pageable);
     Page<PlaylistSong> searchSongsByTrackId(String trackId, Pageable pageable);
     Page<PlaylistSong> searchSongsWithWeight(String keyword, Pageable pageable);
+    Page<PlaylistSong> searchMySongs(java.util.UUID deviceId, Pageable pageable);
 }
