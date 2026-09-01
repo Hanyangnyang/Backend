@@ -50,5 +50,9 @@ public class SubwayScheduleApiResponse {
         private String arvlStnNm;
         private String trainDptreTm;
         private String trainArvlTm;
+        private String crtrYmd;
+        private String vldBgngDt;
+        private String vldEndDt;
+        private String tmprTmtblYn;
     }
 }
