@@ -17,7 +17,9 @@ import org.springframework.web.client.RestClient;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +29,8 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class SubwayService {
+    private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+
     private final SubwayRepository subwayRepository;
     private final RestClient restClient;
 
@@ -114,6 +118,12 @@ public class SubwayService {
         }
 
         for (SubwayScheduleApiResponse.TrainScheduleItem item : items) {
+            if (!isCurrentlyValid(item)) {
+                log.debug("유효기간이 지난 지하철 시간표를 제외합니다. 열차번호: {}, 유효기간: {} ~ {}",
+                        item.getTrainno(), item.getVldBgngDt(), item.getVldEndDt());
+                continue;
+            }
+
             // 도착 시간을 우선으로 하되, 없으면 출발 시간을 사용 (시발 열차 대응)
             String rawTime = item.getTrainArvlTm();
             if (rawTime == null || rawTime.isBlank()) {
@@ -139,6 +149,33 @@ public class SubwayService {
         }
 
         return list;
+    }
+
+    private boolean isCurrentlyValid(SubwayScheduleApiResponse.TrainScheduleItem item) {
+        if (item.getVldBgngDt() == null || item.getVldBgngDt().isBlank()) {
+            log.warn("유효기간 시작일이 없는 지하철 시간표를 제외합니다. 열차번호: {}", item.getTrainno());
+            return false;
+        }
+
+        try {
+            LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
+            LocalDateTime validFrom = LocalDateTime.parse(item.getVldBgngDt());
+
+            if (now.isBefore(validFrom)) {
+                return false;
+            }
+
+            if (item.getVldEndDt() == null || item.getVldEndDt().isBlank()) {
+                return true;
+            }
+
+            LocalDateTime validTo = LocalDateTime.parse(item.getVldEndDt());
+            return now.isBefore(validTo);
+        } catch (Exception e) {
+            log.warn("지하철 시간표 유효기간 파싱 실패 - 열차번호: {}, 시작일: {}, 종료일: {}",
+                    item.getTrainno(), item.getVldBgngDt(), item.getVldEndDt(), e);
+            return false;
+        }
     }
 
     private LocalTime parseLocalTime(String rawTime) {
