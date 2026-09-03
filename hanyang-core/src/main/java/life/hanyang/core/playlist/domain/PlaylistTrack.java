@@ -30,6 +30,10 @@ public class PlaylistTrack {
     @Column(name = "album_art_url")
     private String albumArtUrl;
 
+    @ColumnDefault("0")
+    @Column(name = "like_count", nullable = false)
+    private Integer likeCount = 0;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
