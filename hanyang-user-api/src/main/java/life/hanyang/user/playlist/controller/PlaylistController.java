@@ -38,7 +38,7 @@ public class PlaylistController {
     @Operation(
             summary = "곡 추천 및 등록",
             description = "Spotify 곡 정보(trackId, title, artist, albumArtUrl)와 1~3개의 장르 태그 및 추천 코멘트를 입력하여 플레이리스트에 등록합니다.\n\n" +
-                    "• **장르 종류**: KPOP(K-POP), BAND(밴드), ROCK(락), R_AND_B(R&B), HIPHOP(힙합), INDIE(인디), BALLAD(발라드), POP(POP), JPOP(J-POP), OTHER(기타)\n" +
+                    "• **장르 종류**: KPOP(K-POP), BAND(밴드), ROCK(락), R_AND_B(R&B), HIPHOP(힙합), INDIE(인디), BALLAD(발라드), POP(POP), JPOP(J-POP), OST(OST), OTHER(기타)\n" +
                     "• **장르 선택 수**: 최소 1개 ~ 최대 3개\n" +
                     "• **등록 제한**: 1일 최대 3곡 / 최근 7일 내 동일 곡 중복 추천 불가\n" +
                     "• **등록자 IP**: 클라이언트 헤더를 통해 백엔드에서 자동으로 수집/기록됩니다."
@@ -73,8 +73,8 @@ public class PlaylistController {
     @Operation(
             summary = "피드 곡 목록 조회",
             description = "등록된 곡 목록을 최신순으로 페이징 조회합니다.\n\n" +
-                    "• **genre**: 특정 장르만 필터링 (KPOP, BAND, ROCK, R_AND_B, HIPHOP, INDIE, BALLAD, POP, JPOP, OTHER). 미입력 시 전체 장르 조회\n" +
-                    "• **deviceId**: 현재 기기 식별자 ID 전달 시 내가 남긴 리액션 여부를 계산하여 반환\n" +
+                    "• **genre**: 특정 장르만 필터링 (KPOP, BAND, ROCK, R_AND_B, HIPHOP, INDIE, BALLAD, POP, JPOP, OST, OTHER). 미입력 시 전체 장르 조회\n" +
+                    "• **deviceId**: 현재 기기 식별자 ID 전달 시 내가 누른 좋아요 여부(`isLiked: true/false`)를 계산하여 반환\n" +
                     "• **page/size**: 0부터 시작하는 페이지 번호와 페이지당 개수 (기본값: size=20)"
     )
     @GetMapping

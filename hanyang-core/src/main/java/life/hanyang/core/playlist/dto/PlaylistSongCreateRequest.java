@@ -50,6 +50,7 @@ public record PlaylistSongCreateRequest(
                         "• BALLAD : 발라드\n" +
                         "• POP : POP\n" +
                         "• JPOP : J-POP\n" +
+                        "• OST : OST\n" +
                         "• OTHER : 기타",
                 example = "[\"KPOP\", \"BAND\"]"
         )
