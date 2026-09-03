@@ -74,7 +74,7 @@ public class PlaylistController {
             summary = "피드 곡 목록 조회",
             description = "등록된 곡 목록을 최신순으로 페이징 조회합니다.\n\n" +
                     "• **genre**: 특정 장르만 필터링 (KPOP, BAND, ROCK, R_AND_B, HIPHOP, INDIE, BALLAD, POP, JPOP, OTHER). 미입력 시 전체 장르 조회\n" +
-                    "• **deviceId**: 현재 기기 식별자 ID 전달 시 내가 누른 좋아요 여부(`isLiked: true/false`)를 계산하여 반환\n" +
+                    "• **deviceId**: 현재 기기 식별자 ID 전달 시 내가 남긴 리액션 여부를 계산하여 반환\n" +
                     "• **page/size**: 0부터 시작하는 페이지 번호와 페이지당 개수 (기본값: size=20)"
     )
     @GetMapping
@@ -196,17 +196,15 @@ public class PlaylistController {
     }
 
     @Operation(
-            summary = "좋아요 토글",
-            description = "좋아요를 등록하거나 취소합니다. 동시성 제어 및 원자적 카운트 증감이 적용됩니다.\n\n" +
-                    "• 이미 좋아요를 누른 상태 ➡️ 취소 처리 (`isLiked: false`, `heartCount` -1)\n" +
-                    "• 아직 누르지 않은 상태 ➡️ 등록 처리 (`isLiked: true`, `heartCount` +1)"
+            summary = "곡 좋아요 토글",
+            description = "곡 단위 좋아요를 등록하거나 취소합니다. 같은 곡의 모든 추천글에 공통으로 적용됩니다."
     )
-    @PostMapping("/{id}/like")
-    public ResponseEntity<ApiResponse<PlaylistLikeToggleResponse>> toggleLike(
-            @PathVariable UUID id,
+    @PostMapping("/tracks/{trackId}/like")
+    public ResponseEntity<ApiResponse<PlaylistLikeToggleResponse>> toggleTrackLike(
+            @PathVariable String trackId,
             @Valid @RequestBody PlaylistLikeToggleRequest request
     ) {
-        PlaylistLikeToggleResponse response = playlistService.toggleLike(id, request.deviceId());
+        PlaylistLikeToggleResponse response = playlistService.toggleTrackLike(trackId, request.deviceId());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -230,14 +228,14 @@ public class PlaylistController {
             summary = "내가 좋아요 누른 곡 목록 조회",
             description = "사용자가 좋아요를 누른 곡 목록을 최신순으로 페이징 조회합니다."
     )
-    @GetMapping("/liked")
-    public ResponseEntity<ApiResponse<Page<PlaylistSongResponse>>> getLikedSongs(
+    @GetMapping("/tracks/liked")
+    public ResponseEntity<ApiResponse<Page<PlaylistTrackLikeResponse>>> getLikedTracks(
             @Parameter(description = "기기 식별자 ID (UUID)", required = true)
             @RequestParam UUID deviceId,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        Page<PlaylistSongResponse> songs = playlistService.getLikedSongs(deviceId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(songs));
+        Page<PlaylistTrackLikeResponse> tracks = playlistService.getLikedTracks(deviceId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(tracks));
     }
 
     @Operation(

@@ -38,7 +38,7 @@ public class PlaylistAdminService {
     public Page<PlaylistSongResponse> getSongsForAdmin(Genre genre, Boolean isDeleted, Pageable pageable) {
         Page<PlaylistSong> songs = playlistSongRepository.searchSongsForAdmin(genre, isDeleted, pageable);
         List<PlaylistSongResponse> responses = songs.getContent().stream()
-                .map(song -> PlaylistSongResponse.of(song, false))
+                .map(PlaylistSongResponse::of)
                 .toList();
 
         return new PageImpl<>(responses, pageable, songs.getTotalElements());
