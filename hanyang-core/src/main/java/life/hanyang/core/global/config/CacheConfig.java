@@ -53,17 +53,18 @@ public class CacheConfig implements CachingConfigurer {
                         new GenericJackson2JsonRedisSerializer(objectMapper)
                 ));
 
-        Map<String, RedisCacheConfiguration> initialConfigs = Map.of(
-                "readingRoomSeats", config.entryTtl(Duration.ofHours(24)),
-                "weatherSummary", config.entryTtl(Duration.ofMinutes(10)),
-                "weatherBriefing", config.entryTtl(Duration.ofMinutes(30)),
-                "menu", config.entryTtl(Duration.ofHours(12)),
-                "banner", config.entryTtl(Duration.ofHours(12)),
-                "holidayDateInfo", config.entryTtl(Duration.ofHours(24)),
-                "holidays", config.entryTtl(Duration.ofHours(24)),
-                "playlistChart", config.entryTtl(Duration.ofHours(24)),
-                "academicOperationStatus", config.entryTtl(Duration.ofHours(24)),
-                "academicPeriods", config.entryTtl(Duration.ofHours(24))
+        Map<String, RedisCacheConfiguration> initialConfigs = Map.ofEntries(
+                Map.entry("readingRoomSeats", config.entryTtl(Duration.ofHours(24))),
+                Map.entry("weatherSummary", config.entryTtl(Duration.ofMinutes(10))),
+                Map.entry("weatherBriefing", config.entryTtl(Duration.ofMinutes(30))),
+                Map.entry("menu", config.entryTtl(Duration.ofHours(12))),
+                Map.entry("banner", config.entryTtl(Duration.ofHours(12))),
+                Map.entry("holidayDateInfo", config.entryTtl(Duration.ofHours(24))),
+                Map.entry("holidays", config.entryTtl(Duration.ofHours(24))),
+                Map.entry("spotifyTrackSearch", config.entryTtl(Duration.ofMinutes(10))),
+                Map.entry("playlistChart", config.entryTtl(Duration.ofHours(24))),
+                Map.entry("academicOperationStatus", config.entryTtl(Duration.ofHours(24))),
+                Map.entry("academicPeriods", config.entryTtl(Duration.ofHours(24)))
         );
 
         RedisCacheWriter cacheWriter = RedisCacheWriter.nonLockingRedisCacheWriter(connectionFactory);

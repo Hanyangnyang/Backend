@@ -22,7 +22,9 @@ public enum ErrorCode {
     // 플레이리스트 에러
     PLAYLIST_DAILY_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "PL001", "오늘 추천 가능한 곡 수(최대 3곡)를 초과했습니다."),
     PLAYLIST_DUPLICATE_SONG_IN_WEEK(HttpStatus.BAD_REQUEST, "PL002", "최근 7일 이내에 이미 추천한 곡입니다. 다른 곡을 추천해 주세요."),
-    PLAYLIST_INAPPROPRIATE_COMMENT(HttpStatus.BAD_REQUEST, "PL003", "부적절하거나 비속어가 포함된 코멘트는 등록할 수 없습니다.");
+    PLAYLIST_INAPPROPRIATE_COMMENT(HttpStatus.BAD_REQUEST, "PL003", "부적절하거나 비속어가 포함된 코멘트는 등록할 수 없습니다."),
+    SPOTIFY_SERVICE_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "PL004", "현재 음원 검색 서비스를 이용할 수 없습니다."),
+    SPOTIFY_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "PL005", "요청이 많이 몰렸습니다. 잠시 후 다시 검색해주세요.");
 
     private final HttpStatus status;
     private final String code;

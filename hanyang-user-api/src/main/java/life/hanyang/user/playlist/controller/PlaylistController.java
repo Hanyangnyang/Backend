@@ -5,6 +5,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import life.hanyang.core.global.response.ApiResponse;
 import life.hanyang.core.playlist.domain.ChartType;
 import life.hanyang.core.playlist.domain.Genre;
@@ -19,11 +21,13 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
 @RestController
+@Validated
 @RequestMapping("/api/v1/playlist/songs")
 @RequiredArgsConstructor
 @Tag(name = "에리카 플레이리스트 API", description = "사용자 곡 추천, 피드 조회, 좋아요 토글, 신고 기능을 제공합니다.")
@@ -111,7 +115,7 @@ public class PlaylistController {
 
     @Operation(
             summary = "추천글 가중치 통합 검색 (제목/가수/코멘트)",
-            description = "검색 키워드로 추천글을 검색합니다. 곡 제목(100점) > 가수명(80점) > 코멘트 내용(20점) 가중치 점수 및 하트 수 순으로 정렬됩니다.\n\n" +
+            description = "검색 키워드와 Spotify 상위 검색 결과를 이용해 등록된 추천글을 검색합니다. 직접 일치 결과를 먼저 보여주고 Spotify 트랙 순위로 검색 결과를 확장합니다. Spotify 장애 시 기존 키워드 검색으로 자동 전환됩니다.\n\n" +
                     "• **keyword**: 검색어 (곡명, 가수명, 코멘트 내용)\n" +
                     "• **deviceId**: 현재 기기 ID 전달 시 각 글의 `isLiked: true/false` 반환\n" +
                     "• **page/size**: 페이징 정보 (기본값: size=20)"
@@ -119,29 +123,15 @@ public class PlaylistController {
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<Page<PlaylistSongResponse>>> searchSongs(
             @Parameter(description = "검색 키워드 (곡명, 가수명, 코멘트 본문)", required = true)
-            @RequestParam String keyword,
+            @RequestParam
+            @NotBlank(message = "검색어는 필수입니다.")
+            @Size(max = 100, message = "검색어는 100자 이하여야 합니다.") String keyword,
             @Parameter(description = "현재 로그인 기기 식별자 ID (좋아요 누름 여부 isLiked 계산용)")
             @RequestParam(required = false) UUID deviceId,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
         Page<PlaylistSongResponse> songs = playlistService.searchSongsWithWeight(keyword, pageable, deviceId);
         return ResponseEntity.ok(ApiResponse.success(songs));
-    }
-
-    @Operation(
-            summary = "음원 트랙 목록 검색 (검색 화면 상단 트랙 섹션용)",
-            description = "검색 키워드로 등록된 음원 마스터(Spotify 곡) 목록을 검색합니다. 곡명 또는 가수명이 일치하는 트랙과 해당 음원에 달린 총 추천글 수/하트 총합을 반환합니다.\n\n" +
-                    "• **keyword**: 검색어 (곡명, 가수명)\n" +
-                    "• **page/size**: 페이징 정보 (기본값: size=10)"
-    )
-    @GetMapping("/tracks/search")
-    public ResponseEntity<ApiResponse<Page<PlaylistTrackSearchResponse>>> searchTracks(
-            @Parameter(description = "검색 키워드 (곡명, 가수명)", required = true)
-            @RequestParam String keyword,
-            @ParameterObject @PageableDefault(size = 10) Pageable pageable
-    ) {
-        Page<PlaylistTrackSearchResponse> tracks = playlistService.searchTracks(keyword, pageable);
-        return ResponseEntity.ok(ApiResponse.success(tracks));
     }
 
     @Operation(
@@ -206,17 +196,15 @@ public class PlaylistController {
     }
 
     @Operation(
-            summary = "좋아요 토글",
-            description = "좋아요를 등록하거나 취소합니다. 동시성 제어 및 원자적 카운트 증감이 적용됩니다.\n\n" +
-                    "• 이미 좋아요를 누른 상태 ➡️ 취소 처리 (`isLiked: false`, `heartCount` -1)\n" +
-                    "• 아직 누르지 않은 상태 ➡️ 등록 처리 (`isLiked: true`, `heartCount` +1)"
+            summary = "곡 좋아요 토글",
+            description = "곡 단위 좋아요를 등록하거나 취소합니다. 같은 곡의 모든 추천글에 공통으로 적용됩니다."
     )
-    @PostMapping("/{id}/like")
-    public ResponseEntity<ApiResponse<PlaylistLikeToggleResponse>> toggleLike(
-            @PathVariable UUID id,
+    @PostMapping("/tracks/{trackId}/like")
+    public ResponseEntity<ApiResponse<PlaylistLikeToggleResponse>> toggleTrackLike(
+            @PathVariable String trackId,
             @Valid @RequestBody PlaylistLikeToggleRequest request
     ) {
-        PlaylistLikeToggleResponse response = playlistService.toggleLike(id, request.deviceId());
+        PlaylistLikeToggleResponse response = playlistService.toggleTrackLike(trackId, request.deviceId());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -240,14 +228,14 @@ public class PlaylistController {
             summary = "내가 좋아요 누른 곡 목록 조회",
             description = "사용자가 좋아요를 누른 곡 목록을 최신순으로 페이징 조회합니다."
     )
-    @GetMapping("/liked")
-    public ResponseEntity<ApiResponse<Page<PlaylistSongResponse>>> getLikedSongs(
+    @GetMapping("/tracks/liked")
+    public ResponseEntity<ApiResponse<Page<PlaylistTrackLikeResponse>>> getLikedTracks(
             @Parameter(description = "기기 식별자 ID (UUID)", required = true)
             @RequestParam UUID deviceId,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        Page<PlaylistSongResponse> songs = playlistService.getLikedSongs(deviceId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(songs));
+        Page<PlaylistTrackLikeResponse> tracks = playlistService.getLikedTracks(deviceId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(tracks));
     }
 
     @Operation(

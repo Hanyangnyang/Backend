@@ -1,5 +1,6 @@
 package life.hanyang.core.playlist.repository;
 
+import life.hanyang.core.playlist.dto.PlaylistTrackRecommendationCount;
 import life.hanyang.core.playlist.domain.PlaylistSong;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -7,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 public interface PlaylistSongRepository extends JpaRepository<PlaylistSong, UUID>, PlaylistSongRepositoryCustom {
@@ -35,4 +37,13 @@ public interface PlaylistSongRepository extends JpaRepository<PlaylistSong, UUID
 
     @Query("SELECT COALESCE(SUM(s.heartCount), 0) FROM PlaylistSong s WHERE s.track.trackId = :trackId AND s.deletedAt IS NULL")
     long sumHeartCountByTrackId(@Param("trackId") String trackId);
+
+    @Query("""
+            SELECT new life.hanyang.core.playlist.dto.PlaylistTrackRecommendationCount(s.track.trackId, COUNT(s))
+            FROM PlaylistSong s
+            WHERE s.track.trackId IN :trackIds
+              AND s.deletedAt IS NULL
+            GROUP BY s.track.trackId
+            """)
+    List<PlaylistTrackRecommendationCount> countRecommendationsByTrackIds(@Param("trackIds") List<String> trackIds);
 }

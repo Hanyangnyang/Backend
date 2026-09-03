@@ -5,8 +5,9 @@ import life.hanyang.core.global.exception.EntityNotFoundException;
 import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.playlist.domain.*;
 import life.hanyang.core.playlist.dto.*;
+import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import life.hanyang.core.playlist.repository.PlaylistChartRepository;
-import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReactionRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
@@ -46,7 +47,7 @@ class PlaylistServiceTest {
     private PlaylistSongRepository playlistSongRepository;
 
     @Mock
-    private PlaylistSongLikeRepository playlistSongLikeRepository;
+    private PlaylistTrackLikeRepository playlistTrackLikeRepository;
 
     @Mock
     private PlaylistSongReactionRepository playlistSongReactionRepository;
@@ -62,6 +63,9 @@ class PlaylistServiceTest {
 
     @Mock
     private PlaylistChartRepository playlistChartRepository;
+
+    @Mock
+    private SpotifyTrackSearchService spotifyTrackSearchService;
 
     @InjectMocks
     private PlaylistService playlistService;
@@ -105,7 +109,6 @@ class PlaylistServiceTest {
         assertThat(response.title()).isEqualTo("Ditto");
         assertThat(response.artist()).isEqualTo("NewJeans");
         assertThat(response.genres()).containsExactly(Genre.KPOP);
-        assertThat(response.isLiked()).isFalse();
     }
 
     @Test
@@ -232,8 +235,6 @@ class PlaylistServiceTest {
         Page<PlaylistSong> page = new PageImpl<>(List.of(song), pageable, 1);
 
         given(playlistSongRepository.searchSongs(Genre.KPOP, pageable)).willReturn(page);
-        given(playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(any(UUID.class), any()))
-                .willReturn(Set.of(songId));
 
         // when
         Page<PlaylistSongResponse> result = playlistService.getFeedSongs(Genre.KPOP, pageable, deviceId);
@@ -268,8 +269,6 @@ class PlaylistServiceTest {
         Page<PlaylistSong> page = new PageImpl<>(List.of(song), pageable, 1);
 
         given(playlistSongRepository.searchMySongs(deviceId, pageable)).willReturn(page);
-        given(playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(deviceId, List.of(songId)))
-                .willReturn(Set.of(songId));
 
         // when
         Page<PlaylistSongResponse> result = playlistService.getMySongs(deviceId, pageable);
@@ -278,7 +277,6 @@ class PlaylistServiceTest {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).title()).isEqualTo("Ditto");
         assertThat(result.getContent().get(0).comment()).isEqualTo("내가 쓴 추천글");
-        assertThat(result.getContent().get(0).isLiked()).isTrue();
     }
 
     @Test
@@ -304,16 +302,13 @@ class PlaylistServiceTest {
                 .genres(Set.of(Genre.ROCK))
                 .build();
         org.springframework.test.util.ReflectionTestUtils.setField(song, "id", songId);
-        org.springframework.test.util.ReflectionTestUtils.setField(song, "heartCount", 150);
 
         Pageable pageable = PageRequest.of(0, 20);
         Page<PlaylistSong> page = new PageImpl<>(List.of(song), pageable, 1);
 
         given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
         given(playlistSongRepository.searchSongsByTrackId(trackId, pageable)).willReturn(page);
-        given(playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(any(UUID.class), any()))
-                .willReturn(Set.of(songId));
-        given(playlistSongRepository.sumHeartCountByTrackId(trackId)).willReturn(150L);
+        given(playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(trackId, deviceId)).willReturn(true);
 
         // when
         PlaylistTrackDetailResponse response = playlistService.getTrackDetailAndSongs(trackId, pageable, deviceId);
@@ -323,10 +318,8 @@ class PlaylistServiceTest {
         assertThat(response.title()).isEqualTo("LOVE SONG");
         assertThat(response.artist()).isEqualTo("유다빈밴드");
         assertThat(response.totalSongsCount()).isEqualTo(1L);
-        assertThat(response.totalHeartCount()).isEqualTo(150L);
+        assertThat(response.isLiked()).isTrue();
         assertThat(response.songs().getContent()).hasSize(1);
-        assertThat(response.songs().getContent().get(0).isLiked()).isTrue();
-        assertThat(response.songs().getContent().get(0).heartCount()).isEqualTo(150);
     }
 
     @Test
@@ -354,9 +347,7 @@ class PlaylistServiceTest {
         Pageable pageable = PageRequest.of(0, 20);
         Page<PlaylistSong> page = new PageImpl<>(List.of(song), pageable, 1);
 
-        given(playlistSongRepository.searchSongsWithWeight(keyword, pageable)).willReturn(page);
-        given(playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(any(UUID.class), any()))
-                .willReturn(Set.of(songId));
+        given(playlistSongRepository.searchSongsWithWeight(keyword, SpotifySearchExpansion.empty(), pageable)).willReturn(page);
 
         // when
         Page<PlaylistSongResponse> result = playlistService.searchSongsWithWeight(keyword, pageable, deviceId);
@@ -364,30 +355,6 @@ class PlaylistServiceTest {
         // then
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).artist()).isEqualTo("유다빈밴드");
-        assertThat(result.getContent().get(0).isLiked()).isTrue();
-    }
-
-    @Test
-    @DisplayName("음원 트랙 검색 성공")
-    void searchTracks_Success() {
-        // given
-        String keyword = "유다빈";
-        Pageable pageable = PageRequest.of(0, 10);
-        PlaylistTrackSearchResponse item = new PlaylistTrackSearchResponse(
-                "track-1", "LOVE SONG", "유다빈밴드", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", 3L, 298L
-        );
-        Page<PlaylistTrackSearchResponse> page = new PageImpl<>(List.of(item), pageable, 1);
-
-        given(playlistTrackRepository.searchTracks(keyword, pageable)).willReturn(page);
-
-        // when
-        Page<PlaylistTrackSearchResponse> result = playlistService.searchTracks(keyword, pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).title()).isEqualTo("LOVE SONG");
-        assertThat(result.getContent().get(0).totalSongsCount()).isEqualTo(3L);
-        assertThat(result.getContent().get(0).totalHeartCount()).isEqualTo(298L);
     }
 
     @Test
@@ -410,7 +377,6 @@ class PlaylistServiceTest {
         org.springframework.test.util.ReflectionTestUtils.setField(song, "id", songId);
 
         given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-        given(playlistSongLikeRepository.existsBySongIdAndDeviceId(songId, deviceId)).willReturn(true);
 
         // when
         PlaylistSongResponse response = playlistService.getSong(songId, deviceId);
@@ -418,7 +384,6 @@ class PlaylistServiceTest {
         // then
         assertThat(response.id()).isEqualTo(songId);
         assertThat(response.title()).isEqualTo("Ditto");
-        assertThat(response.isLiked()).isTrue();
     }
 
     @Test
@@ -436,69 +401,55 @@ class PlaylistServiceTest {
 
 
     @Test
-    @DisplayName("좋아요 등록 토글 성공")
-    void toggleLike_Success_AddLike() {
+    @DisplayName("곡 좋아요 등록 토글 성공")
+    void toggleTrackLike_Success_AddLike() {
         // given
-        UUID songId = UUID.randomUUID();
+        String trackId = "track-1";
         UUID deviceId = UUID.randomUUID();
         PlaylistTrack track = PlaylistTrack.builder()
                 .trackId("track-1")
                 .title("Ditto")
                 .artist("NewJeans")
                 .build();
-        PlaylistSong song = PlaylistSong.builder()
-                .track(track)
-                .deviceId(UUID.randomUUID())
-                .ipAddress("127.0.0.1")
-                .genres(Set.of(Genre.KPOP))
-                .build();
-
-        given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-        given(playlistSongLikeRepository.findBySongIdAndDeviceId(songId, deviceId)).willReturn(Optional.empty());
-        given(playlistSongRepository.getHeartCount(songId)).willReturn(Optional.of(1));
+        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
+        given(playlistTrackLikeRepository.findByTrackTrackIdAndDeviceId(trackId, deviceId)).willReturn(Optional.empty());
+        given(playlistTrackRepository.getLikeCount(trackId)).willReturn(Optional.of(1));
 
         // when
-        PlaylistLikeToggleResponse response = playlistService.toggleLike(songId, deviceId);
+        PlaylistLikeToggleResponse response = playlistService.toggleTrackLike(trackId, deviceId);
 
         // then
         assertThat(response.isLiked()).isTrue();
-        assertThat(response.heartCount()).isEqualTo(1);
-        verify(playlistSongRepository).incrementHeartCount(songId);
-        verify(playlistSongLikeRepository).save(any(PlaylistSongLike.class));
+        assertThat(response.likeCount()).isEqualTo(1);
+        verify(playlistTrackRepository).incrementLikeCount(trackId);
+        verify(playlistTrackLikeRepository).save(any(PlaylistTrackLike.class));
     }
 
     @Test
-    @DisplayName("좋아요 취소 토글 성공")
-    void toggleLike_Success_RemoveLike() {
+    @DisplayName("곡 좋아요 취소 토글 성공")
+    void toggleTrackLike_Success_RemoveLike() {
         // given
-        UUID songId = UUID.randomUUID();
+        String trackId = "track-1";
         UUID deviceId = UUID.randomUUID();
         PlaylistTrack track = PlaylistTrack.builder()
                 .trackId("track-1")
                 .title("Ditto")
                 .artist("NewJeans")
                 .build();
-        PlaylistSong song = PlaylistSong.builder()
-                .track(track)
-                .deviceId(UUID.randomUUID())
-                .ipAddress("127.0.0.1")
-                .genres(Set.of(Genre.KPOP))
-                .build();
+        PlaylistTrackLike existingLike = PlaylistTrackLike.builder().track(track).deviceId(deviceId).build();
 
-        PlaylistSongLike existingLike = PlaylistSongLike.builder().song(song).deviceId(deviceId).build();
-
-        given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-        given(playlistSongLikeRepository.findBySongIdAndDeviceId(songId, deviceId)).willReturn(Optional.of(existingLike));
-        given(playlistSongRepository.getHeartCount(songId)).willReturn(Optional.of(0));
+        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
+        given(playlistTrackLikeRepository.findByTrackTrackIdAndDeviceId(trackId, deviceId)).willReturn(Optional.of(existingLike));
+        given(playlistTrackRepository.getLikeCount(trackId)).willReturn(Optional.of(0));
 
         // when
-        PlaylistLikeToggleResponse response = playlistService.toggleLike(songId, deviceId);
+        PlaylistLikeToggleResponse response = playlistService.toggleTrackLike(trackId, deviceId);
 
         // then
         assertThat(response.isLiked()).isFalse();
-        assertThat(response.heartCount()).isEqualTo(0);
-        verify(playlistSongRepository).decrementHeartCount(songId);
-        verify(playlistSongLikeRepository).delete(existingLike);
+        assertThat(response.likeCount()).isEqualTo(0);
+        verify(playlistTrackRepository).decrementLikeCount(trackId);
+        verify(playlistTrackLikeRepository).delete(existingLike);
     }
 
     @Test

@@ -6,12 +6,13 @@ import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.playlist.domain.*;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.repository.PlaylistChartRepository;
-import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReactionRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackHourlyPlayRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackLikeRepository;
+import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CachePut;
@@ -42,12 +43,13 @@ public class PlaylistService {
 
     private final PlaylistTrackRepository playlistTrackRepository;
     private final PlaylistSongRepository playlistSongRepository;
-    private final PlaylistSongLikeRepository playlistSongLikeRepository;
+    private final PlaylistTrackLikeRepository playlistTrackLikeRepository;
     private final PlaylistSongReactionRepository playlistSongReactionRepository;
     private final PlaylistSongReportRepository playlistSongReportRepository;
     private final PlaylistModerationService playlistModerationService;
     private final PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
     private final PlaylistChartRepository playlistChartRepository;
+    private final SpotifyTrackSearchService spotifyTrackSearchService;
 
     /**
      * 1. 곡 추천/등록
@@ -103,7 +105,7 @@ public class PlaylistService {
                 .build();
 
         PlaylistSong saved = playlistSongRepository.save(song);
-        return PlaylistSongResponse.of(saved, false);
+        return PlaylistSongResponse.of(saved);
     }
 
     /**
@@ -132,18 +134,12 @@ public class PlaylistService {
 
         List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
 
-        // isLiked N+1 방지를 위한 1번의 Batch IN 쿼리
-        Set<UUID> likedSongIds = (currentDeviceId != null)
-                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(currentDeviceId, songIds)
-                : Collections.emptySet();
-
         // Reactions N+1 방지를 위한 2번의 Batch IN 쿼리 (카운트 + 내 반응)
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        likedSongIds.contains(song.getId()),
                         reactionMap.getOrDefault(song.getId(), Collections.emptyList())
                 ))
                 .toList();
@@ -158,19 +154,17 @@ public class PlaylistService {
         PlaylistSong song = playlistSongRepository.findByIdAndDeletedAtIsNull(songId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않거나 삭제된 추천글입니다. id: " + songId));
 
-        boolean isLiked = (currentDeviceId != null) &&
-                playlistSongLikeRepository.existsBySongIdAndDeviceId(songId, currentDeviceId);
-
         List<PlaylistReactionItemResponse> reactions = buildSingleReactionList(songId, currentDeviceId);
 
-        return PlaylistSongResponse.of(song, isLiked, reactions);
+        return PlaylistSongResponse.of(song, reactions);
     }
 
     /**
-     * 2-2. 추천글 통합 가중치 검색 (곡 제목 100점 > 가수명 80점 > 코멘트 내용 20점)
+     * 2-2. 추천글 통합 검색 (직접 일치 우선 + Spotify 검색 후보 확장)
      */
     public Page<PlaylistSongResponse> searchSongsWithWeight(String keyword, Pageable pageable, UUID currentDeviceId) {
-        Page<PlaylistSong> songPage = playlistSongRepository.searchSongsWithWeight(keyword, pageable);
+        SpotifySearchExpansion expansion = findSpotifyExpansionSafely(keyword);
+        Page<PlaylistSong> songPage = playlistSongRepository.searchSongsWithWeight(keyword, expansion, pageable);
         List<PlaylistSong> songs = songPage.getContent();
 
         if (songs.isEmpty()) {
@@ -179,16 +173,11 @@ public class PlaylistService {
 
         List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
 
-        Set<UUID> likedSongIds = (currentDeviceId != null)
-                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(currentDeviceId, songIds)
-                : Collections.emptySet();
-
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        likedSongIds.contains(song.getId()),
                         reactionMap.getOrDefault(song.getId(), Collections.emptyList())
                 ))
                 .toList();
@@ -209,18 +198,12 @@ public class PlaylistService {
 
         List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
 
-        // isLiked 배치 조회
-        Set<UUID> likedSongIds = (deviceId != null)
-                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(deviceId, songIds)
-                : Collections.emptySet();
-
         // Reactions 배치 조회
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, deviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        likedSongIds.contains(song.getId()),
                         reactionMap.getOrDefault(song.getId(), Collections.emptyList())
                 ))
                 .toList();
@@ -228,11 +211,19 @@ public class PlaylistService {
         return new PageImpl<>(responses, pageable, songPage.getTotalElements());
     }
 
-    /**
-     * 2-4. 음원 트랙 목록 검색 (곡명/가수명 일치 트랙 목록 반환)
-     */
-    public Page<PlaylistTrackSearchResponse> searchTracks(String keyword, Pageable pageable) {
-        return playlistTrackRepository.searchTracks(keyword, pageable);
+    private SpotifySearchExpansion findSpotifyExpansionSafely(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return SpotifySearchExpansion.empty();
+        }
+        try {
+            return SpotifySearchExpansion.from(
+                    spotifyTrackSearchService.searchTracks(keyword, SpotifyTrackSearchService.DEFAULT_SEARCH_LIMIT)
+            );
+        } catch (SpotifyServiceUnavailableException exception) {
+            log.warn("[PlaylistSearch] Spotify 검색 확장 생략 - keyword: {}, reason: {}",
+                    keyword, exception.getMessage());
+            return SpotifySearchExpansion.empty();
+        }
     }
 
     /**
@@ -247,62 +238,57 @@ public class PlaylistService {
 
         List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
 
-        // isLiked Batch IN 쿼리 판별
-        Set<UUID> likedSongIds = (currentDeviceId != null && !songs.isEmpty())
-                ? playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(currentDeviceId, songIds)
-                : Collections.emptySet();
-
         // Reactions Batch IN 쿼리 판별
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        likedSongIds.contains(song.getId()),
                         reactionMap.getOrDefault(song.getId(), Collections.emptyList())
                 ))
                 .toList();
 
         Page<PlaylistSongResponse> responsePage = new PageImpl<>(responses, pageable, songPage.getTotalElements());
-        long totalHeartCount = playlistSongRepository.sumHeartCountByTrackId(trackId);
+        boolean isLiked = currentDeviceId != null
+                && playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(trackId, currentDeviceId);
 
-        return PlaylistTrackDetailResponse.of(track, songPage.getTotalElements(), totalHeartCount, responsePage);
+        return PlaylistTrackDetailResponse.of(track, songPage.getTotalElements(), isLiked, responsePage);
     }
 
     /**
-     * 4. 좋아요 토글 (동시성 제어 및 원자적 카운트 증감)
+     * 4. 곡 좋아요 토글 (동시성 제어 및 원자적 카운트 증감)
      */
     @Transactional
-    public PlaylistLikeToggleResponse toggleLike(UUID songId, UUID deviceId) {
-        PlaylistSong song = playlistSongRepository.findByIdAndDeletedAtIsNull(songId)
-                .orElseThrow(() -> new EntityNotFoundException("존재하지 않거나 삭제된 곡입니다. id: " + songId));
+    public PlaylistLikeToggleResponse toggleTrackLike(String trackId, UUID deviceId) {
+        PlaylistTrack track = playlistTrackRepository.findById(trackId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 음원 트랙입니다. trackId: " + trackId));
 
-        Optional<PlaylistSongLike> existingLike = playlistSongLikeRepository.findBySongIdAndDeviceId(songId, deviceId);
+        Optional<PlaylistTrackLike> existingLike = playlistTrackLikeRepository.findByTrackTrackIdAndDeviceId(trackId, deviceId);
 
         boolean isLiked;
         if (existingLike.isPresent()) {
             // [좋아요 취소]
-            playlistSongLikeRepository.delete(existingLike.get());
-            playlistSongRepository.decrementHeartCount(songId);
+            playlistTrackLikeRepository.delete(existingLike.get());
+            playlistTrackRepository.decrementLikeCount(trackId);
             isLiked = false;
         } else {
             // [좋아요 등록]
             try {
-                PlaylistSongLike newLike = PlaylistSongLike.builder()
-                        .song(song)
+                PlaylistTrackLike newLike = PlaylistTrackLike.builder()
+                        .track(track)
                         .deviceId(deviceId)
                         .build();
-                playlistSongLikeRepository.save(newLike);
-                playlistSongRepository.incrementHeartCount(songId);
+                playlistTrackLikeRepository.save(newLike);
+                playlistTrackRepository.incrementLikeCount(trackId);
                 isLiked = true;
             } catch (DataIntegrityViolationException e) {
-                log.warn("[PlaylistLike] 중복 좋아요 요청 감지 (동시성 방어됨) - songId: {}, deviceId: {}", songId, deviceId);
+                log.warn("[PlaylistTrackLike] 중복 좋아요 요청 감지 - trackId: {}, deviceId: {}", trackId, deviceId);
                 isLiked = true;
             }
         }
 
-        Integer currentHeartCount = playlistSongRepository.getHeartCount(songId).orElse(0);
-        return new PlaylistLikeToggleResponse(isLiked, currentHeartCount);
+        Integer currentLikeCount = playlistTrackRepository.getLikeCount(trackId).orElse(0);
+        return new PlaylistLikeToggleResponse(isLiked, currentLikeCount);
     }
 
     /**
@@ -347,22 +333,9 @@ public class PlaylistService {
     /**
      * 5. 내가 좋아요 누른 곡 목록 조회
      */
-    public Page<PlaylistSongResponse> getLikedSongs(UUID deviceId, Pageable pageable) {
-        Page<PlaylistSong> likedSongs = playlistSongLikeRepository.findLikedSongsByDeviceId(deviceId, pageable);
-        List<PlaylistSong> songs = likedSongs.getContent();
-        List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
-
-        Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, deviceId);
-
-        List<PlaylistSongResponse> responses = songs.stream()
-                .map(song -> PlaylistSongResponse.of(
-                        song,
-                        true,
-                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
-                ))
-                .toList();
-
-        return new PageImpl<>(responses, pageable, likedSongs.getTotalElements());
+    public Page<PlaylistTrackLikeResponse> getLikedTracks(UUID deviceId, Pageable pageable) {
+        return playlistTrackLikeRepository.findLikedTracksByDeviceId(deviceId, pageable)
+                .map(PlaylistTrackLikeResponse::of);
     }
 
     private List<PlaylistReactionItemResponse> buildSingleReactionList(UUID songId, UUID deviceId) {
