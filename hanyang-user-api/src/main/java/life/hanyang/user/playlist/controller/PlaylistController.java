@@ -38,7 +38,7 @@ public class PlaylistController {
     @Operation(
             summary = "곡 추천 및 등록",
             description = "Spotify 곡 정보(trackId, title, artist, albumArtUrl)와 1~3개의 장르 태그 및 추천 코멘트를 입력하여 플레이리스트에 등록합니다.\n\n" +
-                    "• **장르 종류**: KPOP(K-POP), BAND(밴드), ROCK(락), R_AND_B(R&B), HIPHOP(힙합), INDIE(인디), BALLAD(발라드), POP(POP), JPOP(J-POP), OTHER(기타)\n" +
+                    "• **장르 종류**: KPOP(K-POP), BAND(밴드), ROCK(락), R_AND_B(R&B), HIPHOP(힙합), INDIE(인디), BALLAD(발라드), POP(POP), JPOP(J-POP), OST(OST), OTHER(기타)\n" +
                     "• **장르 선택 수**: 최소 1개 ~ 최대 3개\n" +
                     "• **등록 제한**: 1일 최대 3곡 / 최근 7일 내 동일 곡 중복 추천 불가\n" +
                     "• **등록자 IP**: 클라이언트 헤더를 통해 백엔드에서 자동으로 수집/기록됩니다."
@@ -73,7 +73,7 @@ public class PlaylistController {
     @Operation(
             summary = "피드 곡 목록 조회",
             description = "등록된 곡 목록을 최신순으로 페이징 조회합니다.\n\n" +
-                    "• **genre**: 특정 장르만 필터링 (KPOP, BAND, ROCK, R_AND_B, HIPHOP, INDIE, BALLAD, POP, JPOP, OTHER). 미입력 시 전체 장르 조회\n" +
+                    "• **genre**: 특정 장르만 필터링 (KPOP, BAND, ROCK, R_AND_B, HIPHOP, INDIE, BALLAD, POP, JPOP, OST, OTHER). 미입력 시 전체 장르 조회\n" +
                     "• **deviceId**: 현재 기기 식별자 ID 전달 시 내가 누른 좋아요 여부(`isLiked: true/false`)를 계산하여 반환\n" +
                     "• **page/size**: 0부터 시작하는 페이지 번호와 페이지당 개수 (기본값: size=20)"
     )
@@ -196,17 +196,15 @@ public class PlaylistController {
     }
 
     @Operation(
-            summary = "좋아요 토글",
-            description = "좋아요를 등록하거나 취소합니다. 동시성 제어 및 원자적 카운트 증감이 적용됩니다.\n\n" +
-                    "• 이미 좋아요를 누른 상태 ➡️ 취소 처리 (`isLiked: false`, `heartCount` -1)\n" +
-                    "• 아직 누르지 않은 상태 ➡️ 등록 처리 (`isLiked: true`, `heartCount` +1)"
+            summary = "곡 좋아요 토글",
+            description = "곡 단위 좋아요를 등록하거나 취소합니다. 같은 곡의 모든 추천글에 공통으로 적용됩니다."
     )
-    @PostMapping("/{id}/like")
-    public ResponseEntity<ApiResponse<PlaylistLikeToggleResponse>> toggleLike(
-            @PathVariable UUID id,
+    @PostMapping("/tracks/{trackId}/like")
+    public ResponseEntity<ApiResponse<PlaylistLikeToggleResponse>> toggleTrackLike(
+            @PathVariable String trackId,
             @Valid @RequestBody PlaylistLikeToggleRequest request
     ) {
-        PlaylistLikeToggleResponse response = playlistService.toggleLike(id, request.deviceId());
+        PlaylistLikeToggleResponse response = playlistService.toggleTrackLike(trackId, request.deviceId());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -230,14 +228,14 @@ public class PlaylistController {
             summary = "내가 좋아요 누른 곡 목록 조회",
             description = "사용자가 좋아요를 누른 곡 목록을 최신순으로 페이징 조회합니다."
     )
-    @GetMapping("/liked")
-    public ResponseEntity<ApiResponse<Page<PlaylistSongResponse>>> getLikedSongs(
+    @GetMapping("/tracks/liked")
+    public ResponseEntity<ApiResponse<Page<PlaylistTrackLikeResponse>>> getLikedTracks(
             @Parameter(description = "기기 식별자 ID (UUID)", required = true)
             @RequestParam UUID deviceId,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        Page<PlaylistSongResponse> songs = playlistService.getLikedSongs(deviceId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(songs));
+        Page<PlaylistTrackLikeResponse> tracks = playlistService.getLikedTracks(deviceId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(tracks));
     }
 
     @Operation(

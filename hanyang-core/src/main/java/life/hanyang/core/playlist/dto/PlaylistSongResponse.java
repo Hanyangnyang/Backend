@@ -36,14 +36,8 @@ public record PlaylistSongResponse(
         @Schema(description = "선택된 장르 목록 (1~3개)", example = "[\"KPOP\", \"BAND\"]")
         Set<Genre> genres,
 
-        @Schema(description = "좋아요(하트) 개수", example = "42")
-        Integer heartCount,
-
         @Schema(description = "해당 음원의 전체 누적 재생수", example = "128")
         Integer totalPlayCount,
-
-        @Schema(description = "현재 기기가 좋아요(하트)를 눌렀는지 여부", example = "true")
-        boolean isLiked,
 
         @Schema(description = "10대 이모지 리액션 목록")
         List<PlaylistReactionItemResponse> reactions,
@@ -54,11 +48,11 @@ public record PlaylistSongResponse(
         @Schema(description = "수정 일시 (KST/UTC)", example = "2026-08-27T10:15:30Z")
         Instant updatedAt
 ) {
-    public static PlaylistSongResponse of(PlaylistSong song, boolean isLiked) {
-        return of(song, isLiked, Collections.emptyList());
+    public static PlaylistSongResponse of(PlaylistSong song) {
+        return of(song, Collections.emptyList());
     }
 
-    public static PlaylistSongResponse of(PlaylistSong song, boolean isLiked, List<PlaylistReactionItemResponse> reactions) {
+    public static PlaylistSongResponse of(PlaylistSong song, List<PlaylistReactionItemResponse> reactions) {
         return new PlaylistSongResponse(
                 song.getId(),
                 song.getTrackId(),
@@ -68,9 +62,7 @@ public record PlaylistSongResponse(
                 song.getComment(),
                 song.getDeviceId(),
                 song.getGenres(),
-                song.getHeartCount(),
                 song.getTotalPlayCount() != null ? song.getTotalPlayCount() : 0,
-                isLiked,
                 (reactions != null) ? reactions : Collections.emptyList(),
                 song.getCreatedAt(),
                 song.getUpdatedAt()
