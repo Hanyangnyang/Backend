@@ -43,6 +43,8 @@ jobs:
           echo 'PUBLIC_DATA_PORTAL_KEY=${{ secrets.PUBLIC_DATA_PORTAL_KEY }}' >> .env
           echo 'WEATHER_API_SERVICE_KEY=${{ secrets.WEATHER_API_SERVICE_KEY }}' >> .env
           echo 'GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}' >> .env
+          echo 'SPOTIFY_CLIENT_ID=${{ secrets.SPOTIFY_CLIENT_ID }}' >> .env
+          echo 'SPOTIFY_CLIENT_SECRET=${{ secrets.SPOTIFY_CLIENT_SECRET }}' >> .env
           echo 'DISCORD_WEBHOOK_URL=' >> .env
           echo 'DISCORD_ERROR_WEBHOOK_URL=' >> .env
           echo 'REDIS_HOST=${{ secrets.REDIS_HOST }}' >> .env

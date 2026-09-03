@@ -65,6 +65,15 @@ api:
     base-url: ${GEMINI_API_BASE_URL:https://generativelanguage.googleapis.com}
     key: ${GEMINI_API_KEY:}
     model: ${GEMINI_API_MODEL:gemini-3.5-flash-lite}
+
+  spotify:
+    accounts-base-url: ${SPOTIFY_ACCOUNTS_BASE_URL:https://accounts.spotify.com}
+    base-url: ${SPOTIFY_API_BASE_URL:https://api.spotify.com/v1}
+    client-id: ${SPOTIFY_CLIENT_ID:}
+    client-secret: ${SPOTIFY_CLIENT_SECRET:}
+    market: ${SPOTIFY_MARKET:KR}
+    connect-timeout: ${SPOTIFY_CONNECT_TIMEOUT:1s}
+    read-timeout: ${SPOTIFY_READ_TIMEOUT:2s}
     
 management:
   endpoints:
