@@ -5,6 +5,7 @@ import life.hanyang.core.global.exception.EntityNotFoundException;
 import life.hanyang.core.global.exception.ErrorCode;
 import life.hanyang.core.playlist.domain.*;
 import life.hanyang.core.playlist.dto.*;
+import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import life.hanyang.core.playlist.repository.PlaylistChartRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongReactionRepository;
@@ -62,6 +63,9 @@ class PlaylistServiceTest {
 
     @Mock
     private PlaylistChartRepository playlistChartRepository;
+
+    @Mock
+    private SpotifyTrackSearchService spotifyTrackSearchService;
 
     @InjectMocks
     private PlaylistService playlistService;
@@ -354,7 +358,7 @@ class PlaylistServiceTest {
         Pageable pageable = PageRequest.of(0, 20);
         Page<PlaylistSong> page = new PageImpl<>(List.of(song), pageable, 1);
 
-        given(playlistSongRepository.searchSongsWithWeight(keyword, pageable)).willReturn(page);
+        given(playlistSongRepository.searchSongsWithWeight(keyword, SpotifySearchExpansion.empty(), pageable)).willReturn(page);
         given(playlistSongLikeRepository.findLikedSongIdsByDeviceIdAndSongIdIn(any(UUID.class), any()))
                 .willReturn(Set.of(songId));
 
@@ -365,29 +369,6 @@ class PlaylistServiceTest {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).artist()).isEqualTo("유다빈밴드");
         assertThat(result.getContent().get(0).isLiked()).isTrue();
-    }
-
-    @Test
-    @DisplayName("음원 트랙 검색 성공")
-    void searchTracks_Success() {
-        // given
-        String keyword = "유다빈";
-        Pageable pageable = PageRequest.of(0, 10);
-        PlaylistTrackSearchResponse item = new PlaylistTrackSearchResponse(
-                "track-1", "LOVE SONG", "유다빈밴드", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", 3L, 298L
-        );
-        Page<PlaylistTrackSearchResponse> page = new PageImpl<>(List.of(item), pageable, 1);
-
-        given(playlistTrackRepository.searchTracks(keyword, pageable)).willReturn(page);
-
-        // when
-        Page<PlaylistTrackSearchResponse> result = playlistService.searchTracks(keyword, pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).title()).isEqualTo("LOVE SONG");
-        assertThat(result.getContent().get(0).totalSongsCount()).isEqualTo(3L);
-        assertThat(result.getContent().get(0).totalHeartCount()).isEqualTo(298L);
     }
 
     @Test

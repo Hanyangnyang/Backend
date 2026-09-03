@@ -12,6 +12,7 @@ import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackHourlyPlayRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
+import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CachePut;
@@ -48,6 +49,7 @@ public class PlaylistService {
     private final PlaylistModerationService playlistModerationService;
     private final PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
     private final PlaylistChartRepository playlistChartRepository;
+    private final SpotifyTrackSearchService spotifyTrackSearchService;
 
     /**
      * 1. 곡 추천/등록
@@ -167,10 +169,11 @@ public class PlaylistService {
     }
 
     /**
-     * 2-2. 추천글 통합 가중치 검색 (곡 제목 100점 > 가수명 80점 > 코멘트 내용 20점)
+     * 2-2. 추천글 통합 검색 (직접 일치 우선 + Spotify 검색 후보 확장)
      */
     public Page<PlaylistSongResponse> searchSongsWithWeight(String keyword, Pageable pageable, UUID currentDeviceId) {
-        Page<PlaylistSong> songPage = playlistSongRepository.searchSongsWithWeight(keyword, pageable);
+        SpotifySearchExpansion expansion = findSpotifyExpansionSafely(keyword);
+        Page<PlaylistSong> songPage = playlistSongRepository.searchSongsWithWeight(keyword, expansion, pageable);
         List<PlaylistSong> songs = songPage.getContent();
 
         if (songs.isEmpty()) {
@@ -228,11 +231,19 @@ public class PlaylistService {
         return new PageImpl<>(responses, pageable, songPage.getTotalElements());
     }
 
-    /**
-     * 2-4. 음원 트랙 목록 검색 (곡명/가수명 일치 트랙 목록 반환)
-     */
-    public Page<PlaylistTrackSearchResponse> searchTracks(String keyword, Pageable pageable) {
-        return playlistTrackRepository.searchTracks(keyword, pageable);
+    private SpotifySearchExpansion findSpotifyExpansionSafely(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return SpotifySearchExpansion.empty();
+        }
+        try {
+            return SpotifySearchExpansion.from(
+                    spotifyTrackSearchService.searchTracks(keyword, SpotifyTrackSearchService.DEFAULT_SEARCH_LIMIT)
+            );
+        } catch (SpotifyServiceUnavailableException exception) {
+            log.warn("[PlaylistSearch] Spotify 검색 확장 생략 - keyword: {}, reason: {}",
+                    keyword, exception.getMessage());
+            return SpotifySearchExpansion.empty();
+        }
     }
 
     /**
