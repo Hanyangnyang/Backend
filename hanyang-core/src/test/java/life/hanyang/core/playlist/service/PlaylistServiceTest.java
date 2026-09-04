@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -537,7 +538,7 @@ class PlaylistServiceTest {
                 .totalScore(500L)
                 .build();
 
-        given(playlistChartRepository.findLatestChartByChartType(ChartType.RISING))
+        given(playlistChartRepository.findLatestChartByChartTypeAndGenre(ChartType.RISING, null))
                 .willReturn(List.of(chartEntity));
 
         // when
@@ -556,7 +557,7 @@ class PlaylistServiceTest {
         // given
         Object[] row = new Object[]{"track-1", "LOVE SONG", "유다빈밴드", "https://image1.url", 1000L};
         List<Object[]> rows = Collections.singletonList(row);
-        given(playlistTrackHourlyPlayRepository.findWeeklyChartRaw(any(), any(), anyInt()))
+        given(playlistTrackHourlyPlayRepository.findWeeklyChartRaw(any(), any(), any(), anyInt()))
                 .willReturn(rows);
         PlaylistTrack track = PlaylistTrack.builder().trackId("track-1").title("LOVE SONG").artist("유다빈밴드").build();
         given(playlistTrackRepository.getReferenceById("track-1")).willReturn(track);
@@ -569,6 +570,7 @@ class PlaylistServiceTest {
         assertThat(response.tracks()).hasSize(1);
         assertThat(response.tracks().get(0).rank()).isEqualTo(1);
         verify(playlistChartRepository).saveAll(any());
+        verify(playlistTrackHourlyPlayRepository).findWeeklyChartRaw(any(), any(), eq(Genre.KPOP.name()), anyInt());
     }
 
     @Test
@@ -577,7 +579,7 @@ class PlaylistServiceTest {
         // given
         Object[] row = new Object[]{"track-1", "Hype Boy", "NewJeans", "https://i.scdn.co/image/ab67616d0000b273bd15713cf9824b7842bcd290", 5000L};
         List<Object[]> rows = Collections.singletonList(row);
-        given(playlistTrackHourlyPlayRepository.findMonthlyChartRaw(any(), any(), anyInt()))
+        given(playlistTrackHourlyPlayRepository.findMonthlyChartRaw(any(), any(), any(), anyInt()))
                 .willReturn(rows);
         PlaylistTrack track = PlaylistTrack.builder().trackId("track-1").title("Hype Boy").artist("NewJeans").build();
         given(playlistTrackRepository.getReferenceById("track-1")).willReturn(track);

@@ -14,11 +14,8 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "playlist_charts",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_playlist_chart_rank", columnNames = {"chart_type", "snapshot_time", "rank"})
-        },
         indexes = {
-                @Index(name = "idx_playlist_charts_lookup", columnList = "chart_type, snapshot_time DESC, rank")
+                @Index(name = "idx_playlist_charts_lookup", columnList = "chart_type, genre, snapshot_time DESC, rank")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -31,6 +28,10 @@ public class PlaylistChart {
     @Enumerated(EnumType.STRING)
     @Column(name = "chart_type", nullable = false, length = 20)
     private ChartType chartType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "genre", length = 30)
+    private Genre genre;
 
     @Column(name = "snapshot_time", nullable = false)
     private Instant snapshotTime;
@@ -58,6 +59,7 @@ public class PlaylistChart {
     @Builder
     public PlaylistChart(
             ChartType chartType,
+            Genre genre,
             Instant snapshotTime,
             Instant startPeriod,
             Instant endPeriod,
@@ -66,6 +68,7 @@ public class PlaylistChart {
             Long totalScore
     ) {
         this.chartType = chartType;
+        this.genre = genre;
         this.snapshotTime = snapshotTime;
         this.startPeriod = startPeriod;
         this.endPeriod = endPeriod;
