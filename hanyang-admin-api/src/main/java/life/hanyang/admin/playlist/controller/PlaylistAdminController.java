@@ -5,22 +5,27 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import life.hanyang.core.global.response.ApiResponse;
+import life.hanyang.core.playlist.domain.ChartType;
 import life.hanyang.core.playlist.domain.Genre;
 import life.hanyang.core.playlist.domain.ReportStatus;
+import life.hanyang.core.playlist.dto.PlaylistChartResponse;
 import life.hanyang.core.playlist.dto.PlaylistReportProcessRequest;
 import life.hanyang.core.playlist.dto.PlaylistSongDeleteRequest;
 import life.hanyang.core.playlist.dto.PlaylistSongReportResponse;
 import life.hanyang.core.playlist.dto.PlaylistSongResponse;
 import life.hanyang.core.playlist.service.PlaylistAdminService;
+import life.hanyang.core.playlist.service.PlaylistService;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @RestController
@@ -30,6 +35,23 @@ import java.util.UUID;
 public class PlaylistAdminController {
 
     private final PlaylistAdminService playlistAdminService;
+    private final PlaylistService playlistService;
+
+    @Operation(
+            summary = "인기 차트 수동 재집계",
+            description = "지정 시점 기준으로 전체 및 모든 장르의 인기 차트를 다시 계산해 스냅샷을 교체합니다. " +
+                    "targetTime을 생략하면 현재 시각 기준으로 계산합니다. 시간은 ISO-8601 UTC 형식으로 전달합니다."
+    )
+    @PostMapping("/charts/recalculate")
+    public ResponseEntity<ApiResponse<PlaylistChartResponse>> recalculateChart(
+            @Parameter(description = "차트 유형", example = "RISING")
+            @RequestParam ChartType type,
+            @Parameter(description = "집계 기준 시각 (ISO-8601 UTC). 미입력 시 현재 시각", example = "2026-09-04T12:00:00Z")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant targetTime
+    ) {
+        PlaylistChartResponse response = playlistService.calculateAndSaveChart(type, targetTime);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 
     @Operation(summary = "곡 목록 조회 (장르, 삭제 여부 필터)", description = "플레이리스트 전체 곡을 조회합니다. 장르 및 소프트 삭제 여부로 필터링할 수 있습니다.")
     @GetMapping("/songs")
