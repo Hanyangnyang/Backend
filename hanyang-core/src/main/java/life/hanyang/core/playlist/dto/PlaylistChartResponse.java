@@ -2,6 +2,7 @@ package life.hanyang.core.playlist.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import life.hanyang.core.playlist.domain.ChartType;
+import life.hanyang.core.playlist.domain.Genre;
 
 import java.time.Instant;
 import java.util.List;
@@ -10,6 +11,9 @@ import java.util.List;
 public record PlaylistChartResponse(
         @Schema(description = "차트 유형 (RISING, WEEKLY, MONTHLY)", example = "RISING")
         ChartType chartType,
+
+        @Schema(description = "장르별 차트 필터 (null이면 전체 차트)", example = "KPOP", nullable = true)
+        Genre genre,
 
         @Schema(description = "차트 스냅샷 생성/기준 시각 (KST)", example = "2026-08-27T19:00:00Z")
         Instant snapshotTime,
@@ -28,12 +32,13 @@ public record PlaylistChartResponse(
 ) {
     public static PlaylistChartResponse of(
             ChartType chartType,
+            Genre genre,
             Instant snapshotTime,
             Instant startPeriod,
             Instant endPeriod,
             String displayTitle,
             List<PlaylistChartItemResponse> tracks
     ) {
-        return new PlaylistChartResponse(chartType, snapshotTime, startPeriod, endPeriod, displayTitle, tracks);
+        return new PlaylistChartResponse(chartType, genre, snapshotTime, startPeriod, endPeriod, displayTitle, tracks);
     }
 }
