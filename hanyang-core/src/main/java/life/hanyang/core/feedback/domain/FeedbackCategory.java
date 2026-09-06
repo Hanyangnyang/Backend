@@ -12,5 +12,6 @@ public enum FeedbackCategory {
     WEATHER,        // 날씨 & 미세먼지
     PARTNERSHIP,    // 제휴/가맹점
     BANNER,         // 배너/이벤트
+    CLUB,           // 동아리
     GENERAL         // 앱 전반 / 기타
 }
