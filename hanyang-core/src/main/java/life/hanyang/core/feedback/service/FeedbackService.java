@@ -25,6 +25,7 @@ import java.util.UUID;
 public class FeedbackService {
 
     private final FeedbackRepository feedbackRepository;
+    private final FeedbackWebhookNotifier feedbackWebhookNotifier;
 
     @Transactional
     public FeedbackResponse createFeedback(FeedbackCreateRequest request) {
@@ -41,6 +42,7 @@ public class FeedbackService {
 
         Feedback saved = feedbackRepository.save(feedback);
         log.info("새로운 피드백 접수 - ID: {}, 카테고리: {}, 유형: {}", saved.getId(), saved.getCategory(), saved.getFeedbackType());
+        feedbackWebhookNotifier.notify(saved);
         return FeedbackResponse.from(saved);
     }
 
