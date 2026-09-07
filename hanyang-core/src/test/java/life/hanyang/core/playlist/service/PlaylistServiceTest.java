@@ -538,7 +538,7 @@ class PlaylistServiceTest {
                 .totalScore(500L)
                 .build();
 
-        given(playlistChartRepository.findLatestChartByChartTypeAndGenre(ChartType.RISING, null))
+        given(playlistChartRepository.findLatestOverallChartByChartType(ChartType.RISING))
                 .willReturn(List.of(chartEntity));
 
         // when
@@ -549,6 +549,39 @@ class PlaylistServiceTest {
         assertThat(response.tracks()).hasSize(1);
         assertThat(response.tracks().get(0).rank()).isEqualTo(1);
         assertThat(response.tracks().get(0).title()).isEqualTo("LOVE SONG");
+        verify(playlistChartRepository).findLatestOverallChartByChartType(ChartType.RISING);
+    }
+
+    @Test
+    @DisplayName("장르별 실시간 급상승 차트 조회 시 장르 전용 쿼리를 사용한다")
+    void getChart_Rising_ByGenre_FromSnapshot_Success() {
+        // given
+        PlaylistTrack track = PlaylistTrack.builder()
+                .trackId("track-kpop")
+                .title("Hype Boy")
+                .artist("NewJeans")
+                .build();
+        PlaylistChart chartEntity = PlaylistChart.builder()
+                .chartType(ChartType.RISING)
+                .genre(Genre.KPOP)
+                .snapshotTime(java.time.Instant.now())
+                .startPeriod(java.time.Instant.now().minus(24, java.time.temporal.ChronoUnit.HOURS))
+                .endPeriod(java.time.Instant.now())
+                .rank(1)
+                .track(track)
+                .totalScore(300L)
+                .build();
+
+        given(playlistChartRepository.findLatestChartByChartTypeAndGenre(ChartType.RISING, Genre.KPOP))
+                .willReturn(List.of(chartEntity));
+
+        // when
+        PlaylistChartResponse response = playlistService.getChart(ChartType.RISING, Genre.KPOP);
+
+        // then
+        assertThat(response.genre()).isEqualTo(Genre.KPOP);
+        assertThat(response.tracks()).hasSize(1);
+        verify(playlistChartRepository).findLatestChartByChartTypeAndGenre(ChartType.RISING, Genre.KPOP);
     }
 
     @Test

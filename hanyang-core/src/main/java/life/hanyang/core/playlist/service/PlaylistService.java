@@ -450,7 +450,7 @@ public class PlaylistService {
         ChartType chartType = (type != null) ? type : ChartType.RISING;
 
         // 1. DB 스냅샷 테이블에서 최신 차트 목록 조회
-        List<PlaylistChart> latestChart = playlistChartRepository.findLatestChartByChartTypeAndGenre(chartType, genre);
+        List<PlaylistChart> latestChart = findLatestChart(chartType, genre);
         if (!latestChart.isEmpty()) {
             PlaylistChart first = latestChart.get(0);
             List<PlaylistChartItemResponse> items = latestChart.stream()
@@ -482,7 +482,7 @@ public class PlaylistService {
     }
 
     private PlaylistChartResponse getChartFromSnapshot(ChartType chartType, Genre genre) {
-        List<PlaylistChart> latestChart = playlistChartRepository.findLatestChartByChartTypeAndGenre(chartType, genre);
+        List<PlaylistChart> latestChart = findLatestChart(chartType, genre);
         if (latestChart.isEmpty()) {
             ChartPeriod period = chartPeriod(chartType, Instant.now());
             return PlaylistChartResponse.of(chartType, genre, period.snapshotTime(), period.startPeriod(), period.endPeriod(),
@@ -494,6 +494,12 @@ public class PlaylistService {
                 .toList();
         return PlaylistChartResponse.of(chartType, genre, first.getSnapshotTime(), first.getStartPeriod(), first.getEndPeriod(),
                 formatDisplayTitle(chartType, first.getSnapshotTime(), first.getStartPeriod(), genre), items);
+    }
+
+    private List<PlaylistChart> findLatestChart(ChartType chartType, Genre genre) {
+        return genre == null
+                ? playlistChartRepository.findLatestOverallChartByChartType(chartType)
+                : playlistChartRepository.findLatestChartByChartTypeAndGenre(chartType, genre);
     }
 
     /** 모든 장르 스냅샷을 하나의 트랜잭션으로 교체한다. */
