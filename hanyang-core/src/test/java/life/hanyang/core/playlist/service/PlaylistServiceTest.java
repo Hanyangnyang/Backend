@@ -23,7 +23,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Method;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -70,6 +76,19 @@ class PlaylistServiceTest {
 
     @InjectMocks
     private PlaylistService playlistService;
+
+    @Test
+    @DisplayName("전체 차트 조회 진입점은 쓰기 트랜잭션과 캐시를 사용한다")
+    void getChartOverall_HasWritableTransactionAndCache() throws NoSuchMethodException {
+        Method method = PlaylistService.class.getMethod("getChart", ChartType.class);
+
+        Transactional transactional = method.getAnnotation(Transactional.class);
+        Cacheable cacheable = method.getAnnotation(Cacheable.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.readOnly()).isFalse();
+        assertThat(cacheable).isNotNull();
+    }
 
     @Test
     @DisplayName("곡 등록 성공")
@@ -625,6 +644,26 @@ class PlaylistServiceTest {
         assertThat(response.tracks()).hasSize(1);
         assertThat(response.tracks().get(0).title()).isEqualTo("Hype Boy");
         verify(playlistChartRepository).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("실시간 차트 집계 시 30일이 지난 스냅샷을 정리한다")
+    void calculateAndSaveChart_Rising_DeletesSnapshotsOlderThanThirtyDays() {
+        // given
+        Instant targetTime = Instant.parse("2026-09-08T03:25:00Z");
+        Instant snapshotTime = targetTime.truncatedTo(ChronoUnit.HOURS);
+        given(playlistTrackHourlyPlayRepository.findRisingChartRaw(
+                any(), any(), any(), nullable(String.class), anyInt()
+        )).willReturn(Collections.emptyList());
+
+        // when
+        playlistService.calculateAndSaveChart(ChartType.RISING, targetTime);
+
+        // then
+        verify(playlistChartRepository).deleteByChartTypeAndSnapshotTimeBefore(
+                ChartType.RISING,
+                snapshotTime.minus(30, ChronoUnit.DAYS)
+        );
     }
 
     @Test

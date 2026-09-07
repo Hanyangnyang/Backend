@@ -68,4 +68,8 @@ public interface PlaylistChartRepository extends JpaRepository<PlaylistChart, UU
     @Modifying(flushAutomatically = true)
     @Query("DELETE FROM PlaylistChart c WHERE c.chartType = :chartType AND c.snapshotTime = :snapshotTime")
     void deleteByChartTypeAndSnapshotTime(@Param("chartType") ChartType chartType, @Param("snapshotTime") Instant snapshotTime);
+
+    @Modifying(flushAutomatically = true)
+    @Query("DELETE FROM PlaylistChart c WHERE c.chartType = :chartType AND c.snapshotTime < :cutoff")
+    void deleteByChartTypeAndSnapshotTimeBefore(@Param("chartType") ChartType chartType, @Param("cutoff") Instant cutoff);
 }
