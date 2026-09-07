@@ -32,6 +32,9 @@ class FeedbackServiceTest {
     @Mock
     private FeedbackRepository feedbackRepository;
 
+    @Mock
+    private FeedbackWebhookNotifier feedbackWebhookNotifier;
+
     @InjectMocks
     private FeedbackService feedbackService;
 
@@ -72,6 +75,7 @@ class FeedbackServiceTest {
         assertThat(response.feedbackType()).isEqualTo(FeedbackType.INACCURACY);
         assertThat(response.content()).isEqualTo("순환 셔틀 12:30 출발이 늦습니다.");
         assertThat(response.status()).isEqualTo(FeedbackStatus.PENDING);
+        verify(feedbackWebhookNotifier).notify(saved);
     }
 
     @Test

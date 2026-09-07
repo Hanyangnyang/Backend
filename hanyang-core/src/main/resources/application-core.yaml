@@ -87,3 +87,7 @@ management:
 logging:
   webhook:
     url: ${DISCORD_ERROR_WEBHOOK_URL:${DISCORD_WEBHOOK_URL:${SLACK_WEBHOOK_URL:}}}
+
+feedback:
+  webhook:
+    url: ${FEEDBACK_WEBHOOK_URL:}
