@@ -29,21 +29,21 @@ public class PlaylistChartScheduler {
             playlistService.getChart(ChartType.MONTHLY);
             log.info("[PlaylistChartScheduler] 서버 기동 차트 Warm-up 완료");
         } catch (Exception e) {
-            log.warn("[PlaylistChartScheduler] 차트 Warm-up 중 예외 발생 (DB 초기 상태일 수 있음): {}", e.getMessage());
+            logFailure("차트 Warm-up", e);
         }
     }
 
     /**
      * 🔥 실시간 급상승 차트 스케줄러 (매시 정각 00분)
      */
-    @Scheduled(cron = "0 0 * * * *", zone = "Asia/Seoul")
+    @Scheduled(cron = "0 40 * * * *", zone = "Asia/Seoul")
     public void scheduleRisingChart() {
         log.info("[PlaylistChartScheduler] 실시간 급상승 차트 정기 집계 시작");
         try {
             playlistService.calculateAndSaveChart(ChartType.RISING, Instant.now());
             log.info("[PlaylistChartScheduler] 실시간 급상승 차트 정기 집계 완료");
         } catch (Exception e) {
-            log.error("[PlaylistChartScheduler] 실시간 급상승 차트 집계 실패: {}", e.getMessage(), e);
+            logFailure("실시간 급상승 차트 집계", e);
         }
     }
 
@@ -57,7 +57,7 @@ public class PlaylistChartScheduler {
             playlistService.calculateAndSaveChart(ChartType.WEEKLY, Instant.now());
             log.info("[PlaylistChartScheduler] 주간 차트 정기 집계 완료");
         } catch (Exception e) {
-            log.error("[PlaylistChartScheduler] 주간 차트 집계 실패: {}", e.getMessage(), e);
+            logFailure("주간 차트 집계", e);
         }
     }
 
@@ -71,7 +71,25 @@ public class PlaylistChartScheduler {
             playlistService.calculateAndSaveChart(ChartType.MONTHLY, Instant.now());
             log.info("[PlaylistChartScheduler] 월간 차트 정기 집계 완료");
         } catch (Exception e) {
-            log.error("[PlaylistChartScheduler] 월간 차트 집계 실패: {}", e.getMessage(), e);
+            logFailure("월간 차트 집계", e);
         }
+    }
+
+    private void logFailure(String operation, Exception exception) {
+        Throwable rootCause = rootCauseOf(exception);
+        log.error("[PlaylistChartScheduler] {} 실패 | exception={} | rootCause={} | message={}",
+                operation,
+                exception.getClass().getSimpleName(),
+                rootCause.getClass().getSimpleName(),
+                rootCause.getMessage());
+        log.debug("[PlaylistChartScheduler] {} 상세 예외", operation, exception);
+    }
+
+    private Throwable rootCauseOf(Throwable exception) {
+        Throwable rootCause = exception;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        return rootCause;
     }
 }
