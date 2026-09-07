@@ -43,7 +43,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                 SELECT s.id, s.track_id, s.created_at
                 FROM playlist_songs s
                 WHERE s.deleted_at IS NULL
-                  AND (:genre IS NULL OR EXISTS (
+                  AND (CAST(:genre AS varchar) IS NULL OR EXISTS (
                       SELECT 1 FROM playlist_song_genres sg
                       WHERE sg.song_id = s.id AND sg.genre = CAST(:genre AS varchar)
                   ))
@@ -130,7 +130,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                 SELECT s.id, s.track_id, s.created_at
                 FROM playlist_songs s
                 WHERE s.deleted_at IS NULL
-                  AND (:genre IS NULL OR EXISTS (
+                  AND (CAST(:genre AS varchar) IS NULL OR EXISTS (
                       SELECT 1 FROM playlist_song_genres sg
                       WHERE sg.song_id = s.id AND sg.genre = CAST(:genre AS varchar)
                   ))
@@ -205,7 +205,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
                 SELECT s.id, s.track_id, s.created_at
                 FROM playlist_songs s
                 WHERE s.deleted_at IS NULL
-                  AND (:genre IS NULL OR EXISTS (
+                  AND (CAST(:genre AS varchar) IS NULL OR EXISTS (
                       SELECT 1 FROM playlist_song_genres sg
                       WHERE sg.song_id = s.id AND sg.genre = CAST(:genre AS varchar)
                   ))
