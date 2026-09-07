@@ -440,6 +440,8 @@ public class PlaylistService {
     /**
      * 8. 인기 차트 순위 조회 (Redis 캐시 우선 조회 ➡️ DB 스냅샷 ➡️ 비어있을 시 즉시 계산 폴백)
      */
+    @Cacheable(cacheNames = "playlistChart", key = "{#type != null ? #type : T(life.hanyang.core.playlist.domain.ChartType).RISING, null}")
+    @Transactional
     public PlaylistChartResponse getChart(ChartType type) {
         return getChart(type, null);
     }
@@ -511,6 +513,12 @@ public class PlaylistService {
         // 여러 서버가 같은 스냅샷을 생성해도 테이블 잠금 안에서 삭제/저장을 직렬화한다.
         playlistChartRepository.lockChartSnapshots();
         playlistChartRepository.deleteByChartTypeAndSnapshotTime(chartType, period.snapshotTime());
+        if (chartType == ChartType.RISING) {
+            playlistChartRepository.deleteByChartTypeAndSnapshotTimeBefore(
+                    ChartType.RISING,
+                    period.snapshotTime().minus(30, ChronoUnit.DAYS)
+            );
+        }
 
         List<PlaylistChart> entities = new ArrayList<>();
         ChartSnapshot overall = buildSnapshot(chartType, null, period, entities);

@@ -23,18 +23,14 @@ public class PlaylistChartScheduler {
     @PostConstruct
     public void warmupChartsOnStartup() {
         log.info("[PlaylistChartScheduler] 서버 기동 차트 Warm-up 시작...");
-        try {
-            playlistService.getChart(ChartType.RISING);
-            playlistService.getChart(ChartType.WEEKLY);
-            playlistService.getChart(ChartType.MONTHLY);
-            log.info("[PlaylistChartScheduler] 서버 기동 차트 Warm-up 완료");
-        } catch (Exception e) {
-            logFailure("차트 Warm-up", e);
+        for (ChartType chartType : ChartType.values()) {
+            warmupChart(chartType);
         }
+        log.info("[PlaylistChartScheduler] 서버 기동 차트 Warm-up 완료");
     }
 
     /**
-     * 🔥 실시간 급상승 차트 스케줄러 (매시 정각 00분)
+     * 🔥 실시간 급상승 차트 스케줄러 (매시 40분)
      */
     @Scheduled(cron = "0 40 * * * *", zone = "Asia/Seoul")
     public void scheduleRisingChart() {
@@ -72,6 +68,15 @@ public class PlaylistChartScheduler {
             log.info("[PlaylistChartScheduler] 월간 차트 정기 집계 완료");
         } catch (Exception e) {
             logFailure("월간 차트 집계", e);
+        }
+    }
+
+    private void warmupChart(ChartType chartType) {
+        try {
+            playlistService.getChart(chartType);
+            log.info("[PlaylistChartScheduler] {} 차트 Warm-up 완료", chartType);
+        } catch (Exception e) {
+            logFailure(chartType + " 차트 Warm-up", e);
         }
     }
 
