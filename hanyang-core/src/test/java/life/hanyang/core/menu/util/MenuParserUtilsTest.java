@@ -70,5 +70,42 @@ class MenuParserUtilsTest {
         assertTrue(sets.get(0).cleanedMenu().contains("참치생채소비빔밥"));
         assertTrue(sets.get(0).cleanedMenu().contains("청포묵김가루무침"));
     }
-}
 
+    @Test
+    @DisplayName("대표 메뉴명 뒤의 영문 번역만 제거한다")
+    void removeEnglishTranslationFromMainDish() {
+        assertEquals(
+                "[천원의아침밥] 꼬치어묵탕",
+                MenuParserUtils.removeEnglishTranslation("[천원의아침밥] 꼬치어묵탕 Fish Cake Skewers and Broth")
+        );
+        assertEquals(
+                "BBQ치킨 A코너",
+                MenuParserUtils.removeEnglishTranslation("BBQ치킨 A코너 BBQ Chicken")
+        );
+        assertEquals(
+                "BLT 샌드위치",
+                MenuParserUtils.removeEnglishTranslation("BLT 샌드위치 BLT Sandwich")
+        );
+    }
+
+    @Test
+    @DisplayName("대표 메뉴명 앞의 대괄호 태그 다음에 줄바꿈을 추가한다")
+    void formatLeadingMenuTagOnSeparateLine() {
+        assertEquals(
+                "[CHINA FOOD DAY]\n사천식짜장덮밥 *계란후라이",
+                MenuParserUtils.formatMainDishName("[CHINA FOOD DAY] 사천식짜장덮밥 *계란후라이")
+        );
+        assertEquals(
+                "[천원의아침밥]\n간장돈육떡장조림",
+                MenuParserUtils.formatMainDishName("[천원의아침밥] 간장돈육떡장조림")
+        );
+        assertEquals(
+                "[천원의아침밥]\n속풀이돼지고기김치찌개",
+                MenuParserUtils.formatMainDishName("[천원의아침밥]속풀이돼지고기김치찌개")
+        );
+        assertEquals(
+                "[천원의아침밥]\n속풀이돼지고기김치찌개",
+                MenuParserUtils.formatMainDishName("[천원의아침밥]   속풀이돼지고기김치찌개")
+        );
+    }
+}

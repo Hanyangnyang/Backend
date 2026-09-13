@@ -13,8 +13,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -47,10 +50,12 @@ public class MenuSaveService {
 
         // MealType별 순서(displayOrder) 카운터
         Map<MealType, Integer> orderCounter = new HashMap<>();
+        Set<MenuPosition> scrapedPositions = new HashSet<>();
 
         for (MenuCrawlResultDto.MenuDetailDto menuDto : dto.menus()) {
             MealType mealType = menuDto.mealType();
             int currentOrder = orderCounter.getOrDefault(mealType, 0);
+            scrapedPositions.add(new MenuPosition(mealType, currentOrder));
 
             Optional<Menu> existingOpt = menuRepository.findByCafeteriaAndDateAndTypeAndDisplayOrder(
                     cafeteria, dto.date(), mealType, currentOrder
@@ -70,6 +75,13 @@ public class MenuSaveService {
 
             orderCounter.put(mealType, currentOrder + 1);
         }
-    }
-}
 
+        List<Menu> staleMenus = menuRepository.findByCafeteriaAndDate(cafeteria, dto.date()).stream()
+                .filter(menu -> !menu.isOverridden())
+                .filter(menu -> !scrapedPositions.contains(new MenuPosition(menu.getType(), menu.getDisplayOrder())))
+                .toList();
+        menuRepository.deleteAll(staleMenus);
+    }
+
+    private record MenuPosition(MealType mealType, Integer displayOrder) {}
+}
