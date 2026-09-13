@@ -18,6 +18,8 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 
     Optional<Menu> findByCafeteriaAndDateAndTypeAndDisplayOrder(Cafeteria cafeteria, LocalDate date, MealType type, Integer displayOrder);
 
+    List<Menu> findByCafeteriaAndDate(Cafeteria cafeteria, LocalDate date);
+
     @Query("SELECT DISTINCT m FROM Menu m " +
            "JOIN FETCH m.cafeteria c " +
            "LEFT JOIN FETCH c.operatingHours " +
@@ -40,4 +42,3 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
             @Param("codes") List<CafeteriaCode> codes
     );
 }
-
