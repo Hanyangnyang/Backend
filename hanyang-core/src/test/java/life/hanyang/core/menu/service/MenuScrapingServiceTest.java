@@ -42,7 +42,7 @@ class MenuScrapingServiceTest {
 
         assertEquals(2, menus.size());
         assertEquals(MealType.BREAKFAST, menus.get(0).mealType());
-        assertEquals("[천원의아침밥] 꼬치어묵탕\n쌀밥\n도시락김\n배추김치", menus.get(0).displayMenu());
+        assertEquals("[천원의아침밥]\n꼬치어묵탕\n쌀밥\n도시락김\n배추김치", menus.get(0).displayMenu());
         assertEquals(1000, menus.get(0).price());
         assertEquals(MealType.LUNCH, menus.get(1).mealType());
         assertEquals("매운삼겹살볶음밥\n꼬들단무지\n일식장국", menus.get(1).displayMenu());

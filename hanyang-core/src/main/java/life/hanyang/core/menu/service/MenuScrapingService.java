@@ -139,7 +139,7 @@ public class MenuScrapingService {
                 }
 
                 String rawName = nameElement.text().replaceAll("\\s+", " ").trim();
-                String mainDish = MenuParserUtils.removeEnglishTranslation(rawName);
+                String mainDish = MenuParserUtils.formatMainDishName(rawName);
                 List<String> menuItems = new ArrayList<>();
                 if (!mainDish.isBlank()) {
                     menuItems.add(mainDish);

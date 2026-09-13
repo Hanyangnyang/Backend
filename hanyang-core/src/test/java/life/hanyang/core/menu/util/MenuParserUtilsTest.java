@@ -87,4 +87,17 @@ class MenuParserUtilsTest {
                 MenuParserUtils.removeEnglishTranslation("BLT 샌드위치 BLT Sandwich")
         );
     }
+
+    @Test
+    @DisplayName("대표 메뉴명 앞의 대괄호 태그 다음에 줄바꿈을 추가한다")
+    void formatLeadingMenuTagOnSeparateLine() {
+        assertEquals(
+                "[CHINA FOOD DAY]\n사천식짜장덮밥 *계란후라이",
+                MenuParserUtils.formatMainDishName("[CHINA FOOD DAY] 사천식짜장덮밥 *계란후라이")
+        );
+        assertEquals(
+                "[천원의아침밥]\n간장돈육떡장조림",
+                MenuParserUtils.formatMainDishName("[천원의아침밥] 간장돈육떡장조림")
+        );
+    }
 }

@@ -105,6 +105,11 @@ public class MenuParserUtils {
         return mainDishName.trim();
     }
 
+    public static String formatMainDishName(String mainDishName) {
+        return removeEnglishTranslation(mainDishName)
+                .replaceFirst("^(\\[[^]]+])\\s+(.+)$", "$1\n$2");
+    }
+
     public static ParsedMenu cleanUpMenuText(String rawText) {
         List<ParsedMenu> sets = parseMenuSets(rawText);
         if (sets.isEmpty()) {
