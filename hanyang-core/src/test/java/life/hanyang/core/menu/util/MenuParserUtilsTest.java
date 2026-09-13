@@ -99,5 +99,13 @@ class MenuParserUtilsTest {
                 "[천원의아침밥]\n간장돈육떡장조림",
                 MenuParserUtils.formatMainDishName("[천원의아침밥] 간장돈육떡장조림")
         );
+        assertEquals(
+                "[천원의아침밥]\n속풀이돼지고기김치찌개",
+                MenuParserUtils.formatMainDishName("[천원의아침밥]속풀이돼지고기김치찌개")
+        );
+        assertEquals(
+                "[천원의아침밥]\n속풀이돼지고기김치찌개",
+                MenuParserUtils.formatMainDishName("[천원의아침밥]   속풀이돼지고기김치찌개")
+        );
     }
 }

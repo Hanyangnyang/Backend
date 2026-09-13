@@ -107,7 +107,7 @@ public class MenuParserUtils {
 
     public static String formatMainDishName(String mainDishName) {
         return removeEnglishTranslation(mainDishName)
-                .replaceFirst("^(\\[[^]]+])\\s+(.+)$", "$1\n$2");
+                .replaceFirst("^(\\[[^]]+])\\s*(.+)$", "$1\n$2");
     }
 
     public static ParsedMenu cleanUpMenuText(String rawText) {
