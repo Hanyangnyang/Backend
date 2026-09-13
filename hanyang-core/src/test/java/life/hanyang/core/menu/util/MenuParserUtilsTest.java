@@ -70,5 +70,21 @@ class MenuParserUtilsTest {
         assertTrue(sets.get(0).cleanedMenu().contains("참치생채소비빔밥"));
         assertTrue(sets.get(0).cleanedMenu().contains("청포묵김가루무침"));
     }
-}
 
+    @Test
+    @DisplayName("대표 메뉴명 뒤의 영문 번역만 제거한다")
+    void removeEnglishTranslationFromMainDish() {
+        assertEquals(
+                "[천원의아침밥] 꼬치어묵탕",
+                MenuParserUtils.removeEnglishTranslation("[천원의아침밥] 꼬치어묵탕 Fish Cake Skewers and Broth")
+        );
+        assertEquals(
+                "BBQ치킨 A코너",
+                MenuParserUtils.removeEnglishTranslation("BBQ치킨 A코너 BBQ Chicken")
+        );
+        assertEquals(
+                "BLT 샌드위치",
+                MenuParserUtils.removeEnglishTranslation("BLT 샌드위치 BLT Sandwich")
+        );
+    }
+}

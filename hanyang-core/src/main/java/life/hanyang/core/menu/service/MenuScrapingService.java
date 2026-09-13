@@ -12,15 +12,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +26,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -39,7 +36,7 @@ public class MenuScrapingService {
     private final TransactionCacheEvictor transactionCacheEvictor;
 
     private static final String BASE_URL_PATTERN =
-            "https://www.hanyang.ac.kr/web/www/%s?p_p_id=kr_ac_hanyang_cafe_web_portlet_CafePortlet&p_p_lifecycle=0&p_p_state=normal&p_p_mode=view&_kr_ac_hanyang_cafe_web_portlet_CafePortlet_sMenuDate=%s&_kr_ac_hanyang_cafe_web_portlet_CafePortlet_action=view";
+            "https://life.hanyang.ac.kr/theme/pages/facilities/detail.php?id=%d&date=%s";
 
     /**
      * CompletableFuture 기반 병렬 스크래핑 수행
@@ -100,9 +97,8 @@ public class MenuScrapingService {
     }
 
     private void scrapeSingleCafeteriaForDate(CafeteriaCode code, LocalDate date) {
-        String dateStr = date.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
-        String encodedDate = URLEncoder.encode(dateStr, StandardCharsets.UTF_8);
-        String url = String.format(BASE_URL_PATTERN, code.getCode(), encodedDate);
+        String dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE);
+        String url = String.format(BASE_URL_PATTERN, code.getFacilityId(), dateStr);
 
         try {
             Document doc = Jsoup.connect(url)
@@ -127,56 +123,71 @@ public class MenuScrapingService {
         }
     }
 
-    private List<MenuCrawlResultDto.MenuDetailDto> parseMenus(Document doc) {
+    List<MenuCrawlResultDto.MenuDetailDto> parseMenus(Document doc) {
         List<MenuCrawlResultDto.MenuDetailDto> menus = new ArrayList<>();
-        Elements h3Elements = doc.select("h3");
-
-        for (Element h3 : h3Elements) {
-            String title = h3.text().trim();
-            if (!MenuParserUtils.isValidTitle(title)) {
+        for (Element group : doc.select(".menu-group")) {
+            Element titleElement = group.selectFirst(".menu-group__title");
+            if (titleElement == null) {
                 continue;
             }
 
-            Element nextEl = h3.nextElementSibling();
-            if (nextEl == null) {
-                continue;
-            }
+            MealType mealType = MealType.fromTitle(titleElement.text());
+            for (Element item : group.select(".menu-item")) {
+                Element nameElement = item.selectFirst(".menu-item__name");
+                if (nameElement == null) {
+                    continue;
+                }
 
-            String menuText = nextEl.text().replaceAll("\\s+", " ").trim();
-            if (menuText.length() <= 5 || menuText.contains("확인 가능합니다")) {
-                continue;
-            }
+                String rawName = nameElement.text().replaceAll("\\s+", " ").trim();
+                String mainDish = MenuParserUtils.removeEnglishTranslation(rawName);
+                List<String> menuItems = new ArrayList<>();
+                if (!mainDish.isBlank()) {
+                    menuItems.add(mainDish);
+                }
 
-            List<MenuParserUtils.ParsedMenu> parsedSets = MenuParserUtils.parseMenuSets(menuText);
-            MealType mealType = MealType.fromTitle(title);
+                Element descriptionElement = item.selectFirst(".menu-item__desc");
+                if (descriptionElement != null) {
+                    Arrays.stream(descriptionElement.html().split("(?i)<br\\s*/?>"))
+                            .map(Jsoup::parse)
+                            .map(Document::text)
+                            .map(String::trim)
+                            .filter(text -> !text.isBlank())
+                            .forEach(menuItems::add);
+                }
 
-            for (MenuParserUtils.ParsedMenu parsed : parsedSets) {
+                Element priceElement = item.selectFirst(".menu-item__price");
+                Integer price = priceElement == null ? null : MenuParserUtils.parsePrice(priceElement.text());
+                String rawMenu = String.join(" ", rawName,
+                        descriptionElement == null ? "" : descriptionElement.text(),
+                        priceElement == null ? "" : priceElement.text()).trim();
+
+                if (menuItems.isEmpty()) {
+                    continue;
+                }
+
                 menus.add(new MenuCrawlResultDto.MenuDetailDto(
-                        mealType, menuText, parsed.cleanedMenu(), parsed.price()
+                        mealType, rawMenu, String.join("\n", menuItems), price
                 ));
             }
         }
         return menus;
     }
 
-    private Map<String, String> parseOperatingHours(Document doc) {
+    Map<String, String> parseOperatingHours(Document doc) {
         Map<String, String> hours = new HashMap<>();
-        String fullText = doc.body().text().replaceAll("\\s+", " ");
+        for (Element row : doc.select(".info-table tr")) {
+            Element label = row.selectFirst(".info-label");
+            Element value = row.selectFirst(".info-value");
+            if (label == null || value == null || !label.text().trim().equals("영업시간")) {
+                continue;
+            }
 
-        Matcher sectionMatcher = Pattern.compile("운영시간(.{0,300})").matcher(fullText);
-        if (sectionMatcher.find()) {
-            String sectionText = sectionMatcher.group(0);
-            Matcher timeMatcher = Pattern.compile("(조식|중식|석식)[\\s:]*(\\d{1,2}:\\d{2}\\s*~\\s*\\d{1,2}:\\d{2})").matcher(sectionText);
+            Matcher timeMatcher = Pattern.compile("(조식|중식|석식)\\s*[:：]?\\s*(\\d{1,2}:\\d{2}\\s*~\\s*\\d{1,2}:\\d{2})")
+                    .matcher(value.wholeText());
             while (timeMatcher.find()) {
-                String meal = timeMatcher.group(1);
-                String time = timeMatcher.group(2)
-                        .replaceAll("\\s+", " ")
-                        .replaceAll("\\s*~\\s*", "~")
-                        .trim();
-                hours.put(meal, time);
+                hours.put(timeMatcher.group(1), timeMatcher.group(2).replaceAll("\\s*~\\s*", "~"));
             }
         }
         return hours;
     }
 }
-

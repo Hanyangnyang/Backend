@@ -2,6 +2,7 @@ package life.hanyang.core.menu.util;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class MenuParserUtils {
@@ -87,6 +88,23 @@ public class MenuParserUtils {
         return numericOnly.isEmpty() ? null : Integer.parseInt(numericOnly);
     }
 
+    public static String removeEnglishTranslation(String mainDishName) {
+        if (mainDishName == null || mainDishName.isBlank()) {
+            return "";
+        }
+
+        Matcher matcher = Pattern.compile("\\S+").matcher(mainDishName);
+        while (matcher.find()) {
+            String token = matcher.group();
+            String suffix = mainDishName.substring(matcher.start());
+            boolean englishToken = token.matches(".*[A-Za-z].*") && !token.matches(".*[가-힣].*");
+            if (englishToken && !suffix.matches(".*[가-힣].*")) {
+                return mainDishName.substring(0, matcher.start()).trim();
+            }
+        }
+        return mainDishName.trim();
+    }
+
     public static ParsedMenu cleanUpMenuText(String rawText) {
         List<ParsedMenu> sets = parseMenuSets(rawText);
         if (sets.isEmpty()) {
@@ -100,4 +118,3 @@ public class MenuParserUtils {
     // 결과 전달용 DTO/Record
     public record ParsedMenu(String cleanedMenu, Integer price) {}
 }
-
