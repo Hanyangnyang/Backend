@@ -9,6 +9,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
@@ -88,6 +89,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatchException(MethodArgumentTypeMismatchException e) {
         log.warn("Type Mismatch Exception: {}", e.getMessage());
         ApiResponse<Void> response = ApiResponse.fail(ErrorCode.INVALID_INPUT_VALUE.getCode(), "올바르지 않은 파라미터 형식입니다.");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    /**
+     * 필수 쿼리 파라미터 누락 처리 (400 Bad Request)
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingServletRequestParameterException(
+            MissingServletRequestParameterException e
+    ) {
+        log.warn("Missing Request Parameter: name={}, type={}", e.getParameterName(), e.getParameterType());
+        ApiResponse<Void> response = ApiResponse.fail(
+                ErrorCode.INVALID_INPUT_VALUE.getCode(),
+                "필수 파라미터 '%s'가 누락되었습니다.".formatted(e.getParameterName())
+        );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
