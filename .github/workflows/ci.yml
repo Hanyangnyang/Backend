@@ -9,6 +9,7 @@ on:
 jobs:
   pr-smoke-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       # 1. 깃허브 코드 체크아웃
@@ -22,11 +23,17 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      # Gradle Wrapper 검증 및 배포 파일/의존성 캐시
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
       # 3. Gradle 자바 빌드 검증
       - name: Build with Gradle
         run: |
           chmod +x ./gradlew
-          ./gradlew bootJar -x test
+          ./gradlew test bootJar
 
       # 4. Actions 가상 러너 환경에 테스트용 .env 임시 주입
       - name: Inject temporary env for Runner testing
@@ -54,23 +61,22 @@ jobs:
           echo 'HIKARI_MAX_POOL_SIZE=${{ secrets.HIKARI_MAX_POOL_SIZE }}' >> .env
           echo 'HIKARI_MIN_IDLE=${{ secrets.HIKARI_MIN_IDLE }}' >> .env
 
-      # 5. Actions 가상 러너 내부에서 도커 구동 & 헬스체크 찌르기 (Smoke Test)
-      - name: Run Docker Compose & Smoke Health Check
+      # 5. TLS 인증서와 분리된 공통 Nginx 설정 검증
+      - name: Validate Nginx configuration
         run: |
-          docker compose up -d --build
-          
-          echo "Waiting for backend services to be healthy..."
-          for i in {1..6}; do
-            if wget --spider http://localhost:8080/actuator/health && wget --spider http://localhost:8081/actuator/health; then
-              echo "✅ Both user-api (8080) and admin-api (8081) are HEALTHY!"
-              docker compose down
-              exit 0
-            fi
-            echo "Attempt $i failed. Retrying in 5 seconds..."
-            sleep 5
-          done
-          
-          echo "❌ Smoke Health Check Failed!"
-          docker compose logs
-          docker compose down
-          exit 1
+          docker run --rm \
+            --add-host hanyang-user-api:127.0.0.1 \
+            --add-host hanyang-admin-api:127.0.0.1 \
+            -v "$PWD/nginx/nginx-ci.conf:/etc/nginx/nginx.conf:ro" \
+            -v "$PWD/nginx/shared:/etc/nginx/shared:ro" \
+            nginx:1.30-alpine nginx -t
+
+      # 6. 외부 포트 공개 없이 API 컨테이너 자체 health 상태 검증
+      - name: Run API containers & Smoke Health Check
+        run: |
+          trap 'docker compose down' EXIT
+          if ! docker compose up -d --build --wait --wait-timeout 120 \
+            hanyang-user-api hanyang-admin-api; then
+            docker compose logs hanyang-user-api hanyang-admin-api
+            exit 1
+          fi

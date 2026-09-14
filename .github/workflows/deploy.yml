@@ -21,6 +21,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
       # 3. Gradle 빌드 (테스트 건너뛰고 실행 가능한 jar 파일 생성)
       - name: Build with Gradle
         run: |
@@ -34,7 +39,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: ".dockerignore,docker-compose.yml,init-letsencrypt.sh,nginx/nginx.conf,hanyang-user-api/build/libs/*.jar,hanyang-admin-api/build/libs/*.jar,hanyang-user-api/Dockerfile,hanyang-admin-api/Dockerfile"
+          source: ".dockerignore,docker-compose.yml,init-letsencrypt.sh,nginx,hanyang-user-api/build/libs/*.jar,hanyang-admin-api/build/libs/*.jar,hanyang-user-api/Dockerfile,hanyang-admin-api/Dockerfile"
           target: "/home/ubuntu/app"
 
       # 5. EC2 원격 서버에서 배포 스크립트 실행 (SSH 접속)
