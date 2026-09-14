@@ -9,6 +9,7 @@ on:
 jobs:
   pr-smoke-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       # 1. 깃허브 코드 체크아웃
@@ -22,11 +23,17 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      # Gradle Wrapper 검증 및 배포 파일/의존성 캐시
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
       # 3. Gradle 자바 빌드 검증
       - name: Build with Gradle
         run: |
           chmod +x ./gradlew
-          ./gradlew bootJar -x test
+          ./gradlew test bootJar
 
       # 4. Actions 가상 러너 환경에 테스트용 .env 임시 주입
       - name: Inject temporary env for Runner testing
@@ -54,47 +61,22 @@ jobs:
           echo 'HIKARI_MAX_POOL_SIZE=${{ secrets.HIKARI_MAX_POOL_SIZE }}' >> .env
           echo 'HIKARI_MIN_IDLE=${{ secrets.HIKARI_MIN_IDLE }}' >> .env
 
-      # 5. 운영용 Nginx 설정을 임시 인증서로 문법 검증
+      # 5. TLS 인증서와 분리된 공통 Nginx 설정 검증
       - name: Validate Nginx configuration
         run: |
-          mkdir -p data/certbot/conf/live/api.hanyang.life data/certbot/www
-          touch data/certbot/conf/options-ssl-nginx.conf
-          openssl dhparam -out data/certbot/conf/ssl-dhparams.pem 2048
-          openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
-            -keyout data/certbot/conf/live/api.hanyang.life/privkey.pem \
-            -out data/certbot/conf/live/api.hanyang.life/fullchain.pem \
-            -subj '/CN=localhost'
-          docker compose run --rm --no-deps \
+          docker run --rm \
             --add-host hanyang-user-api:127.0.0.1 \
             --add-host hanyang-admin-api:127.0.0.1 \
-            nginx nginx -t
+            -v "$PWD/nginx/nginx-ci.conf:/etc/nginx/nginx.conf:ro" \
+            -v "$PWD/nginx/shared:/etc/nginx/shared:ro" \
+            nginx:1.30-alpine nginx -t
 
       # 6. 외부 포트 공개 없이 API 컨테이너 자체 health 상태 검증
       - name: Run API containers & Smoke Health Check
         run: |
           trap 'docker compose down' EXIT
-          docker compose up -d --build hanyang-user-api hanyang-admin-api
-
-          echo "Waiting for backend services to be healthy..."
-          for i in {1..24}; do
-            user_status=$(docker inspect --format='{{.State.Health.Status}}' hanyang-user-api)
-            admin_status=$(docker inspect --format='{{.State.Health.Status}}' hanyang-admin-api)
-
-            if [ "$user_status" = "healthy" ] && [ "$admin_status" = "healthy" ]; then
-              echo "✅ Both user-api (8080) and admin-api (8081) are HEALTHY!"
-              exit 0
-            fi
-
-            if [ "$user_status" = "unhealthy" ] || [ "$admin_status" = "unhealthy" ]; then
-              echo "❌ A backend service became unhealthy."
-              docker compose logs hanyang-user-api hanyang-admin-api
-              exit 1
-            fi
-
-            echo "Attempt $i: user-api=$user_status, admin-api=$admin_status. Retrying in 5 seconds..."
-            sleep 5
-          done
-
-          echo "❌ Smoke Health Check Failed!"
-          docker compose logs hanyang-user-api hanyang-admin-api
-          exit 1
+          if ! docker compose up -d --build --wait --wait-timeout 120 \
+            hanyang-user-api hanyang-admin-api; then
+            docker compose logs hanyang-user-api hanyang-admin-api
+            exit 1
+          fi
