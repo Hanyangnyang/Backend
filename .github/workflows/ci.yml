@@ -54,23 +54,51 @@ jobs:
           echo 'HIKARI_MAX_POOL_SIZE=${{ secrets.HIKARI_MAX_POOL_SIZE }}' >> .env
           echo 'HIKARI_MIN_IDLE=${{ secrets.HIKARI_MIN_IDLE }}' >> .env
 
-      # 5. Actions 가상 러너 내부에서 도커 구동 & 헬스체크 찌르기 (Smoke Test)
-      - name: Run Docker Compose & Smoke Health Check
+      # 5. 운영용 Nginx 설정을 임시 인증서로 문법 검증
+      - name: Validate Nginx configuration
         run: |
-          docker compose up -d --build
-          
+          mkdir -p data/certbot/conf/live/api.hanyang.life data/certbot/www
+          curl -fsSL \
+            https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf \
+            -o data/certbot/conf/options-ssl-nginx.conf
+          curl -fsSL \
+            https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem \
+            -o data/certbot/conf/ssl-dhparams.pem
+          openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
+            -keyout data/certbot/conf/live/api.hanyang.life/privkey.pem \
+            -out data/certbot/conf/live/api.hanyang.life/fullchain.pem \
+            -subj '/CN=localhost'
+          docker compose run --rm --no-deps \
+            --add-host hanyang-user-api:127.0.0.1 \
+            --add-host hanyang-admin-api:127.0.0.1 \
+            nginx nginx -t
+
+      # 6. 외부 포트 공개 없이 API 컨테이너 자체 health 상태 검증
+      - name: Run API containers & Smoke Health Check
+        run: |
+          trap 'docker compose down' EXIT
+          docker compose up -d --build hanyang-user-api hanyang-admin-api
+
           echo "Waiting for backend services to be healthy..."
-          for i in {1..6}; do
-            if wget --spider http://localhost:8080/actuator/health && wget --spider http://localhost:8081/actuator/health; then
+          for i in {1..24}; do
+            user_status=$(docker inspect --format='{{.State.Health.Status}}' hanyang-user-api)
+            admin_status=$(docker inspect --format='{{.State.Health.Status}}' hanyang-admin-api)
+
+            if [ "$user_status" = "healthy" ] && [ "$admin_status" = "healthy" ]; then
               echo "✅ Both user-api (8080) and admin-api (8081) are HEALTHY!"
-              docker compose down
               exit 0
             fi
-            echo "Attempt $i failed. Retrying in 5 seconds..."
+
+            if [ "$user_status" = "unhealthy" ] || [ "$admin_status" = "unhealthy" ]; then
+              echo "❌ A backend service became unhealthy."
+              docker compose logs hanyang-user-api hanyang-admin-api
+              exit 1
+            fi
+
+            echo "Attempt $i: user-api=$user_status, admin-api=$admin_status. Retrying in 5 seconds..."
             sleep 5
           done
-          
+
           echo "❌ Smoke Health Check Failed!"
-          docker compose logs
-          docker compose down
+          docker compose logs hanyang-user-api hanyang-admin-api
           exit 1
