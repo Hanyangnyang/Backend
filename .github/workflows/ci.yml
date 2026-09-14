@@ -58,12 +58,8 @@ jobs:
       - name: Validate Nginx configuration
         run: |
           mkdir -p data/certbot/conf/live/api.hanyang.life data/certbot/www
-          curl -fsSL \
-            https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf \
-            -o data/certbot/conf/options-ssl-nginx.conf
-          curl -fsSL \
-            https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem \
-            -o data/certbot/conf/ssl-dhparams.pem
+          touch data/certbot/conf/options-ssl-nginx.conf
+          openssl dhparam -out data/certbot/conf/ssl-dhparams.pem 2048
           openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
             -keyout data/certbot/conf/live/api.hanyang.life/privkey.pem \
             -out data/certbot/conf/live/api.hanyang.life/fullchain.pem \
