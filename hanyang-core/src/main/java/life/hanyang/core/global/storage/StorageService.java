@@ -9,4 +9,11 @@ public interface StorageService {
      * @param bucket 스토리지 폴더/버킷명 (예: "banners")
      */
     String uploadFile(MultipartFile file, String bucket);
+
+    /**
+     * 공개 URL이 가리키는 파일을 스토리지에서 삭제합니다.
+     * @param fileUrl uploadFile이 반환한 공개 URL
+     * @param bucket 스토리지 버킷명
+     */
+    void deleteFile(String fileUrl, String bucket);
 }

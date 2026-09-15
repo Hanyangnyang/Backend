@@ -1,10 +1,11 @@
 package life.hanyang.core.banner.dto;
 import life.hanyang.core.banner.domain.Banner;
-import java.time.Instant;
+import life.hanyang.core.banner.domain.BannerPlacement;
 
 public record BannerUserResponse(
         Long id,
         String imageUrl,
+        BannerPlacement placement,
         String altText,
         String clickUrl,
         Integer displayOrder
@@ -13,6 +14,7 @@ public record BannerUserResponse(
         this(
                 banner.getId(),
                 banner.getImageUrl(),
+                banner.getPlacement(),
                 banner.getAltText(),
                 banner.getClickUrl(),
                 banner.getDisplayOrder()
