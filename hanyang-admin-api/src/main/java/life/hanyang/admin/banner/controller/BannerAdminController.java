@@ -45,6 +45,16 @@ public class BannerAdminController {
         return ResponseEntity.ok(ApiResponse.success());
     }
 
+    @Operation(summary = "배너 이미지를 교체합니다.")
+    @PutMapping(value = "/{bannerId}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<BannerResponse>> updateBannerImage(
+            @PathVariable Long bannerId,
+            @RequestPart("file") MultipartFile file
+    ) {
+        BannerResponse response = bannerService.updateBannerImage(bannerId, file);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @Operation(summary = "여러 배너를 한꺼번에 삭제합니다.")
     @DeleteMapping
     public ResponseEntity<ApiResponse<Void>> deleteBanners(

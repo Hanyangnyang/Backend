@@ -7,8 +7,10 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.UUID;
 
 @Primary
@@ -56,5 +58,29 @@ public class S3StorageService implements StorageService{
             throw new RuntimeException("S3 파일 업로드 중 입출력 에러가 발생했습니다: " + e.getMessage(), e);
         }
     }
-}
 
+    @Override
+    public void deleteFile(String fileUrl, String bucket) {
+        String objectKey = extractObjectKey(fileUrl, bucket);
+        DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                .bucket(bucket)
+                .key(objectKey)
+                .build();
+        s3Client.deleteObject(deleteObjectRequest);
+    }
+
+    private String extractObjectKey(String fileUrl, String bucket) {
+        String path = URI.create(fileUrl).getPath();
+        String bucketMarker = "/" + bucket + "/";
+        int markerIndex = path.indexOf(bucketMarker);
+        if (markerIndex < 0) {
+            throw new IllegalArgumentException("스토리지 URL에서 파일 경로를 확인할 수 없습니다.");
+        }
+
+        String objectKey = path.substring(markerIndex + bucketMarker.length());
+        if (objectKey.isBlank()) {
+            throw new IllegalArgumentException("삭제할 스토리지 파일 경로가 비어 있습니다.");
+        }
+        return objectKey;
+    }
+}

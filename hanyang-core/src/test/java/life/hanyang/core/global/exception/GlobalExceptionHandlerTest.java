@@ -4,6 +4,8 @@ import life.hanyang.core.global.response.ApiResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,5 +27,22 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().isSuccess()).isFalse();
         assertThat(response.getBody().getError().getCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE.getCode());
         assertThat(response.getBody().getError().getMessage()).contains("deviceId");
+    }
+
+    @Test
+    void unreadableRequestBodyReturnsBadRequestWithoutInternalServerError() {
+        HttpMessageNotReadableException exception = new HttpMessageNotReadableException(
+                "Cannot deserialize value of type BannerPlacement from String POPUP",
+                new MockHttpInputMessage(new byte[0])
+        );
+
+        ResponseEntity<ApiResponse<Void>> response =
+                handler.handleHttpMessageNotReadableException(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getBody().getError().getCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE.getCode());
+        assertThat(response.getBody().getError().getMessage()).isEqualTo("요청 본문 형식 또는 입력값이 올바르지 않습니다.");
     }
 }

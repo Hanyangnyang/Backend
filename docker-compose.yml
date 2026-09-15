@@ -10,8 +10,8 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - TZ=Asia/Seoul
       - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
-      - SPRINGDOC_API_DOCS_ENABLED=false
-      - SPRINGDOC_SWAGGER_UI_ENABLED=false
+      - SPRINGDOC_API_DOCS_ENABLED=true
+      - SPRINGDOC_SWAGGER_UI_ENABLED=true
     env_file:
       - .env
     healthcheck:
@@ -33,8 +33,8 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - TZ=Asia/Seoul
       - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
-      - SPRINGDOC_API_DOCS_ENABLED=false
-      - SPRINGDOC_SWAGGER_UI_ENABLED=false
+      - SPRINGDOC_API_DOCS_ENABLED=true
+      - SPRINGDOC_SWAGGER_UI_ENABLED=true
     env_file:
       - .env
     healthcheck:
