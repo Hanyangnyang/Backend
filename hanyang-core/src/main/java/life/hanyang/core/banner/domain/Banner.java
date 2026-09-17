@@ -24,6 +24,10 @@ public class Banner {
     @Column(name = "image_url", nullable = false, columnDefinition = "TEXT")
     private String imageUrl;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "placement", nullable = false, length = 20)
+    private BannerPlacement placement;
+
     @Column(name = "alt_text")
     private String altText;
 
@@ -48,15 +52,19 @@ public class Banner {
     private Instant updatedAt;
 
     @Builder
-    public Banner(String imageUrl, String altText, String clickUrl, Integer displayOrder, Boolean isActive) {
+    public Banner(String imageUrl, BannerPlacement placement, String altText, String clickUrl, Integer displayOrder, Boolean isActive) {
         this.imageUrl = imageUrl;
+        this.placement = placement == null ? BannerPlacement.BANNER : placement;
         this.altText = altText;
         this.clickUrl = clickUrl;
         this.displayOrder = displayOrder;
         this.isActive = isActive == null || isActive;
     }
 
-    public void update(String altText, String clickUrl, Integer displayOrder, Boolean isActive) {
+    public void update(BannerPlacement placement, String altText, String clickUrl, Integer displayOrder, Boolean isActive) {
+        if (placement != null) {
+            this.placement = placement;
+        }
         if (altText != null) {
             this.altText = altText;
         }
@@ -73,5 +81,12 @@ public class Banner {
 
     public void changeDisplayOrder(Integer displayOrder) {
         this.displayOrder = displayOrder;
+    }
+
+    public void changeImageUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            throw new IllegalArgumentException("배너 이미지 URL은 비어 있을 수 없습니다.");
+        }
+        this.imageUrl = imageUrl;
     }
 }
