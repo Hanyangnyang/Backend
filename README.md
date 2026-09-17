@@ -20,33 +20,32 @@
 
 ## 백엔드 구조
 
-Gradle 멀티 모듈로 구성하며, 두 실행 애플리케이션이 공통 도메인·서비스·저장소를 사용합니다.
+Gradle 멀티 모듈로 구성하며, user/admin API 모듈이 공통 도메인·서비스·저장소를 사용하고 하나의 애플리케이션으로 실행됩니다.
 
 ```mermaid
 flowchart BT
-    U["hanyang-user-api"] --> C["hanyang-core<br/>Domain · Service · Repository"]
-    A["hanyang-admin-api"] --> C
+    U["hanyang-user-api"] --> H["hanyang-api<br/>Spring Boot 실행 모듈"]
+    A["hanyang-admin-api"] --> H
+    H --> C["hanyang-core<br/>Domain · Service · Repository"]
 ```
 
 | 모듈 | 역할 |
 | --- | --- |
 | `hanyang-core` | 도메인 모델, 비즈니스 로직, JPA 저장소, 외부 API 클라이언트, 캐시·스토리지 |
-| `hanyang-user-api` | 사용자 조회와 플레이리스트·피드백 등록 API, 포트 8080 |
-| `hanyang-admin-api` | 관리자 인증, 데이터 관리, 수집·집계 스케줄러, 포트 8081 |
+| `hanyang-user-api` | 사용자 조회와 플레이리스트·피드백 등록 API |
+| `hanyang-admin-api` | 관리자 인증, 데이터 관리, 수집·집계 스케줄러 |
+| `hanyang-api` | user/admin API를 함께 실행하는 Spring Boot 애플리케이션, 포트 8080 |
 
-두 애플리케이션은 EC2의 별도 컨테이너로 실행되고 PostgreSQL과 Redis를 공유합니다. Nginx가 도메인에 따라 요청을 전달합니다.
+단일 애플리케이션 컨테이너가 PostgreSQL과 Redis를 사용하고, Nginx가 두 도메인 요청을 같은 애플리케이션으로 전달합니다.
 
 ```mermaid
 flowchart LR
     CLIENT["Web · App / 관리자 화면"] --> N["Nginx · HTTPS"]
-    N --> U["user-api :8080"]
-    N --> A["admin-api :8081"]
-    U --> DB[(PostgreSQL)]
-    A --> DB
-    U --> R[(Redis)]
-    A --> R
-    A --> EXT["외부 API · 학식 페이지"]
-    A --> S["Supabase Storage"]
+    N --> H["hanyang-api :8080"]
+    H --> DB[(PostgreSQL)]
+    H --> R[(Redis)]
+    H --> EXT["외부 API · 학식 페이지"]
+    H --> S["Supabase Storage"]
 ```
 
 ## 핵심 설계
@@ -57,9 +56,9 @@ flowchart LR
 
 도서관 잔여석은 DB에 저장하지 않고, 관리자 서버가 3분마다 Redis를 갱신합니다. 사용자 서버는 같은 캐시를 조회하며, 캐시가 없을 때는 외부 API로 데이터를 가져옵니다.
 
-### Redis로 두 실행 애플리케이션의 상태 공유
+### Redis를 통한 캐시 공유
 
-`user-api`와 `admin-api`는 별도 프로세스로 실행되기 때문에 로컬 캐시를 공유할 수 없습니다. 관리자 서버가 갱신한 데이터를 사용자 서버에서도 바로 조회할 수 있도록 Redis를 공용 캐시로 사용합니다.
+관리자 작업이 갱신한 데이터를 사용자 API에서 바로 조회하고, 애플리케이션 재시작 후에도 캐시를 유지할 수 있도록 Redis를 공용 캐시로 사용합니다.
 
 외부 데이터 수집이 실패하거나 빈 결과가 반환되면 캐시를 갱신하지 않아, 기존의 정상 데이터를 유지합니다.
 
@@ -89,7 +88,7 @@ flowchart LR
 
 ### PR 검증
 
-`main`·`dev` 대상 PR에서는 두 실행 모듈을 빌드하고 Docker Compose로 기동한 뒤, 각 애플리케이션의 Health Check가 통과하는지 확인합니다.
+`main`·`dev` 대상 PR에서는 단일 실행 모듈을 빌드하고 Docker Compose로 기동한 뒤 Health Check를 확인합니다.
 
 ### main 배포
 
@@ -103,7 +102,7 @@ flowchart TD
     UP --> NOTIFY["작업 성공 / 실패 Discord 알림"]
 ```
 
-GitHub Actions가 애플리케이션을 빌드하고 EC2에 배포한 뒤 Docker Compose로 두 API와 Nginx를 실행합니다.
+GitHub Actions가 애플리케이션을 빌드하고 EC2에 배포한 뒤 Docker Compose로 API와 Nginx를 실행합니다.
 
 워크플로: [CI](.github/workflows/ci.yml) · [CD](.github/workflows/deploy.yml)
 
@@ -129,14 +128,10 @@ Docker Compose 실행 시 다음 범주의 환경변수를 설정합니다.
 
 `ADMIN_PASSWORD`는 현재 인증 설정에 맞는 BCrypt 해시를 사용합니다. 서명 키는 HS256에 적합한 길이를 사용합니다.
 
-별도 터미널에서 실행합니다. `admin-api`는 실행 시 도서관·차트 warm-up 및 정기 작업이 활성화되므로 개발용 연결 정보를 사용하세요.
+`hanyang-api`는 실행 시 도서관·차트 warm-up 및 정기 작업이 활성화되므로 개발용 연결 정보를 사용하세요.
 
 ```bash
-./gradlew :hanyang-user-api:bootRun
-```
-
-```bash
-./gradlew :hanyang-admin-api:bootRun
+./gradlew :hanyang-api:bootRun
 ```
 
 테스트와 패키징:
@@ -150,8 +145,8 @@ Docker Compose 실행 시 다음 범주의 환경변수를 설정합니다.
 
 ## API 문서
 
-- [사용자 API Swagger](https://api.hanyang.life/swagger-ui/index.html)
-- [관리자 API Swagger](https://admin-api.hanyang.life/swagger-ui/index.html)
+- [사용자 API 문서](https://api.hanyang.life/v3/api-docs/user)
+- [관리자 API 문서](https://admin-api.hanyang.life/v3/api-docs/admin)
 
 관리자 API는 `POST /admin/auth/login`에서 발급받은 Bearer 토큰이 필요합니다.
 
@@ -162,8 +157,9 @@ Docker Compose 실행 시 다음 범주의 환경변수를 설정합니다.
 ├── hanyang-core/src/main/
 │   ├── java/life/hanyang/core/   # 도메인·서비스·저장소·공통 인프라
 │   └── resources/               # 공통 설정
-├── hanyang-user-api/            # 사용자 컨트롤러·실행 설정
+├── hanyang-user-api/            # 사용자 컨트롤러
 ├── hanyang-admin-api/           # 관리자 컨트롤러·인증·스케줄러
+├── hanyang-api/                 # 단일 Spring Boot 실행 모듈
 ├── .github/workflows/           # PR 검증·main 자동 배포
 ├── database/migrations/         # 개별 스키마 변경 SQL
 ├── k6/                         # 부하 테스트 스크립트
