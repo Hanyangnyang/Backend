@@ -21,7 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 
-@RequestMapping("/api/v1/shuttle")
+@RequestMapping("/api/v1/admin/shuttle")
 @RestController
 @Tag(name = "(관리자용) 셔틀 API", description = "셔틀 정보를 관리합니다.")
 @RequiredArgsConstructor

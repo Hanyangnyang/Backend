@@ -1,9 +1,9 @@
 services:
-  hanyang-user-api:
+  hanyang-api:
     build:
       context: .
-      dockerfile: hanyang-user-api/Dockerfile
-    container_name: hanyang-user-api
+      dockerfile: hanyang-api/Dockerfile
+    container_name: hanyang-api
     expose:
       - "8080"
     environment:
@@ -22,29 +22,6 @@ services:
       start_period: 60s
     restart: on-failure
 
-  hanyang-admin-api:
-    build:
-      context: .
-      dockerfile: hanyang-admin-api/Dockerfile
-    container_name: hanyang-admin-api
-    expose:
-      - "8081"
-    environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - TZ=Asia/Seoul
-      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
-      - SPRINGDOC_API_DOCS_ENABLED=true
-      - SPRINGDOC_SWAGGER_UI_ENABLED=true
-    env_file:
-      - .env
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8081/actuator/health || wget --spider -q http://localhost:8081/actuator/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-    restart: on-failure
-
   nginx:
     image: nginx:1.30-alpine
     container_name: nginx
@@ -57,9 +34,7 @@ services:
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     depends_on:
-      hanyang-user-api:
-        condition: service_healthy
-      hanyang-admin-api:
+      hanyang-api:
         condition: service_healthy
     restart: always
 
