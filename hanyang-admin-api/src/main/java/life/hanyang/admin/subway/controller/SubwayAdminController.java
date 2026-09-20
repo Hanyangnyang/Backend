@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@RequestMapping("/api/v1/subway")
+@RequestMapping("/api/v1/admin/subway")
 @RestController
 @RequiredArgsConstructor
 @Tag(name = "(관리자용) 지하철 API", description = "지하철 정보를 관리합니다.")

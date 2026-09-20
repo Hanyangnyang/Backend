@@ -1,9 +1,12 @@
-bootJar { enabled = false }
-jar { enabled = true }
+bootJar { enabled = true }
+jar { enabled = false }
 
 dependencies {
     implementation project(':hanyang-core')
+    implementation project(':hanyang-user-api')
+    implementation project(':hanyang-admin-api')
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 }
