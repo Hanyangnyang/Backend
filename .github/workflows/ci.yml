@@ -65,7 +65,7 @@ jobs:
       - name: Validate Nginx configuration
         run: |
           docker run --rm \
-            --add-host hanyang-api:127.0.0.1 \
+            --add-host hanyang-api-blue:127.0.0.1 \
             -v "$PWD/nginx/nginx-ci.conf:/etc/nginx/nginx.conf:ro" \
             -v "$PWD/nginx/shared:/etc/nginx/shared:ro" \
             nginx:1.30-alpine nginx -t
@@ -80,9 +80,9 @@ jobs:
       # 6. 외부 포트 공개 없이 API 컨테이너 자체 health 상태 검증
       - name: Run API containers & Smoke Health Check
         run: |
-          trap 'docker compose down' EXIT
-          if ! docker compose up -d --build --wait --wait-timeout 120 \
-            hanyang-api; then
-            docker compose logs hanyang-api
+          trap 'docker compose --profile blue-green down' EXIT
+          if ! docker compose --profile blue-green up -d --build --wait --wait-timeout 120 \
+            hanyang-api-blue; then
+            docker compose --profile blue-green logs hanyang-api-blue
             exit 1
           fi

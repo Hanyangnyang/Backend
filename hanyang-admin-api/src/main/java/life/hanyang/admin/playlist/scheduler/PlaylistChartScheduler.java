@@ -1,6 +1,7 @@
 package life.hanyang.admin.playlist.scheduler;
 
 import jakarta.annotation.PostConstruct;
+import life.hanyang.core.global.config.DeploymentColorState;
 import life.hanyang.core.playlist.domain.ChartType;
 import life.hanyang.core.playlist.service.PlaylistService;
 import lombok.RequiredArgsConstructor;
@@ -16,12 +17,17 @@ import java.time.Instant;
 public class PlaylistChartScheduler {
 
     private final PlaylistService playlistService;
+    private final DeploymentColorState deploymentColorState;
 
     /**
      * 서버 시작 시 캐시 및 스냅샷 Warm-up (비어있는 차트 즉시 계산)
      */
     @PostConstruct
     public void warmupChartsOnStartup() {
+        if (!deploymentColorState.isActive()) {
+            return;
+        }
+
         log.info("[PlaylistChartScheduler] 서버 기동 차트 Warm-up 시작...");
         for (ChartType chartType : ChartType.values()) {
             warmupChart(chartType);

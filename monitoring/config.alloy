@@ -1,7 +1,20 @@
-prometheus.scrape "hanyang_api" {
+prometheus.scrape "hanyang_api_blue" {
   targets = [
     {
-      __address__ = "hanyang-api:9090",
+      __address__ = "hanyang-api-blue:9090",
+      deployment_color = "blue",
+    },
+  ]
+
+  metrics_path = "/actuator/prometheus"
+  forward_to   = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+prometheus.scrape "hanyang_api_green" {
+  targets = [
+    {
+      __address__ = "hanyang-api-green:9090",
+      deployment_color = "green",
     },
   ]
 

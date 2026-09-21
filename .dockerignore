@@ -5,3 +5,4 @@ data/
 .gradle/
 build/
 .env
+.blue-green/

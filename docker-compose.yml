@@ -1,14 +1,15 @@
 services:
-  hanyang-api:
+  hanyang-api-blue:
     build:
       context: .
       dockerfile: hanyang-api/Dockerfile
-    container_name: hanyang-api
+    container_name: hanyang-api-blue
     expose:
       - "8080"
       - "9090"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
+      - DEPLOY_COLOR=blue
       - TZ=Asia/Seoul
       - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
       - SPRINGDOC_API_DOCS_ENABLED=true
@@ -17,6 +18,8 @@ services:
       - MANAGEMENT_ENDPOINTS_INCLUDE=health,info,metrics,prometheus
     env_file:
       - .env
+    volumes:
+      - ./.blue-green:/app/runtime:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9090/actuator/health || wget --spider -q http://localhost:9090/actuator/health || exit 1"]
       interval: 10s
@@ -24,14 +27,46 @@ services:
       retries: 5
       start_period: 60s
     restart: on-failure
+    stop_grace_period: 35s
+    profiles:
+      - blue-green
+
+  hanyang-api-green:
+    build:
+      context: .
+      dockerfile: hanyang-api/Dockerfile
+    container_name: hanyang-api-green
+    expose:
+      - "8080"
+      - "9090"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DEPLOY_COLOR=green
+      - TZ=Asia/Seoul
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
+      - SPRINGDOC_API_DOCS_ENABLED=true
+      - SPRINGDOC_SWAGGER_UI_ENABLED=true
+      - MANAGEMENT_PORT=9090
+      - MANAGEMENT_ENDPOINTS_INCLUDE=health,info,metrics,prometheus
+    env_file:
+      - .env
+    volumes:
+      - ./.blue-green:/app/runtime:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || wget --spider -q http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: on-failure
+    stop_grace_period: 35s
+    profiles:
+      - blue-green
 
   alloy:
     image: grafana/alloy:v1.19.2
     container_name: grafana-alloy
     restart: unless-stopped
-    depends_on:
-      hanyang-api:
-        condition: service_healthy
     volumes:
       - ./monitoring/config.alloy:/etc/alloy/config.alloy:ro
       - alloy-data:/var/lib/alloy/data
@@ -55,9 +90,6 @@ services:
       - ./nginx/shared:/etc/nginx/shared:ro
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
-    depends_on:
-      hanyang-api:
-        condition: service_healthy
     restart: always
 
   certbot:

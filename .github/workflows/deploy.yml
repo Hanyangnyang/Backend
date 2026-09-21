@@ -5,6 +5,10 @@ on:
     branches:
       - main # main 브랜치에 코드가 push/merge 되었을 때 작동
 
+concurrency:
+  group: ec2-production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -39,7 +43,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: ".dockerignore,docker-compose.yml,init-letsencrypt.sh,monitoring,nginx,hanyang-api/build/libs/*.jar,hanyang-api/Dockerfile"
+          source: ".dockerignore,docker-compose.yml,init-letsencrypt.sh,monitoring,nginx,scripts/deploy-blue-green.sh,hanyang-api/build/libs/*.jar,hanyang-api/Dockerfile"
           target: "/home/ubuntu/app"
 
       # 5. EC2 원격 서버에서 배포 스크립트 실행 (SSH 접속)
@@ -87,18 +91,12 @@ jobs:
             echo 'GRAFANA_CLOUD_USERNAME=${{ secrets.GRAFANA_CLOUD_USERNAME }}' >> .env
             echo 'GRAFANA_CLOUD_API_KEY=${{ secrets.GRAFANA_CLOUD_API_KEY }}' >> .env
             
-            # 구버전 컨테이너 중지 및 찌꺼기 삭제
-            docker compose down --remove-orphans
-            
-            # 새 도커 이미지 빌드 후 컨테이너 백그라운드 무중단/동시 가동
-            docker compose up -d --build --remove-orphans
+            chmod +x scripts/deploy-blue-green.sh
+            ./scripts/deploy-blue-green.sh
 
-            # 애플리케이션과 메트릭 수집기 기동 상태 확인
+            # 메트릭 수집기 상태 확인
             docker compose ps
             docker compose logs --tail=100 alloy
-            
-            # 미사용 도커 찌꺼기 용량 정리
-            docker image prune -f
 
       # 6. 🟢 EC2 배포 성공 웹훅 알림
       - name: Send Deployment Success Webhook
