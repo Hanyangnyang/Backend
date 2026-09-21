@@ -6,6 +6,7 @@ services:
     container_name: hanyang-api-blue
     expose:
       - "8080"
+      - "9090"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - DEPLOY_COLOR=blue
@@ -13,12 +14,14 @@ services:
       - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
       - SPRINGDOC_API_DOCS_ENABLED=true
       - SPRINGDOC_SWAGGER_UI_ENABLED=true
+      - MANAGEMENT_PORT=9090
+      - MANAGEMENT_ENDPOINTS_INCLUDE=health,info,metrics,prometheus
     env_file:
       - .env
     volumes:
       - ./.blue-green:/app/runtime:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || wget --spider -q http://localhost:8080/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:9090/actuator/health || wget --spider -q http://localhost:9090/actuator/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,6 +38,7 @@ services:
     container_name: hanyang-api-green
     expose:
       - "8080"
+      - "9090"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - DEPLOY_COLOR=green
@@ -42,6 +46,8 @@ services:
       - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
       - SPRINGDOC_API_DOCS_ENABLED=true
       - SPRINGDOC_SWAGGER_UI_ENABLED=true
+      - MANAGEMENT_PORT=9090
+      - MANAGEMENT_ENDPOINTS_INCLUDE=health,info,metrics,prometheus
     env_file:
       - .env
     volumes:
@@ -56,6 +62,22 @@ services:
     stop_grace_period: 35s
     profiles:
       - blue-green
+
+  alloy:
+    image: grafana/alloy:v1.19.2
+    container_name: grafana-alloy
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+    environment:
+      GRAFANA_CLOUD_PROMETHEUS_URL: ${GRAFANA_CLOUD_PROMETHEUS_URL}
+      GRAFANA_CLOUD_USERNAME: ${GRAFANA_CLOUD_USERNAME}
+      GRAFANA_CLOUD_API_KEY: ${GRAFANA_CLOUD_API_KEY}
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
 
   nginx:
     image: nginx:1.30-alpine
@@ -77,3 +99,6 @@ services:
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done'"
+
+volumes:
+  alloy-data:

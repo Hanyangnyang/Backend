@@ -1,0 +1,34 @@
+prometheus.scrape "hanyang_api_blue" {
+  targets = [
+    {
+      __address__ = "hanyang-api-blue:9090",
+      deployment_color = "blue",
+    },
+  ]
+
+  metrics_path = "/actuator/prometheus"
+  forward_to   = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+prometheus.scrape "hanyang_api_green" {
+  targets = [
+    {
+      __address__ = "hanyang-api-green:9090",
+      deployment_color = "green",
+    },
+  ]
+
+  metrics_path = "/actuator/prometheus"
+  forward_to   = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_CLOUD_PROMETHEUS_URL")
+
+    basic_auth {
+      username = sys.env("GRAFANA_CLOUD_USERNAME")
+      password = sys.env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+}

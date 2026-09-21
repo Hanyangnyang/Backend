@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - main
-      - dev
+      - develop
 
 jobs:
   pr-smoke-test:
@@ -69,6 +69,13 @@ jobs:
             -v "$PWD/nginx/nginx-ci.conf:/etc/nginx/nginx.conf:ro" \
             -v "$PWD/nginx/shared:/etc/nginx/shared:ro" \
             nginx:1.30-alpine nginx -t
+
+      - name: Validate Grafana Alloy configuration
+        run: |
+          docker run --rm \
+            -v "$PWD/monitoring/config.alloy:/etc/alloy/config.alloy:ro" \
+            grafana/alloy:v1.19.2 \
+            validate /etc/alloy/config.alloy
 
       # 6. 외부 포트 공개 없이 API 컨테이너 자체 health 상태 검증
       - name: Run API containers & Smoke Health Check

@@ -29,6 +29,6 @@ cors:
     - https://*-kdjidkrs-projects.vercel.app
 
 server:
-  port: 8080
+  port: ${PORT:8080}
   shutdown: graceful
   forward-headers-strategy: native
