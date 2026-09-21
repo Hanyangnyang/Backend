@@ -1,0 +1,21 @@
+prometheus.scrape "hanyang_api" {
+  targets = [
+    {
+      __address__ = "hanyang-api:9090",
+    },
+  ]
+
+  metrics_path = "/actuator/prometheus"
+  forward_to   = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_CLOUD_PROMETHEUS_URL")
+
+    basic_auth {
+      username = sys.env("GRAFANA_CLOUD_USERNAME")
+      password = sys.env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+}
