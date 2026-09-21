@@ -1,5 +1,6 @@
 package life.hanyang.admin.library.scheduler;
 
+import life.hanyang.core.global.config.DeploymentColorState;
 import life.hanyang.core.library.service.LibraryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,12 +15,17 @@ import org.springframework.stereotype.Component;
 public class LibraryScheduler {
 
     private final LibraryService libraryService;
+    private final DeploymentColorState deploymentColorState;
 
     /**
      * 서버 부팅 완료 직후 1회 즉시 실행 (캐시 웜업)
      */
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
+        if (!deploymentColorState.isActive()) {
+            return;
+        }
+
         log.info("[Scheduler] 서버 부팅 완료 - 도서관 좌석 캐시 최초 웜업(Warm-up) 실행");
         scheduleReadingRoomSeatsRefresh();
     }

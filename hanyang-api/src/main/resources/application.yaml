@@ -6,6 +6,8 @@ spring:
   config:
     import:
       - optional:classpath:/application-core.yaml
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 admin:
   auth:
@@ -28,4 +30,5 @@ cors:
 
 server:
   port: 8080
+  shutdown: graceful
   forward-headers-strategy: native
