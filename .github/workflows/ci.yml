@@ -82,7 +82,7 @@ jobs:
         run: |
           trap 'docker compose --profile blue-green down' EXIT
           if ! docker compose --profile blue-green up -d --build --wait --wait-timeout 120 \
-            hanyang-api-blue; then
-            docker compose --profile blue-green logs hanyang-api-blue
+            hanyang-api-blue hanyang-api-green; then
+            docker compose --profile blue-green logs hanyang-api-blue hanyang-api-green
             exit 1
           fi
