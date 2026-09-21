@@ -16,7 +16,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./data/blue-green:/app/runtime:ro
+      - ./.blue-green:/app/runtime:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || wget --spider -q http://localhost:8080/actuator/health || exit 1"]
       interval: 10s
@@ -44,7 +44,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./data/blue-green:/app/runtime:ro
+      - ./.blue-green:/app/runtime:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || wget --spider -q http://localhost:8080/actuator/health || exit 1"]
       interval: 10s

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_DIR=/home/ubuntu/app
-STATE_DIR="$APP_DIR/data/blue-green"
+STATE_DIR="$APP_DIR/.blue-green"
 ACTIVE_COLOR_FILE="$STATE_DIR/active-color"
 UPSTREAM_FILE="$APP_DIR/nginx/shared/api-upstream.conf"
 HEALTH_TIMEOUT_SECONDS=180
