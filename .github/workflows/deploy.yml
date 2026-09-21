@@ -5,6 +5,10 @@ on:
     branches:
       - main # main 브랜치에 코드가 push/merge 되었을 때 작동
 
+concurrency:
+  group: ec2-production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

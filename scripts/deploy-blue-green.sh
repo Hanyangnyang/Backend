@@ -24,12 +24,20 @@ fi
 
 next_service="hanyang-api-$next_color"
 previous_service="hanyang-api-$active_color"
-previous_upstream=$(<"$UPSTREAM_FILE")
 
-if [[ "$active_color" == "legacy" ]]; then
-  previous_upstream='proxy_pass http://hanyang-api:8080;'
-  docker rm -f hanyang-api-blue hanyang-api-green >/dev/null 2>&1 || true
-fi
+case "$active_color" in
+  blue|green)
+    previous_upstream="proxy_pass http://hanyang-api-$active_color:8080;"
+    ;;
+  legacy)
+    previous_upstream='proxy_pass http://hanyang-api:8080;'
+    docker rm -f hanyang-api-blue hanyang-api-green >/dev/null 2>&1 || true
+    ;;
+  *)
+    printf 'Unexpected active color: %s\n' "$active_color" >&2
+    exit 1
+    ;;
+esac
 
 printf '%s\n' "$active_color"
 printf '%s\n' "$next_color"
