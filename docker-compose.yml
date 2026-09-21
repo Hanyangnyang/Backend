@@ -1,19 +1,22 @@
 services:
-  hanyang-api:
+  hanyang-api-blue:
     build:
       context: .
       dockerfile: hanyang-api/Dockerfile
-    container_name: hanyang-api
+    container_name: hanyang-api-blue
     expose:
       - "8080"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
+      - DEPLOY_COLOR=blue
       - TZ=Asia/Seoul
       - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
       - SPRINGDOC_API_DOCS_ENABLED=true
       - SPRINGDOC_SWAGGER_UI_ENABLED=true
     env_file:
       - .env
+    volumes:
+      - ./data/blue-green:/app/runtime:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || wget --spider -q http://localhost:8080/actuator/health || exit 1"]
       interval: 10s
@@ -21,6 +24,36 @@ services:
       retries: 5
       start_period: 60s
     restart: on-failure
+    profiles:
+      - blue-green
+
+  hanyang-api-green:
+    build:
+      context: .
+      dockerfile: hanyang-api/Dockerfile
+    container_name: hanyang-api-green
+    expose:
+      - "8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DEPLOY_COLOR=green
+      - TZ=Asia/Seoul
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
+      - SPRINGDOC_API_DOCS_ENABLED=true
+      - SPRINGDOC_SWAGGER_UI_ENABLED=true
+    env_file:
+      - .env
+    volumes:
+      - ./data/blue-green:/app/runtime:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || wget --spider -q http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: on-failure
+    profiles:
+      - blue-green
 
   nginx:
     image: nginx:1.30-alpine
@@ -33,9 +66,6 @@ services:
       - ./nginx/shared:/etc/nginx/shared:ro
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
-    depends_on:
-      hanyang-api:
-        condition: service_healthy
     restart: always
 
   certbot:

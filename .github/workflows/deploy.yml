@@ -39,7 +39,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: ".dockerignore,docker-compose.yml,init-letsencrypt.sh,nginx,hanyang-api/build/libs/*.jar,hanyang-api/Dockerfile"
+          source: ".dockerignore,docker-compose.yml,init-letsencrypt.sh,nginx,scripts/deploy-blue-green.sh,hanyang-api/build/libs/*.jar,hanyang-api/Dockerfile"
           target: "/home/ubuntu/app"
 
       # 5. EC2 원격 서버에서 배포 스크립트 실행 (SSH 접속)
@@ -84,14 +84,8 @@ jobs:
             echo 'HIKARI_MAX_POOL_SIZE=${{ secrets.HIKARI_MAX_POOL_SIZE }}' >> .env
             echo 'HIKARI_MIN_IDLE=${{ secrets.HIKARI_MIN_IDLE }}' >> .env
             
-            # 구버전 컨테이너 중지 및 찌꺼기 삭제
-            docker compose down --remove-orphans
-            
-            # 새 도커 이미지 빌드 후 컨테이너 백그라운드 무중단/동시 가동
-            docker compose up -d --build --remove-orphans
-            
-            # 미사용 도커 찌꺼기 용량 정리
-            docker image prune -f
+            chmod +x scripts/deploy-blue-green.sh
+            ./scripts/deploy-blue-green.sh
 
       # 6. 🟢 EC2 배포 성공 웹훅 알림
       - name: Send Deployment Success Webhook
