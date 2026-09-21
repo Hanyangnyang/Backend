@@ -5,6 +5,7 @@ APP_DIR=/home/ubuntu/app
 STATE_DIR="$APP_DIR/.blue-green"
 ACTIVE_COLOR_FILE="$STATE_DIR/active-color"
 UPSTREAM_FILE="$APP_DIR/nginx/shared/api-upstream.conf"
+NGINX_CONFIG_HASH_FILE="$STATE_DIR/nginx-config.sha256"
 HEALTH_TIMEOUT_SECONDS=180
 
 cd "$APP_DIR"
@@ -24,6 +25,8 @@ fi
 
 next_service="hanyang-api-$next_color"
 previous_service="hanyang-api-$active_color"
+nginx_config_hash=$(sha256sum "$APP_DIR/nginx/nginx.conf" | awk '{print $1}')
+nginx_recreate_required=false
 
 case "$active_color" in
   blue|green)
@@ -32,12 +35,17 @@ case "$active_color" in
   legacy)
     previous_upstream='proxy_pass http://hanyang-api:8080;'
     docker rm -f hanyang-api-blue hanyang-api-green >/dev/null 2>&1 || true
+    nginx_recreate_required=true
     ;;
   *)
     printf 'Unexpected active color: %s\n' "$active_color" >&2
     exit 1
     ;;
 esac
+
+if [[ ! -f "$NGINX_CONFIG_HASH_FILE" || "$(<"$NGINX_CONFIG_HASH_FILE")" != "$nginx_config_hash" ]]; then
+  nginx_recreate_required=true
+fi
 
 printf '%s\n' "$active_color"
 printf '%s\n' "$next_color"
@@ -58,24 +66,47 @@ done
 
 printf 'proxy_pass http://hanyang-api-%s:8080;\n' "$next_color" > "$UPSTREAM_FILE"
 
-if ! docker exec nginx nginx -t; then
+if [[ "$nginx_recreate_required" == true ]]; then
+  if ! docker compose --profile blue-green up -d --no-deps --force-recreate nginx; then
+    printf '%s\n' "$previous_upstream" > "$UPSTREAM_FILE"
+    docker compose --profile blue-green stop "$next_service" || true
+    exit 1
+  fi
+elif ! docker exec nginx nginx -t; then
   printf '%s\n' "$previous_upstream" > "$UPSTREAM_FILE"
+  docker compose --profile blue-green stop "$next_service" || true
+  exit 1
+else
+  docker exec nginx nginx -s reload
+fi
+
+if ! docker exec nginx nginx -T 2>&1 | grep -Fq "proxy_pass http://hanyang-api-$next_color:8080;"; then
+  printf '%s\n' "$previous_upstream" > "$UPSTREAM_FILE"
+  if [[ "$nginx_recreate_required" == true ]]; then
+    docker compose --profile blue-green up -d --no-deps --force-recreate nginx || true
+  else
+    docker exec nginx nginx -t || true
+    docker exec nginx nginx -s reload || true
+  fi
   docker compose --profile blue-green stop "$next_service" || true
   exit 1
 fi
 
-docker exec nginx nginx -s reload
-
 if ! curl -fsSk --resolve api.hanyang.life:443:127.0.0.1 \
   --max-time 10 https://api.hanyang.life/api/v1/shuttle >/dev/null; then
   printf '%s\n' "$previous_upstream" > "$UPSTREAM_FILE"
-  docker exec nginx nginx -t
-  docker exec nginx nginx -s reload
+  if [[ "$nginx_recreate_required" == true ]]; then
+    docker compose --profile blue-green up -d --no-deps --force-recreate nginx
+  else
+    docker exec nginx nginx -t
+    docker exec nginx nginx -s reload
+  fi
   docker compose --profile blue-green stop "$next_service" || true
   exit 1
 fi
 
 printf '%s\n' "$next_color" > "$ACTIVE_COLOR_FILE"
+printf '%s\n' "$nginx_config_hash" > "$NGINX_CONFIG_HASH_FILE"
 
 if [[ "$active_color" == "blue" || "$active_color" == "green" ]]; then
   docker compose --profile blue-green stop "$previous_service"
