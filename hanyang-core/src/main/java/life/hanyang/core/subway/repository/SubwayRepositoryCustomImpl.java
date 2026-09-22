@@ -32,6 +32,24 @@ public class SubwayRepositoryCustomImpl implements SubwayRepositoryCustom {
                 .fetch();
     }
 
+    @Override
+    public long deleteTimetableDynamic(
+            SubwayStation subwayStation,
+            SubwayLine subwayLine,
+            SubwayDirection direction,
+            SubwayDayType subwayDayType
+    ) {
+        return queryFactory
+                .delete(subwayTimetable)
+                .where(
+                        eqSubwayStation(subwayStation),
+                        eqSubwayLine(subwayLine),
+                        eqDirection(direction),
+                        eqSubwayDayType(subwayDayType)
+                )
+                .execute();
+    }
+
     private BooleanExpression eqSubwayStation(SubwayStation subwayStation) {
         return subwayStation != null ? subwayTimetable.subwayStation.eq(subwayStation) : null;
     }
