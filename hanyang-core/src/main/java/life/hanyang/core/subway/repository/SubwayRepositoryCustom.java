@@ -10,4 +10,11 @@ public interface SubwayRepositoryCustom {
             SubwayDirection direction,
             SubwayDayType subwayDayType
     );
+
+    long deleteTimetableDynamic(
+            SubwayStation subwayStation,
+            SubwayLine subwayLine,
+            SubwayDirection direction,
+            SubwayDayType subwayDayType
+    );
 }

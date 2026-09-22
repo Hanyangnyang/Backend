@@ -4,6 +4,8 @@ import life.hanyang.core.subway.domain.*;
 import life.hanyang.core.subway.dto.SubwayScheduleApiResponse;
 import life.hanyang.core.subway.dto.SubwaySearchRequest;
 import life.hanyang.core.subway.dto.SubwayTimetableResponse;
+import life.hanyang.core.subway.dto.SubwayTimetableDeleteRequest;
+import life.hanyang.core.subway.dto.SubwayTimetableImportRequest;
 import life.hanyang.core.subway.repository.SubwayRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +71,43 @@ public class SubwayService {
         } else {
             throw new IllegalStateException("동기화할 지하철 시간표 데이터가 전혀 존재하지 않습니다.");
         }
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = "subwayTimetable", allEntries = true)
+    public void addTimetables(SubwayTimetableImportRequest request) {
+        List<SubwayTimetable> timetables = request.timetables().stream()
+                .map(item -> SubwayTimetable.builder()
+                        .subwayStation(request.station())
+                        .subwayLine(request.line())
+                        .direction(item.direction())
+                        .subwayDayType(item.dayType())
+                        .time(item.time())
+                        .destination(item.destination())
+                        .trainNo(item.trainNo())
+                        .build())
+                .toList();
+
+        subwayRepository.saveAll(timetables);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = "subwayTimetable", allEntries = true)
+    public void replaceTimetables(SubwayTimetableImportRequest request) {
+        subwayRepository.deleteTimetableDynamic(
+                request.station(), request.line(), null, null);
+        addTimetables(request);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = "subwayTimetable", allEntries = true)
+    public long deleteTimetables(SubwayTimetableDeleteRequest request) {
+        if (!request.hasCondition()) {
+            throw new IllegalArgumentException("삭제 조건을 하나 이상 지정해야 합니다.");
+        }
+
+        return subwayRepository.deleteTimetableDynamic(
+                request.station(), request.line(), request.direction(), request.dayType());
     }
 
     private List<SubwayTimetable> fetchTimetableFromApi(SubwayStation station, SubwayLine line, 
