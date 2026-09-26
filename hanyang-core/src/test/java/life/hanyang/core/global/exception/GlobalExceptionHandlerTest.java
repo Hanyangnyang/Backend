@@ -7,8 +7,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+
+import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 class GlobalExceptionHandlerTest {
 
@@ -44,5 +48,16 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().isSuccess()).isFalse();
         assertThat(response.getBody().getError().getCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE.getCode());
         assertThat(response.getBody().getError().getMessage()).isEqualTo("요청 본문 형식 또는 입력값이 올바르지 않습니다.");
+    }
+
+    @Test
+    void disconnectedClientDoesNotCreateAnotherErrorResponse() {
+        AsyncRequestNotUsableException exception = new AsyncRequestNotUsableException(
+                "ServletOutputStream failed to write: Broken pipe",
+                new IOException("Broken pipe")
+        );
+
+        assertThatCode(() -> handler.handleAsyncRequestNotUsableException(exception))
+                .doesNotThrowAnyException();
     }
 }
