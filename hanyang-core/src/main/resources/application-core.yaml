@@ -78,6 +78,10 @@ api:
 management:
   server:
     port: ${MANAGEMENT_PORT:${PORT:8080}}
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   endpoints:
     web:
       exposure:
