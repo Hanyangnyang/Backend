@@ -90,6 +90,22 @@ jobs:
             echo 'GRAFANA_CLOUD_PROMETHEUS_URL=${{ secrets.GRAFANA_CLOUD_PROMETHEUS_URL }}' >> .env
             echo 'GRAFANA_CLOUD_USERNAME=${{ secrets.GRAFANA_CLOUD_USERNAME }}' >> .env
             echo 'GRAFANA_CLOUD_API_KEY=${{ secrets.GRAFANA_CLOUD_API_KEY }}' >> .env
+            echo 'GRAFANA_CLOUD_LOKI_URL=${{ secrets.GRAFANA_CLOUD_LOKI_URL }}' >> .env
+            echo 'GRAFANA_CLOUD_LOKI_USERNAME=${{ secrets.GRAFANA_CLOUD_LOKI_USERNAME }}' >> .env
+            echo 'GRAFANA_CLOUD_OTLP_ENDPOINT=${{ secrets.GRAFANA_CLOUD_OTLP_ENDPOINT }}' >> .env
+            echo 'GRAFANA_CLOUD_OTLP_USERNAME=${{ secrets.GRAFANA_CLOUD_OTLP_USERNAME }}' >> .env
+            echo 'MANAGEMENT_TRACING_SAMPLING_PROBABILITY=${{ vars.MANAGEMENT_TRACING_SAMPLING_PROBABILITY || '0.1' }}' >> .env
+
+            for required_var in \
+              GRAFANA_CLOUD_LOKI_URL \
+              GRAFANA_CLOUD_LOKI_USERNAME \
+              GRAFANA_CLOUD_OTLP_ENDPOINT \
+              GRAFANA_CLOUD_OTLP_USERNAME; do
+              if ! grep -q "^${required_var}=..*" .env; then
+                echo "Missing required observability configuration: ${required_var}"
+                exit 1
+              fi
+            done
             
             chmod +x scripts/deploy-blue-green.sh
             ./scripts/deploy-blue-green.sh

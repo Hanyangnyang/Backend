@@ -6,6 +6,9 @@ x-hanyang-api-environment: &hanyang-api-environment
   SPRINGDOC_SWAGGER_UI_ENABLED: "true"
   MANAGEMENT_PORT: "9090"
   MANAGEMENT_ENDPOINTS_INCLUDE: health,info,metrics,prometheus
+  MANAGEMENT_TRACING_SAMPLING_PROBABILITY: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:-0.1}
+  OTEL_TRACING_ENABLED: "true"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://alloy:4318/v1/traces
 
 x-hanyang-api-common: &hanyang-api-common
   build:
@@ -51,10 +54,15 @@ services:
     volumes:
       - ./monitoring/config.alloy:/etc/alloy/config.alloy:ro
       - alloy-data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       GRAFANA_CLOUD_PROMETHEUS_URL: ${GRAFANA_CLOUD_PROMETHEUS_URL}
       GRAFANA_CLOUD_USERNAME: ${GRAFANA_CLOUD_USERNAME}
       GRAFANA_CLOUD_API_KEY: ${GRAFANA_CLOUD_API_KEY}
+      GRAFANA_CLOUD_LOKI_URL: ${GRAFANA_CLOUD_LOKI_URL}
+      GRAFANA_CLOUD_LOKI_USERNAME: ${GRAFANA_CLOUD_LOKI_USERNAME}
+      GRAFANA_CLOUD_OTLP_ENDPOINT: ${GRAFANA_CLOUD_OTLP_ENDPOINT}
+      GRAFANA_CLOUD_OTLP_USERNAME: ${GRAFANA_CLOUD_OTLP_USERNAME}
     command:
       - run
       - /etc/alloy/config.alloy

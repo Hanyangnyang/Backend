@@ -32,3 +32,78 @@ prometheus.remote_write "grafana_cloud" {
     }
   }
 }
+
+discovery.docker "hanyang_api" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "hanyang_api_logs" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/hanyang-api-(blue|green)"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/hanyang-api-(blue|green)"
+    target_label  = "deployment_color"
+    replacement   = "$1"
+  }
+
+  rule {
+    target_label = "service_name"
+    replacement  = "hanyang-api"
+  }
+}
+
+loki.source.docker "hanyang_api" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.hanyang_api.targets
+  labels        = { platform = "docker" }
+  relabel_rules = discovery.relabel.hanyang_api_logs.rules
+  forward_to    = [loki.write.grafana_cloud.receiver]
+}
+
+loki.write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_CLOUD_LOKI_URL")
+
+    basic_auth {
+      username = sys.env("GRAFANA_CLOUD_LOKI_USERNAME")
+      password = sys.env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+}
+
+otelcol.receiver.otlp "hanyang_api" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.hanyang_api.input]
+  }
+}
+
+otelcol.processor.batch "hanyang_api" {
+  output {
+    traces = [otelcol.exporter.otlphttp.grafana_cloud.input]
+  }
+}
+
+otelcol.exporter.otlphttp "grafana_cloud" {
+  client {
+    endpoint = sys.env("GRAFANA_CLOUD_OTLP_ENDPOINT")
+    auth     = otelcol.auth.basic.grafana_cloud.handler
+  }
+}
+
+otelcol.auth.basic "grafana_cloud" {
+  client_auth {
+    username = sys.env("GRAFANA_CLOUD_OTLP_USERNAME")
+    password = sys.env("GRAFANA_CLOUD_API_KEY")
+  }
+}

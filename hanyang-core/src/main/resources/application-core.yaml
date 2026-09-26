@@ -78,6 +78,19 @@ api:
 management:
   server:
     port: ${MANAGEMENT_PORT:${PORT:8080}}
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:0.1}
+  otlp:
+    tracing:
+      export:
+        enabled: ${OTEL_TRACING_ENABLED:false}
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+  opentelemetry:
+    resource-attributes:
+      service.name: ${spring.application.name}
+      deployment.environment.name: ${SPRING_PROFILES_ACTIVE:local}
+      deployment.color: ${DEPLOY_COLOR:local}
   metrics:
     distribution:
       percentiles-histogram:
@@ -90,6 +103,8 @@ management:
     health:
       show-details: when-authorized
 logging:
+  pattern:
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
   webhook:
     url: ${DISCORD_ERROR_WEBHOOK_URL:${DISCORD_WEBHOOK_URL:${SLACK_WEBHOOK_URL:}}}
 
