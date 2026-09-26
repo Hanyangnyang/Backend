@@ -17,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -263,26 +262,17 @@ public class PlaylistService {
         PlaylistTrack track = playlistTrackRepository.findById(trackId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 음원 트랙입니다. trackId: " + trackId));
 
-        Optional<PlaylistTrackLike> existingLike = playlistTrackLikeRepository.findByTrackTrackIdAndDeviceId(trackId, deviceId);
-
         boolean isLiked;
-        if (existingLike.isPresent()) {
+        if (playlistTrackLikeRepository.deleteIfPresent(trackId, deviceId) > 0) {
             // [좋아요 취소]
-            playlistTrackLikeRepository.delete(existingLike.get());
             playlistTrackRepository.decrementLikeCount(trackId);
             isLiked = false;
         } else {
             // [좋아요 등록]
-            try {
-                PlaylistTrackLike newLike = PlaylistTrackLike.builder()
-                        .track(track)
-                        .deviceId(deviceId)
-                        .build();
-                playlistTrackLikeRepository.save(newLike);
+            if (playlistTrackLikeRepository.insertIfAbsent(trackId, deviceId) > 0) {
                 playlistTrackRepository.incrementLikeCount(trackId);
                 isLiked = true;
-            } catch (DataIntegrityViolationException e) {
-                log.warn("[PlaylistTrackLike] 중복 좋아요 요청 감지 - trackId: {}, deviceId: {}", trackId, deviceId);
+            } else {
                 isLiked = true;
             }
         }
@@ -299,29 +289,17 @@ public class PlaylistService {
         PlaylistSong song = playlistSongRepository.findByIdAndDeletedAtIsNull(songId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않거나 삭제된 곡입니다. id: " + songId));
 
-        Optional<PlaylistSongReaction> existing = playlistSongReactionRepository
-                .findBySongIdAndDeviceIdAndReactionType(songId, request.deviceId(), request.reactionType());
-
         boolean isReacted;
-        if (existing.isPresent()) {
+        if (playlistSongReactionRepository.deleteIfPresent(
+                songId, request.deviceId(), request.reactionType().name()) > 0) {
             // [리액션 취소]
-            playlistSongReactionRepository.deleteBySongIdAndDeviceIdAndReactionType(
-                    songId, request.deviceId(), request.reactionType()
-            );
             isReacted = false;
         } else {
             // [리액션 추가]
-            try {
-                PlaylistSongReaction newReaction = PlaylistSongReaction.builder()
-                        .song(song)
-                        .deviceId(request.deviceId())
-                        .reactionType(request.reactionType())
-                        .build();
-                playlistSongReactionRepository.save(newReaction);
+            if (playlistSongReactionRepository.insertIfAbsent(
+                    songId, request.deviceId(), request.reactionType().name()) > 0) {
                 isReacted = true;
-            } catch (DataIntegrityViolationException e) {
-                log.warn("[PlaylistReaction] 중복 리액션 동시성 방어 - songId: {}, deviceId: {}, type: {}",
-                        songId, request.deviceId(), request.reactionType());
+            } else {
                 isReacted = true;
             }
         }
