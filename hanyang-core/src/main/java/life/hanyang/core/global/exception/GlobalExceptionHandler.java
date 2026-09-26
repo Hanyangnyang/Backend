@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Objects;
@@ -151,6 +152,14 @@ public class GlobalExceptionHandler {
         log.warn("File Size Limit Exceeded: {}", e.getMessage());
         ApiResponse<Void> response = ApiResponse.fail(ErrorCode.FILE_SIZE_LIMIT_EXCEEDED.getCode(), ErrorCode.FILE_SIZE_LIMIT_EXCEEDED.getMessage());
         return ResponseEntity.status(ErrorCode.FILE_SIZE_LIMIT_EXCEEDED.getStatus()).body(response);
+    }
+
+    /**
+     * 클라이언트가 응답 수신 전에 연결을 종료한 경우 추가 응답 작성과 장애 알림을 생략한다.
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleAsyncRequestNotUsableException(AsyncRequestNotUsableException e) {
+        log.debug("Client disconnected before the response was completed: {}", e.getMessage());
     }
 
     /**

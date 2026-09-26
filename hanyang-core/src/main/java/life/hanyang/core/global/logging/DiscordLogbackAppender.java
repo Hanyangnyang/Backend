@@ -25,7 +25,7 @@ public class DiscordLogbackAppender extends UnsynchronizedAppenderBase<ILoggingE
 
     @Override
     protected void append(ILoggingEvent eventObject) {
-        if (webhookUrl == null || webhookUrl.isBlank()) {
+        if (webhookUrl == null || webhookUrl.isBlank() || shouldSuppress(eventObject)) {
             return;
         }
 
@@ -63,6 +63,23 @@ public class DiscordLogbackAppender extends UnsynchronizedAppenderBase<ILoggingE
         } catch (Exception e) {
             addError("디스코드 웹훅 알림 전송 실패", e);
         }
+    }
+
+    boolean shouldSuppress(ILoggingEvent eventObject) {
+        if ("io.opentelemetry.exporter.internal.http.HttpExporter".equals(eventObject.getLoggerName())) {
+            return true;
+        }
+
+        IThrowableProxy throwable = eventObject.getThrowableProxy();
+        while (throwable != null) {
+            if ("org.springframework.web.context.request.async.AsyncRequestNotUsableException"
+                    .equals(throwable.getClassName())) {
+                return true;
+            }
+            throwable = throwable.getCause();
+        }
+
+        return false;
     }
 
     private String extractLocation(String loggerName, IThrowableProxy throwableProxy) {
