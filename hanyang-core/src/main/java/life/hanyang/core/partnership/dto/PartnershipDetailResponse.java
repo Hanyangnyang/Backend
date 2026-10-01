@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.ArrayList;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -26,6 +27,7 @@ public class PartnershipDetailResponse {
     private String fullAddress;
     private String kakaoPlaceId;
     private List<PartnershipInfo> partnerships;
+    private List<String> representativeMenus;
 
     public PartnershipDetailResponse(Merchant merchant, List<PartnershipInfo> partnerships) {
         this.merchantId = merchant.getMerchantId();
@@ -38,6 +40,7 @@ public class PartnershipDetailResponse {
         this.fullAddress = merchant.getFullAddress();
         this.kakaoPlaceId = merchant.getKakaoPlaceId();
         this.partnerships = partnerships;
+        this.representativeMenus = new ArrayList<>(merchant.getRepresentativeMenus());
     }
 
     @Getter

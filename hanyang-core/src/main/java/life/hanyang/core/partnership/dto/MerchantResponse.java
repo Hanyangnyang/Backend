@@ -3,6 +3,8 @@ package life.hanyang.core.partnership.dto;
 import life.hanyang.core.partnership.domain.Merchant;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 public record MerchantResponse(
         Long merchantId,
@@ -14,7 +16,8 @@ public record MerchantResponse(
         Double longitude,
         String fullAddress,
         String kakaoPlaceId,
-        Instant updatedAt
+        Instant updatedAt,
+        List<String> representativeMenus
 
 ) {
 
@@ -29,7 +32,8 @@ public record MerchantResponse(
                 merchant.getLongitude(),
                 merchant.getFullAddress(),
                 merchant.getKakaoPlaceId(),
-                merchant.getUpdatedAt()
+                merchant.getUpdatedAt(),
+                new ArrayList<>(merchant.getRepresentativeMenus())
         );
     }
 }
