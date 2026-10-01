@@ -7,6 +7,7 @@ import life.hanyang.core.partnership.dto.MerchantCreateWithPartnershipsRequest;
 import life.hanyang.core.partnership.dto.PartnershipDetailDto;
 import life.hanyang.core.partnership.dto.PartnershipDetailResponse;
 import life.hanyang.core.partnership.dto.PartnershipUpdateDto;
+import life.hanyang.core.partnership.dto.MerchantExportResponse;
 import life.hanyang.core.partnership.repository.MerchantRepository;
 import life.hanyang.core.partnership.repository.PartnershipRepository;
 import life.hanyang.core.global.exception.EntityNotFoundException;
@@ -29,6 +30,10 @@ public class PartnershipService {
     private final Validator validator;
     private final PartnershipRepository partnershipRepository;
 
+
+    public List<MerchantExportResponse> exportMerchants() {
+        return merchantRepository.findAllForExport().stream().map(MerchantExportResponse::from).toList();
+    }
 
     //DB 테이블(Merchant, Partnership) 전체 초기화 후 전달받은 데이터 적재
     @Transactional
@@ -70,6 +75,7 @@ public class PartnershipService {
                         .isActive(partDto.getPeriod().getIsActive())
                         .conditions(partDto.getConditions())
                         .sourceUrl(partDto.getSourceUrl())
+                        .photoOrder(partDto.getPhotoOrder())
                         .build();
 
                 // 연관관계 편의 메서드 호출
@@ -113,6 +119,7 @@ public class PartnershipService {
                 .isActive(request.getPeriod().getIsActive())
                 .conditions(request.getConditions())
                 .sourceUrl(request.getSourceUrl())
+                .photoOrder(request.getPhotoOrder())
                 .build();
 
         merchant.addPartnership(partnership);

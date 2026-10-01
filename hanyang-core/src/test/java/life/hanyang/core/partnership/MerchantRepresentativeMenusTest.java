@@ -1,6 +1,7 @@
 package life.hanyang.core.partnership;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.validation.Validator;
 import life.hanyang.core.partnership.domain.Merchant;
@@ -105,6 +106,12 @@ class MerchantRepresentativeMenusTest {
         var partnerships = partnershipService.getAvailablePartnerships();
         assertThat(partnerships).hasSize(count).allSatisfy(r -> assertThat(r.getRepresentativeMenus()).containsExactlyElementsOf(menus));
         assertThat(statistics.getPrepareStatementCount()).isEqualTo(1 + (count + 99) / 100);
+        statistics.clear();
+        var exported = partnershipService.exportMerchants();
+        assertThat(exported).hasSize(count).allSatisfy(r -> assertThat(r.representativeMenus()).containsExactlyElementsOf(menus));
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1 + (count + 99) / 100);
+        assertThat(statistics.getEntityInsertCount()).isZero();
+        assertThat(statistics.getEntityUpdateCount()).isZero();
     }
 
     @Test
@@ -179,4 +186,48 @@ class MerchantRepresentativeMenusTest {
         merchantService.deleteMerchants(List.of(merchantService.getAllMerchants().get(0).merchantId()));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM merchant_representative_menus", Long.class)).isZero();
     }
+    @Test
+    void exportIncludesInactiveAndExpiredDataAndRoundTripsAllEditableFields() throws Exception {
+        var input = mapper.readValue("""
+                [
+                  {"name":"비활성 식당","category":"food","is_active":false,"emoji":"🍚",
+                   "location":{"latitude":37.123,"longitude":126.456,"full_address":"안산시 주소"},
+                   "kakao_place_id":"12345","representative_menus":["알밥","우동"],
+                   "partnerships":[
+                     {"college_name":"공학대학","benefit":"과거 혜택","conditions":"학생증 필요",
+                      "source_url":"https://example.com/source","photo_order":7,
+                      "period":{"start_date":"2020-01-01","end_date":"2020-12-31","is_active":false}},
+                     {"college_name":"학생회","benefit":"할인","conditions":null,"source_url":null,"photo_order":null,
+                      "period":{"start_date":"2026-01-01","end_date":"2027-12-31","is_active":true}}
+                   ]},
+                  {"name":"제휴 없는 카페","category":"cafe","is_active":true,"emoji":"☕",
+                   "location":{"latitude":null,"longitude":null,"full_address":null},
+                   "kakao_place_id":null,"representative_menus":[],"partnerships":[]}
+                ]
+                """, new TypeReference<List<MerchantCreateWithPartnershipsRequest>>() {});
+        partnershipService.resetAndLoadPartnerships(input);
+        var exported = partnershipService.exportMerchants();
+        assertThat(exported).hasSize(2);
+        assertThat(exported.get(0).isActive()).isFalse();
+        assertThat(exported.get(0).partnerships()).hasSize(2);
+        String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(exported);
+        var tree = mapper.readTree(json);
+        assertThat(tree.get(0).get("category").asText()).isEqualTo("food");
+        assertThat(tree.get(0).get("representative_menus").get(0).asText()).isEqualTo("알밥");
+        assertThat(tree.get(0).get("partnerships").get(0).get("college_name").asText()).isEqualTo("공학대학");
+        assertThat(tree.get(0).get("partnerships").get(0).get("photo_order").asInt()).isEqualTo(7);
+        assertThat(tree.get(0).get("partnerships").get(0).get("period").get("start_date").asText()).isEqualTo("2020-01-01");
+        assertThat(tree.get(0).has("merchant_id")).isFalse();
+        var reloaded = mapper.readValue(json, new TypeReference<List<MerchantCreateWithPartnershipsRequest>>() {});
+        partnershipService.resetAndLoadPartnerships(reloaded);
+        assertThat(mapper.readTree(mapper.writeValueAsString(partnershipService.exportMerchants()))).isEqualTo(tree);
+    }
+
+    @Test
+    void exportOfEmptyDatabaseIsAnEmptyArray() throws Exception {
+        var exported = partnershipService.exportMerchants();
+        assertThat(exported).isEmpty();
+        assertThat(mapper.writeValueAsString(exported)).isEqualTo("[]");
+    }
+
 }
