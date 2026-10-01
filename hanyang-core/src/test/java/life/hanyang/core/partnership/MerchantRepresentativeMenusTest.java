@@ -69,7 +69,7 @@ class MerchantRepresentativeMenusTest {
 
     @BeforeAll
     void applyActualMenuMigrationToTestDatabase() {
-        jdbc.execute("DROP TABLE merchant_representative_menus");
+        jdbc.execute("ALTER TABLE merchant DROP COLUMN representative_menus");
         new ResourceDatabasePopulator(new FileSystemResource(
                 "../database/migrations/20261001_add_merchant_representative_menus.sql")).execute(dataSource);
     }
@@ -95,21 +95,21 @@ class MerchantRepresentativeMenusTest {
 
     @ParameterizedTest
     @ValueSource(ints = {50, 205})
-    void merchantAndAvailablePartnershipListsBatchMenuQueries(int count) {
+    void merchantAndAvailablePartnershipListsAndExportUseOneQuery(int count) {
         List<String> menus = List.of("알밥", "특알밥", "돈까스", "우동", "냉모밀", "덮밥");
         merchantService.createMerchants(IntStream.range(0, count).mapToObj(i -> request("식당" + i, menus)).toList());
         var statistics = resetStatistics();
         var merchantResponses = merchantService.getAllMerchants();
         assertThat(merchantResponses).hasSize(count).allSatisfy(r -> assertThat(r.representativeMenus()).containsExactlyElementsOf(menus));
-        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1 + (count + 99) / 100);
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
         statistics.clear();
         var partnerships = partnershipService.getAvailablePartnerships();
         assertThat(partnerships).hasSize(count).allSatisfy(r -> assertThat(r.getRepresentativeMenus()).containsExactlyElementsOf(menus));
-        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1 + (count + 99) / 100);
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
         statistics.clear();
         var exported = partnershipService.exportMerchants();
         assertThat(exported).hasSize(count).allSatisfy(r -> assertThat(r.representativeMenus()).containsExactlyElementsOf(menus));
-        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1 + (count + 99) / 100);
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
         assertThat(statistics.getEntityInsertCount()).isZero();
         assertThat(statistics.getEntityUpdateCount()).isZero();
     }
@@ -175,16 +175,16 @@ class MerchantRepresentativeMenusTest {
             assertThat(r.storeName()).isEqualTo("새식당");
             assertThat(r.representativeMenus()).containsExactly("돈까스", "우동");
         });
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM merchant_representative_menus", Long.class)).isEqualTo(2L);
+        assertThat(jdbc.queryForObject("SELECT CARDINALITY(representative_menus) FROM merchant", Long.class)).isEqualTo(2L);
     }
 
     @Test
-    void deletionCascadesMenusAndEmptyResetIsRejected() {
+    void deletionRemovesMerchantAndEmptyResetIsRejected() {
         merchantService.createMerchants(List.of(request("식당", List.of("알밥"))));
         assertThatThrownBy(() -> partnershipService.resetAndLoadPartnerships(List.of())).isInstanceOf(IllegalArgumentException.class);
         assertThat(merchants.count()).isEqualTo(1);
         merchantService.deleteMerchants(List.of(merchantService.getAllMerchants().get(0).merchantId()));
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM merchant_representative_menus", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM merchant", Long.class)).isZero();
     }
     @Test
     void exportIncludesInactiveAndExpiredDataAndRoundTripsAllEditableFields() throws Exception {

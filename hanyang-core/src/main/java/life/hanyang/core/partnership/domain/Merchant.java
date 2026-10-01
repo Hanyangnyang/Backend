@@ -35,12 +35,8 @@ public class Merchant {
         partnership.setMerchant(this); // 자식 객체에도 부모 객체를 주입합니다.
     }
 
-    @org.hibernate.annotations.BatchSize(size = 100)
-    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
-    @ElementCollection(fetch = FetchType.LAZY)
-    @CollectionTable(name = "merchant_representative_menus", joinColumns = @JoinColumn(name = "merchant_id"))
-    @OrderColumn(name = "menu_order")
-    @Column(name = "menu_name", nullable = false, length = 100)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+    @Column(name = "representative_menus", nullable = false, columnDefinition = "text array")
     private List<String> representativeMenus = new ArrayList<>();
 
     public void updateRepresentativeMenus(List<String> menus) {
