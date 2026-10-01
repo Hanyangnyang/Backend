@@ -27,11 +27,8 @@ public class ParkingLot {
     private String address;
     @Column(name = "description", nullable = true, columnDefinition = "TEXT")
     private String description;
-    @org.hibernate.annotations.BatchSize(size = 100)
-    @ElementCollection
-    @CollectionTable(name = "campus_parking_lots_image_url", joinColumns = @JoinColumn(name = "owner_id"))
-    @OrderColumn(name = "sort_order")
-    @Column(name = "value", nullable = false, columnDefinition = "TEXT")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+    @Column(name = "image_url", nullable = false, columnDefinition = "text array")
     private List<String> imageUrl = new ArrayList<>();
 
     public ParkingLot(String id, String name, Campus campus, Coordinates coordinates, Integer capacity, String address, String description, List<String> imageUrl) {

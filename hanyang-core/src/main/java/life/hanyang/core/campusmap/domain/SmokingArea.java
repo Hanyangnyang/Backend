@@ -28,11 +28,8 @@ public class SmokingArea {
     private Boolean hasAshtray;
     @Column(name = "description", nullable = true, columnDefinition = "TEXT")
     private String description;
-    @org.hibernate.annotations.BatchSize(size = 100)
-    @ElementCollection
-    @CollectionTable(name = "campus_smoking_areas_image_url", joinColumns = @JoinColumn(name = "owner_id"))
-    @OrderColumn(name = "sort_order")
-    @Column(name = "value", nullable = false, columnDefinition = "TEXT")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+    @Column(name = "image_url", nullable = false, columnDefinition = "text array")
     private List<String> imageUrl = new ArrayList<>();
 
     public SmokingArea(String id, String name, SmokingAreaType type, Campus campus, Coordinates coordinates, Boolean hasAshtray, String description, List<String> imageUrl) {

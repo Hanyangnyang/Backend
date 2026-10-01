@@ -9,6 +9,10 @@ CREATE TABLE campus_buildings (
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
     description TEXT,
+    aliases TEXT ARRAY NOT NULL DEFAULT CAST(ARRAY[] AS TEXT ARRAY),
+    primary_colleges TEXT ARRAY NOT NULL DEFAULT CAST(ARRAY[] AS TEXT ARRAY),
+    facilities TEXT ARRAY NOT NULL DEFAULT CAST(ARRAY[] AS TEXT ARRAY),
+    image_url TEXT ARRAY NOT NULL DEFAULT CAST(ARRAY[] AS TEXT ARRAY),
     CHECK ((latitude IS NULL) = (longitude IS NULL)),
     CHECK (latitude BETWEEN -90 AND 90),
     CHECK (longitude BETWEEN -180 AND 180),
@@ -34,45 +38,11 @@ CREATE TABLE campus_smoking_areas (
     longitude DOUBLE PRECISION,
     has_ashtray BOOLEAN NOT NULL,
     description TEXT,
+    image_url TEXT ARRAY NOT NULL DEFAULT CAST(ARRAY[] AS TEXT ARRAY),
     CHECK ((latitude IS NULL) = (longitude IS NULL)),
     CHECK (latitude BETWEEN -90 AND 90),
     CHECK (longitude BETWEEN -180 AND 180)
 );
 CREATE INDEX idx_campus_smoking_areas_campus ON campus_smoking_areas(campus);
-
-CREATE TABLE campus_buildings_aliases (
-    owner_id VARCHAR(100) NOT NULL REFERENCES campus_buildings(id) ON DELETE CASCADE,
-    sort_order INTEGER NOT NULL,
-    value TEXT NOT NULL,
-    PRIMARY KEY (owner_id, sort_order)
-);
-
-CREATE TABLE campus_buildings_primary_colleges (
-    owner_id VARCHAR(100) NOT NULL REFERENCES campus_buildings(id) ON DELETE CASCADE,
-    sort_order INTEGER NOT NULL,
-    value TEXT NOT NULL,
-    PRIMARY KEY (owner_id, sort_order)
-);
-
-CREATE TABLE campus_buildings_facilities (
-    owner_id VARCHAR(100) NOT NULL REFERENCES campus_buildings(id) ON DELETE CASCADE,
-    sort_order INTEGER NOT NULL,
-    value TEXT NOT NULL,
-    PRIMARY KEY (owner_id, sort_order)
-);
-
-CREATE TABLE campus_buildings_image_url (
-    owner_id VARCHAR(100) NOT NULL REFERENCES campus_buildings(id) ON DELETE CASCADE,
-    sort_order INTEGER NOT NULL,
-    value TEXT NOT NULL,
-    PRIMARY KEY (owner_id, sort_order)
-);
-
-CREATE TABLE campus_smoking_areas_image_url (
-    owner_id VARCHAR(100) NOT NULL REFERENCES campus_smoking_areas(id) ON DELETE CASCADE,
-    sort_order INTEGER NOT NULL,
-    value TEXT NOT NULL,
-    PRIMARY KEY (owner_id, sort_order)
-);
 
 COMMIT;

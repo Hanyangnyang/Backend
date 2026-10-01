@@ -94,6 +94,43 @@ class CampusMapPersistenceTest {
     }
 
     @Test
+    void arrayColumnUpdatesPersistOrderAndClearEmptyOrNullLists() {
+        service.createBuilding(building("building-101", "101", List.of()));
+        service.updateBuilding("building-101", new BuildingRequest("building-101", "101", "본관", null,
+                List.of("별칭2", "별칭1"), Campus.ANSAN, new Coordinates(null, null), null,
+                List.of("대학2", "대학1"), null, List.of("시설2", "시설1"), List.of("사진2", "사진1")));
+        var updated = service.getBuilding("building-101");
+        assertThat(updated.aliases()).containsExactly("별칭2", "별칭1");
+        assertThat(updated.primaryColleges()).containsExactly("대학2", "대학1");
+        assertThat(updated.facilities()).containsExactly("시설2", "시설1");
+        assertThat(updated.imageUrl()).containsExactly("사진2", "사진1");
+        service.updateBuilding("building-101", new BuildingRequest("building-101", "101", "본관", null,
+                List.of(), Campus.ANSAN, new Coordinates(null, null), null, null, null, List.of(), null));
+        var cleared = service.getBuilding("building-101");
+        assertThat(cleared.aliases()).isEmpty();
+        assertThat(cleared.primaryColleges()).isEmpty();
+        assertThat(cleared.facilities()).isEmpty();
+        assertThat(cleared.imageUrl()).isEmpty();
+
+        service.createParkingLot(parking("parking-01", 10));
+        service.updateParkingLot("parking-01", new ParkingLotRequest("parking-01", "주차장", Campus.ANSAN,
+                new Coordinates(null, null), 10, null, null, List.of("사진2", "사진1")));
+        assertThat(service.getParkingLot("parking-01").imageUrl()).containsExactly("사진2", "사진1");
+        service.updateParkingLot("parking-01", new ParkingLotRequest("parking-01", "주차장", Campus.ANSAN,
+                new Coordinates(null, null), 10, null, null, null));
+        assertThat(service.getParkingLot("parking-01").imageUrl()).isEmpty();
+
+        service.createSmokingArea(new SmokingAreaRequest("smoking-01", "흡연장", SmokingAreaType.BOOTH,
+                Campus.ANSAN, new Coordinates(null, null), true, null, List.of("사진1")));
+        service.updateSmokingArea("smoking-01", new SmokingAreaRequest("smoking-01", "흡연장", SmokingAreaType.BOOTH,
+                Campus.ANSAN, new Coordinates(null, null), true, null, List.of("사진2", "사진1")));
+        assertThat(service.getSmokingArea("smoking-01").imageUrl()).containsExactly("사진2", "사진1");
+        service.updateSmokingArea("smoking-01", new SmokingAreaRequest("smoking-01", "흡연장", SmokingAreaType.BOOTH,
+                Campus.ANSAN, new Coordinates(null, null), true, null, List.of()));
+        assertThat(service.getSmokingArea("smoking-01").imageUrl()).isEmpty();
+    }
+
+    @Test
     void rollsBackAllBuildingsAndNestedSpacesOnDatabaseConflict() {
         assertThatThrownBy(() -> service.importBuildings(List.of(
                 building("building-101", "101", List.of(space("openspace-01"))),
@@ -207,7 +244,7 @@ class CampusMapPersistenceTest {
 
     @ParameterizedTest
     @CsvSource({"50,true", "50,false", "205,true", "205,false"})
-    void buildingListLoadsCollectionsInBatchesInsteadOfPerBuilding(int count, boolean filterCampus) {
+    void buildingListLoadsArrayColumnsAndBatchesOnlyOpenSpaces(int count, boolean filterCampus) {
         service.importBuildings(IntStream.range(0, count)
                 .mapToObj(i -> building("building-" + i, "" + i, List.of(space("space-" + i)))).toList());
         Statistics statistics = resetStatistics();
@@ -220,12 +257,12 @@ class CampusMapPersistenceTest {
             assertThat(r.facilities()).hasSize(2);
             assertThat(r.imageUrl()).hasSize(2);
         });
-        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1 + 5L * ((count + 99) / 100));
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1 + ((count + 99) / 100));
     }
 
     @ParameterizedTest
     @CsvSource({"50,true", "50,false", "205,true", "205,false"})
-    void smokingAndParkingListsBatchImageQueries(int count, boolean filterCampus) {
+    void smokingAndParkingListsLoadImagesInOneQuery(int count, boolean filterCampus) {
         service.importSmokingAreas(IntStream.range(0, count).mapToObj(i -> new SmokingAreaRequest(
                 "smoking-" + i, "흡연장", SmokingAreaType.AREA, Campus.ANSAN, new Coordinates(37.0, 126.0),
                 true, null, List.of("https://example.com/image.png"))).toList());
@@ -233,11 +270,11 @@ class CampusMapPersistenceTest {
         Statistics statistics = resetStatistics();
         var smoking = service.getSmokingAreas(filterCampus ? Campus.ANSAN : null);
         assertThat(smoking).hasSize(count).allSatisfy(r -> assertThat(r.imageUrl()).hasSize(1));
-        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1 + (count + 99) / 100);
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
         statistics.clear();
         var parking = service.getParkingLots(filterCampus ? Campus.ANSAN : null);
         assertThat(parking).hasSize(count).allSatisfy(r -> assertThat(r.imageUrl()).hasSize(2));
-        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1 + (count + 99) / 100);
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
     }
 
     @ParameterizedTest

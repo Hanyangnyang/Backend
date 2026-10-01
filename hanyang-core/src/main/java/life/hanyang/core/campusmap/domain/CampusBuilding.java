@@ -33,29 +33,17 @@ public class CampusBuilding {
     private List<OpenSpace> openSpaces = new ArrayList<>();
 
     public void addOpenSpace(OpenSpace space) { openSpaces.add(space); }
-    @org.hibernate.annotations.BatchSize(size = 100)
-    @ElementCollection
-    @CollectionTable(name = "campus_buildings_aliases", joinColumns = @JoinColumn(name = "owner_id"))
-    @OrderColumn(name = "sort_order")
-    @Column(name = "value", nullable = false, columnDefinition = "TEXT")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+    @Column(name = "aliases", nullable = false, columnDefinition = "text array")
     private List<String> aliases = new ArrayList<>();
-    @org.hibernate.annotations.BatchSize(size = 100)
-    @ElementCollection
-    @CollectionTable(name = "campus_buildings_primary_colleges", joinColumns = @JoinColumn(name = "owner_id"))
-    @OrderColumn(name = "sort_order")
-    @Column(name = "value", nullable = false, columnDefinition = "TEXT")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+    @Column(name = "primary_colleges", nullable = false, columnDefinition = "text array")
     private List<String> primaryColleges = new ArrayList<>();
-    @org.hibernate.annotations.BatchSize(size = 100)
-    @ElementCollection
-    @CollectionTable(name = "campus_buildings_facilities", joinColumns = @JoinColumn(name = "owner_id"))
-    @OrderColumn(name = "sort_order")
-    @Column(name = "value", nullable = false, columnDefinition = "TEXT")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+    @Column(name = "facilities", nullable = false, columnDefinition = "text array")
     private List<String> facilities = new ArrayList<>();
-    @org.hibernate.annotations.BatchSize(size = 100)
-    @ElementCollection
-    @CollectionTable(name = "campus_buildings_image_url", joinColumns = @JoinColumn(name = "owner_id"))
-    @OrderColumn(name = "sort_order")
-    @Column(name = "value", nullable = false, columnDefinition = "TEXT")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+    @Column(name = "image_url", nullable = false, columnDefinition = "text array")
     private List<String> imageUrl = new ArrayList<>();
 
     public CampusBuilding(String id, String buildingNumber, String name, String englishName, Campus campus, Coordinates coordinates, String description, List<String> aliases, List<String> primaryColleges, List<String> facilities, List<String> imageUrl) {
