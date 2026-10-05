@@ -45,6 +45,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class PlaylistServiceTest {
@@ -260,6 +261,8 @@ class PlaylistServiceTest {
         Page<PlaylistSong> page = new PageImpl<>(List.of(song), pageable, 1);
 
         given(playlistSongRepository.searchSongs(Genre.KPOP, pageable)).willReturn(page);
+        given(playlistTrackLikeRepository.findLikedTrackIds(deviceId, List.of("track-1")))
+                .willReturn(Set.of("track-1"));
 
         // when
         Page<PlaylistSongResponse> result = playlistService.getFeedSongs(Genre.KPOP, pageable, deviceId);
@@ -267,6 +270,45 @@ class PlaylistServiceTest {
         // then
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).title()).isEqualTo("Ditto");
+        assertThat(result.getContent().get(0).isLiked()).isTrue();
+    }
+
+    @Test
+    void feedMapsLikesByTrackAndNotByPost() {
+        UUID deviceId = UUID.randomUUID();
+        PlaylistSong first = feedSong("liked");
+        PlaylistSong second = feedSong("liked");
+        PlaylistSong third = feedSong("not-liked");
+        Pageable pageable = PageRequest.of(0, 20);
+        given(playlistSongRepository.searchSongs(null, pageable))
+                .willReturn(new PageImpl<>(List.of(first, second, third), pageable, 3));
+        given(playlistTrackLikeRepository.findLikedTrackIds(deviceId, List.of("liked", "not-liked")))
+                .willReturn(Set.of("liked"));
+
+        Page<PlaylistSongResponse> result = playlistService.getFeedSongs(null, pageable, deviceId);
+
+        assertThat(result.getContent()).extracting(PlaylistSongResponse::isLiked)
+                .containsExactly(true, true, false);
+        verify(playlistTrackLikeRepository).findLikedTrackIds(deviceId, List.of("liked", "not-liked"));
+    }
+
+    @Test
+    void feedWithoutDeviceReturnsFalseWithoutQueryingLikes() {
+        Pageable pageable = PageRequest.of(0, 20);
+        given(playlistSongRepository.searchSongs(null, pageable))
+                .willReturn(new PageImpl<>(List.of(feedSong("track-1")), pageable, 1));
+
+        Page<PlaylistSongResponse> result = playlistService.getFeedSongs(null, pageable, null);
+
+        assertThat(result.getContent().get(0).isLiked()).isFalse();
+        verifyNoInteractions(playlistTrackLikeRepository);
+    }
+
+    private PlaylistSong feedSong(String trackId) {
+        PlaylistTrack track = PlaylistTrack.builder().trackId(trackId).title("곡").artist("가수").build();
+        PlaylistSong song = PlaylistSong.builder().track(track).deviceId(UUID.randomUUID()).build();
+        org.springframework.test.util.ReflectionTestUtils.setField(song, "id", UUID.randomUUID());
+        return song;
     }
 
     @Test

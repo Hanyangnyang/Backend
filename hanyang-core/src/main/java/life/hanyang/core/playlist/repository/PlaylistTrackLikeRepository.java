@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.Collection;
+import java.util.Set;
 import java.util.UUID;
 
 public interface PlaylistTrackLikeRepository extends JpaRepository<PlaylistTrackLike, UUID> {
@@ -32,6 +34,9 @@ public interface PlaylistTrackLikeRepository extends JpaRepository<PlaylistTrack
     Optional<PlaylistTrackLike> findByTrackTrackIdAndDeviceId(String trackId, UUID deviceId);
 
     boolean existsByTrackTrackIdAndDeviceId(String trackId, UUID deviceId);
+
+    @Query("SELECT l.track.trackId FROM PlaylistTrackLike l WHERE l.deviceId = :deviceId AND l.track.trackId IN :trackIds")
+    Set<String> findLikedTrackIds(@Param("deviceId") UUID deviceId, @Param("trackIds") Collection<String> trackIds);
 
     @Query("SELECT l.track FROM PlaylistTrackLike l WHERE l.deviceId = :deviceId ORDER BY l.createdAt DESC")
     Page<PlaylistTrack> findLikedTracksByDeviceId(@Param("deviceId") UUID deviceId, Pageable pageable);

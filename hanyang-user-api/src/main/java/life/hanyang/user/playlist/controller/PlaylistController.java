@@ -12,6 +12,7 @@ import life.hanyang.core.playlist.domain.ChartType;
 import life.hanyang.core.playlist.domain.Genre;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.service.PlaylistService;
+import life.hanyang.core.playlist.service.PlaylistChartQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
@@ -34,6 +35,7 @@ import java.util.UUID;
 public class PlaylistController {
 
     private final PlaylistService playlistService;
+    private final PlaylistChartQueryService playlistChartQueryService;
 
     @Operation(
             summary = "곡 추천 및 등록",
@@ -177,9 +179,11 @@ public class PlaylistController {
             @Parameter(description = "차트 유형 (RISING, WEEKLY, MONTHLY)", example = "RISING")
             @RequestParam(required = false, defaultValue = "RISING") ChartType type,
             @Parameter(description = "장르별 차트 필터 (미입력 시 전체)", example = "KPOP")
-            @RequestParam(required = false) Genre genre
+            @RequestParam(required = false) Genre genre,
+            @Parameter(description = "기기 식별자 ID (곡 좋아요 여부 계산용)")
+            @RequestParam(required = false) UUID deviceId
     ) {
-        PlaylistChartResponse response = playlistService.getChart(type, genre);
+        PlaylistChartResponse response = playlistChartQueryService.getChart(type, genre, deviceId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

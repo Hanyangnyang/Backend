@@ -107,7 +107,9 @@ public class PlaylistService {
                 .build();
 
         PlaylistSong saved = playlistSongRepository.save(song);
-        return PlaylistSongResponse.of(saved);
+        boolean isLiked = playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(
+                track.getTrackId(), request.deviceId());
+        return PlaylistSongResponse.of(saved, Collections.emptyList(), isLiked);
     }
 
     /**
@@ -138,11 +140,13 @@ public class PlaylistService {
 
         // Reactions N+1 방지를 위한 2번의 Batch IN 쿼리 (카운트 + 내 반응)
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
+        Set<String> likedTrackIds = findLikedTrackIds(songs, currentDeviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
+                        likedTrackIds.contains(song.getTrackId())
                 ))
                 .toList();
 
@@ -158,7 +162,9 @@ public class PlaylistService {
 
         List<PlaylistReactionItemResponse> reactions = buildSingleReactionList(songId, currentDeviceId);
 
-        return PlaylistSongResponse.of(song, reactions);
+        boolean isLiked = currentDeviceId != null
+                && playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(song.getTrackId(), currentDeviceId);
+        return PlaylistSongResponse.of(song, reactions, isLiked);
     }
 
     /**
@@ -176,11 +182,13 @@ public class PlaylistService {
         List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
 
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
+        Set<String> likedTrackIds = findLikedTrackIds(songs, currentDeviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
+                        likedTrackIds.contains(song.getTrackId())
                 ))
                 .toList();
 
@@ -202,15 +210,25 @@ public class PlaylistService {
 
         // Reactions 배치 조회
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, deviceId);
+        Set<String> likedTrackIds = findLikedTrackIds(songs, deviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
+                        likedTrackIds.contains(song.getTrackId())
                 ))
                 .toList();
 
         return new PageImpl<>(responses, pageable, songPage.getTotalElements());
+    }
+
+    private Set<String> findLikedTrackIds(List<PlaylistSong> songs, UUID deviceId) {
+        if (deviceId == null || songs.isEmpty()) {
+            return Collections.emptySet();
+        }
+        List<String> trackIds = songs.stream().map(PlaylistSong::getTrackId).distinct().toList();
+        return playlistTrackLikeRepository.findLikedTrackIds(deviceId, trackIds);
     }
 
     private SpotifySearchExpansion findSpotifyExpansionSafely(String keyword) {
@@ -242,17 +260,18 @@ public class PlaylistService {
 
         // Reactions Batch IN 쿼리 판별
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
+        boolean isLiked = currentDeviceId != null
+                && playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(trackId, currentDeviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
+                        isLiked
                 ))
                 .toList();
 
         Page<PlaylistSongResponse> responsePage = new PageImpl<>(responses, pageable, songPage.getTotalElements());
-        boolean isLiked = currentDeviceId != null
-                && playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(trackId, currentDeviceId);
 
         return PlaylistTrackDetailResponse.of(track, songPage.getTotalElements(), isLiked, responsePage);
     }
