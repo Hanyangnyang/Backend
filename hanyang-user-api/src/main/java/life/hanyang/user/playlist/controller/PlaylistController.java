@@ -58,9 +58,11 @@ public class PlaylistController {
     @Operation(
             summary = "곡 작성 전 사용자 기기 상태 조회 (등록 제한 사전 확인)",
             description = "사용자가 곡 등록 화면에 진입할 때 오늘 남은 등록 가능 횟수 및 최근 7일 내 이미 추천한 곡 목록을 조회합니다.\n\n" +
-                    "• **canCreate**: 오늘 추가 등록 가능 여부 (오늘 등록 수 < 3)\n" +
+                    "• **canCreate**: 등록 가능 여부 (일일 제한 미초과 및 임시 제한 없음)\n" +
                     "• **dailyCount**: 오늘 이미 등록한 곡 수 (0~3)\n" +
                     "• **remainingCount**: 오늘 남은 등록 가능 횟수\n" +
+                    "• **temporarilyBlocked**: 반복된 콘텐츠 검증 실패로 인한 임시 제한 여부\n" +
+                    "• **blockedUntil**: 임시 제한 해제 시각 (UTC ISO 8601). 미차단 또는 Redis 장애 시 null\n" +
                     "• **recentTrackIdsIn7Days**: 최근 7일 이내에 이미 추천한 Spotify 트랙 ID 목록 (검색 시 중복 선택 방지용)"
     )
     @GetMapping("/creation-status")

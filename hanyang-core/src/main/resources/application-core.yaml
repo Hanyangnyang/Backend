@@ -36,6 +36,12 @@ spring:
       lettuce:
         shutdown-timeout: 100ms
 
+playlist:
+  registration:
+    failure-window: ${PLAYLIST_REGISTRATION_FAILURE_WINDOW:1h}
+    cooldown: ${PLAYLIST_REGISTRATION_COOLDOWN:30m}
+    failure-limit: ${PLAYLIST_REGISTRATION_FAILURE_LIMIT:3}
+
 aws:
   s3:
     endpoint: ${SUPABASE_S3_ENDPOINT}
