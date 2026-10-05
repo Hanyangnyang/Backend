@@ -66,6 +66,14 @@ api:
     key: ${GEMINI_API_KEY:}
     model: ${GEMINI_API_MODEL:gemini-3.5-flash-lite}
 
+  jev:
+    base-url: ${JEV_API_BASE_URL:https://api.typesafe.ai}
+    key: ${JEV_API_KEY:}
+    model: ${JEV_API_MODEL:jev-1.13.0}
+    approval-threshold: ${JEV_APPROVAL_THRESHOLD:0.51}
+    connect-timeout: ${JEV_CONNECT_TIMEOUT:1s}
+    read-timeout: ${JEV_READ_TIMEOUT:2s}
+
   spotify:
     accounts-base-url: ${SPOTIFY_ACCOUNTS_BASE_URL:https://accounts.spotify.com}
     base-url: ${SPOTIFY_API_BASE_URL:https://api.spotify.com/v1}
