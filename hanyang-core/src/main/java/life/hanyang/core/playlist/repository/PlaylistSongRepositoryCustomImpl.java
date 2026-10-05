@@ -16,6 +16,8 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 import static life.hanyang.core.playlist.domain.QPlaylistSong.playlistSong;
+import static life.hanyang.core.playlist.domain.QPlaylistSongReaction.playlistSongReaction;
+import static life.hanyang.core.playlist.domain.QPlaylistTrack.playlistTrack;
 
 @RequiredArgsConstructor
 public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryCustom {
@@ -77,12 +79,14 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
     public Page<PlaylistSong> searchSongsByTrackId(String trackId, Pageable pageable) {
         List<PlaylistSong> content = queryFactory
                 .selectFrom(playlistSong)
-                .join(playlistSong.track).fetchJoin()
+                .join(playlistSong.track, playlistTrack).fetchJoin()
+                .leftJoin(playlistSongReaction).on(playlistSongReaction.song.eq(playlistSong))
                 .where(
                         playlistSong.track.trackId.eq(trackId),
                         playlistSong.deletedAt.isNull()
                 )
-                .orderBy(playlistSong.heartCount.desc(), playlistSong.createdAt.desc())
+                .groupBy(playlistSong, playlistTrack)
+                .orderBy(playlistSongReaction.id.count().desc(), playlistSong.createdAt.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
