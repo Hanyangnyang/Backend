@@ -17,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
+import life.hanyang.core.playlist.event.PlaylistReportCreatedEvent;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -49,6 +51,7 @@ public class PlaylistService {
     private final PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
     private final PlaylistChartRepository playlistChartRepository;
     private final SpotifyTrackSearchService spotifyTrackSearchService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 1. 곡 추천/등록
@@ -398,6 +401,10 @@ public class PlaylistService {
                 .build();
 
         PlaylistSongReport saved = playlistSongReportRepository.save(report);
+        eventPublisher.publishEvent(new PlaylistReportCreatedEvent(
+                saved.getId(), songId, song.getTrack().getTitle(),
+                song.getTrack().getArtist(), song.getComment(), saved.getReason()
+        ));
         return PlaylistSongReportResponse.from(saved);
     }
 

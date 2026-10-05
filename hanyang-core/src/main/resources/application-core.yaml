@@ -119,3 +119,8 @@ logging:
 feedback:
   webhook:
     url: ${FEEDBACK_WEBHOOK_URL:}
+
+playlist:
+  report:
+    webhook:
+      url: ${PLAYLIST_REPORT_WEBHOOK_URL:}

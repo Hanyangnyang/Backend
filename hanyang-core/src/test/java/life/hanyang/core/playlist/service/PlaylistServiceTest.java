@@ -25,6 +25,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
+import life.hanyang.core.playlist.event.PlaylistReportCreatedEvent;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
@@ -73,6 +75,9 @@ class PlaylistServiceTest {
 
     @Mock
     private SpotifyTrackSearchService spotifyTrackSearchService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private PlaylistService playlistService;
@@ -484,6 +489,7 @@ class PlaylistServiceTest {
                 .build();
         PlaylistSong song = PlaylistSong.builder()
                 .track(track)
+                .comment("과제할 때 들으면 극락\n시험 기간에 추천합니다.")
                 .deviceId(UUID.randomUUID())
                 .ipAddress("127.0.0.1")
                 .genres(Set.of(Genre.KPOP))
@@ -506,6 +512,10 @@ class PlaylistServiceTest {
         assertThat(response.songTitle()).isEqualTo("Ditto");
         assertThat(response.reason()).isEqualTo("부적절한 멘트");
         assertThat(response.reporterDeviceId()).isEqualTo(reporterDeviceId);
+        verify(eventPublisher).publishEvent(new PlaylistReportCreatedEvent(
+                report.getId(), songId, "Ditto", "NewJeans",
+                "과제할 때 들으면 극락\n시험 기간에 추천합니다.", "부적절한 멘트"
+        ));
     }
 
     @Test
