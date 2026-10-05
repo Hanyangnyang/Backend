@@ -66,6 +66,9 @@ class PlaylistServiceTest {
     private PlaylistModerationService playlistModerationService;
 
     @Mock
+    private PlaylistRegistrationGuard playlistRegistrationGuard;
+
+    @Mock
     private PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
 
     @Mock
@@ -147,6 +150,33 @@ class PlaylistServiceTest {
         assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("부적절한 표현이 감지되었습니다.");
+        verify(playlistRegistrationGuard).recordFailure(deviceId);
+        org.mockito.Mockito.verifyNoInteractions(playlistTrackRepository);
+    }
+
+    @Test
+    void createSong_CooldownSkipsAiAndDoesNotCountAnotherFailure() {
+        UUID deviceId = UUID.randomUUID();
+        PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
+                "track-123", "곡명", "가수", "image", "좋아요", deviceId, Set.of(Genre.KPOP));
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.PLAYLIST_REGISTRATION_COOLDOWN))
+                .when(playlistRegistrationGuard).checkBlocked(deviceId);
+        assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
+                .isInstanceOf(BusinessException.class);
+        org.mockito.Mockito.verifyNoInteractions(playlistModerationService, playlistTrackRepository);
+        verify(playlistRegistrationGuard, org.mockito.Mockito.never()).recordFailure(any());
+    }
+
+    @Test
+    void getCreationStatus_CooldownPreservesDailyCountsButDisablesCreation() {
+        UUID deviceId = UUID.randomUUID();
+        Instant blockedUntil = Instant.now().plusSeconds(1800);
+        given(playlistRegistrationGuard.getBlockedUntil(deviceId)).willReturn(blockedUntil);
+        PlaylistCreationStatusResponse status = playlistService.getCreationStatus(deviceId);
+        assertThat(status.canCreate()).isFalse();
+        assertThat(status.remainingCount()).isEqualTo(3);
+        assertThat(status.temporarilyBlocked()).isTrue();
+        assertThat(status.blockedUntil()).isEqualTo(blockedUntil);
     }
 
     @Test
@@ -197,6 +227,8 @@ class PlaylistServiceTest {
 
         // then
         assertThat(status.canCreate()).isTrue();
+        assertThat(status.temporarilyBlocked()).isFalse();
+        assertThat(status.blockedUntil()).isNull();
         assertThat(status.dailyCount()).isEqualTo(1L);
         assertThat(status.remainingCount()).isEqualTo(2L);
         assertThat(status.dailyMaxLimit()).isEqualTo(3);

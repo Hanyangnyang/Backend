@@ -46,6 +46,7 @@ public class PlaylistService {
     private final PlaylistSongReactionRepository playlistSongReactionRepository;
     private final PlaylistSongReportRepository playlistSongReportRepository;
     private final PlaylistModerationService playlistModerationService;
+    private final PlaylistRegistrationGuard playlistRegistrationGuard;
     private final PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
     private final PlaylistChartRepository playlistChartRepository;
     private final SpotifyTrackSearchService spotifyTrackSearchService;
@@ -77,11 +78,19 @@ public class PlaylistService {
         }
 
         // 1-4. 위의 모든 검증 통과 시에만 AI 실시간 코멘트/세로드립 검열 수행 (과금 방어)
-        boolean isAiModerated = playlistModerationService.validateSongContent(
-                request.title(),
-                request.artist(),
-                request.comment()
-        );
+        playlistRegistrationGuard.checkBlocked(request.deviceId());
+        boolean isAiModerated;
+        try {
+            isAiModerated = playlistModerationService.validateSongContent(
+                    request.title(), request.artist(), request.comment());
+        } catch (BusinessException exception) {
+            if (exception.getErrorCode() == ErrorCode.PLAYLIST_INAPPROPRIATE_COMMENT) {
+                playlistRegistrationGuard.recordFailure(request.deviceId());
+            }
+            throw exception;
+        }
+        // A concurrent rejected request may have activated the cooldown during AI validation.
+        playlistRegistrationGuard.checkBlocked(request.deviceId());
 
         // 1-4. 음원 마스터(PlaylistTrack) 조회 또는 신규 생성
         PlaylistTrack track = playlistTrackRepository.findById(request.trackId())
@@ -117,7 +126,8 @@ public class PlaylistService {
         Instant startOf7DaysAgo = LocalDate.now(KST).minusDays(6).atStartOfDay(KST).toInstant();
         Set<String> recentTrackIds = playlistSongRepository.findRecentTrackIdsByDeviceIdAndCreatedAtAfter(deviceId, startOf7DaysAgo);
 
-        return PlaylistCreationStatusResponse.of(todayCount, DAILY_MAX_CREATE_LIMIT, recentTrackIds);
+        return PlaylistCreationStatusResponse.of(todayCount, DAILY_MAX_CREATE_LIMIT, recentTrackIds,
+                playlistRegistrationGuard.getBlockedUntil(deviceId));
     }
 
     /**
