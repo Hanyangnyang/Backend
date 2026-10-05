@@ -432,7 +432,8 @@ class PlaylistServiceTest {
                 .artist("NewJeans")
                 .build();
         given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
-        given(playlistTrackLikeRepository.findByTrackTrackIdAndDeviceId(trackId, deviceId)).willReturn(Optional.empty());
+        given(playlistTrackLikeRepository.deleteIfPresent(trackId, deviceId)).willReturn(0);
+        given(playlistTrackLikeRepository.insertIfAbsent(trackId, deviceId)).willReturn(1);
         given(playlistTrackRepository.getLikeCount(trackId)).willReturn(Optional.of(1));
 
         // when
@@ -442,7 +443,7 @@ class PlaylistServiceTest {
         assertThat(response.isLiked()).isTrue();
         assertThat(response.likeCount()).isEqualTo(1);
         verify(playlistTrackRepository).incrementLikeCount(trackId);
-        verify(playlistTrackLikeRepository).save(any(PlaylistTrackLike.class));
+        verify(playlistTrackLikeRepository).insertIfAbsent(trackId, deviceId);
     }
 
     @Test
@@ -456,10 +457,8 @@ class PlaylistServiceTest {
                 .title("Ditto")
                 .artist("NewJeans")
                 .build();
-        PlaylistTrackLike existingLike = PlaylistTrackLike.builder().track(track).deviceId(deviceId).build();
-
         given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
-        given(playlistTrackLikeRepository.findByTrackTrackIdAndDeviceId(trackId, deviceId)).willReturn(Optional.of(existingLike));
+        given(playlistTrackLikeRepository.deleteIfPresent(trackId, deviceId)).willReturn(1);
         given(playlistTrackRepository.getLikeCount(trackId)).willReturn(Optional.of(0));
 
         // when
@@ -469,7 +468,7 @@ class PlaylistServiceTest {
         assertThat(response.isLiked()).isFalse();
         assertThat(response.likeCount()).isEqualTo(0);
         verify(playlistTrackRepository).decrementLikeCount(trackId);
-        verify(playlistTrackLikeRepository).delete(existingLike);
+        verify(playlistTrackLikeRepository).deleteIfPresent(trackId, deviceId);
     }
 
     @Test
@@ -675,8 +674,10 @@ class PlaylistServiceTest {
         PlaylistSong song = PlaylistSong.builder().build();
 
         given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-        given(playlistSongReactionRepository.findBySongIdAndDeviceIdAndReactionType(songId, deviceId, ReactionType.FIRE))
-                .willReturn(Optional.empty());
+        given(playlistSongReactionRepository.deleteIfPresent(songId, deviceId, ReactionType.FIRE.name()))
+                .willReturn(0);
+        given(playlistSongReactionRepository.insertIfAbsent(songId, deviceId, ReactionType.FIRE.name()))
+                .willReturn(1);
         List<Object[]> countRows = Collections.singletonList(new Object[]{ReactionType.FIRE, 1L});
         given(playlistSongReactionRepository.countReactionsBySongId(songId))
                 .willReturn(countRows);
@@ -698,7 +699,7 @@ class PlaylistServiceTest {
                 .findFirst().orElseThrow();
         assertThat(fireItem.count()).isEqualTo(1L);
         assertThat(fireItem.isReacted()).isTrue();
-        verify(playlistSongReactionRepository).save(any());
+        verify(playlistSongReactionRepository).insertIfAbsent(songId, deviceId, ReactionType.FIRE.name());
     }
 
     @Test
@@ -708,11 +709,9 @@ class PlaylistServiceTest {
         UUID songId = UUID.randomUUID();
         UUID deviceId = UUID.randomUUID();
         PlaylistSong song = PlaylistSong.builder().build();
-        PlaylistSongReaction existing = PlaylistSongReaction.builder().song(song).deviceId(deviceId).reactionType(ReactionType.FIRE).build();
-
         given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-        given(playlistSongReactionRepository.findBySongIdAndDeviceIdAndReactionType(songId, deviceId, ReactionType.FIRE))
-                .willReturn(Optional.of(existing));
+        given(playlistSongReactionRepository.deleteIfPresent(songId, deviceId, ReactionType.FIRE.name()))
+                .willReturn(1);
         given(playlistSongReactionRepository.countReactionsBySongId(songId))
                 .willReturn(Collections.emptyList());
         given(playlistSongReactionRepository.findUserReactionTypesByDeviceIdAndSongId(deviceId, songId))
@@ -725,6 +724,6 @@ class PlaylistServiceTest {
 
         // then
         assertThat(response.isReacted()).isFalse();
-        verify(playlistSongReactionRepository).deleteBySongIdAndDeviceIdAndReactionType(songId, deviceId, ReactionType.FIRE);
+        verify(playlistSongReactionRepository).deleteIfPresent(songId, deviceId, ReactionType.FIRE.name());
     }
 }
