@@ -136,9 +136,9 @@ public class PlaylistController {
 
     @Operation(
             summary = "특정 곡의 추천글 모아보기 (상세 조회)",
-            description = "특정 음원(trackId)의 메타데이터 및 해당 곡에 학생들이 작성한 추천글 목록을 인기순(기본값) 또는 최신순으로 페이징 조회합니다.\n\n" +
+            description = "특정 음원(trackId)의 메타데이터 및 해당 곡에 학생들이 작성한 추천글 목록을 이모지 반응 수 기준 인기순으로 페이징 조회합니다.\n\n" +
                     "• **deviceId**: 현재 기기 식별자 ID 전달 시 각 글의 `isLiked: true/false` 반환\n" +
-                    "• **sort**: 인기순(기본값: `heartCount,desc`) / 최신순(`createdAt,desc`)\n" +
+                    "• **정렬**: 전체 이모지 반응 수가 많은 순서로 조회하며, 반응 수가 같으면 최신순으로 정렬합니다.\n" +
                     "• **page/size**: 0부터 시작하는 페이지 번호와 페이지당 개수 (기본값: size=20)"
     )
     @GetMapping("/tracks/{trackId}")
