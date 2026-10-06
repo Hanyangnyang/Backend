@@ -3,8 +3,13 @@ package life.hanyang.core.global.llm.gemini;
 import java.util.List;
 
 public record GeminiApiResponse(
-        List<Candidate> candidates
+        List<Candidate> candidates,
+        UsageMetadata usageMetadata
 ) {
+    public record UsageMetadata(Integer promptTokenCount, Integer candidatesTokenCount,
+                                Integer thoughtsTokenCount, Integer cachedContentTokenCount,
+                                Integer totalTokenCount) {}
+
     public record Candidate(Content content) {}
 
     public record Content(List<Part> parts) {}
