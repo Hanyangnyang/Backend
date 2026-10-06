@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/playlist/catalog/tracks")
@@ -29,7 +30,9 @@ public class PlaylistCatalogController {
     @GetMapping("/search")
     public ResponseEntity<?> searchTracks(
             @Parameter(description = "2자 이상의 검색어", required = true, example = "악뮤")
-            @RequestParam(required = false) String keyword
+            @RequestParam(required = false) String keyword,
+            @Parameter(description = "기기 식별자 ID (곡 좋아요 여부 계산용)")
+            @RequestParam(required = false) UUID deviceId
     ) {
         if (keyword == null || keyword.strip().length() < 2) {
             return ResponseEntity.badRequest().body(
@@ -38,7 +41,7 @@ public class PlaylistCatalogController {
         }
 
         try {
-            MusicSearchResponse response = playlistCatalogService.searchTracks(keyword);
+            MusicSearchResponse response = playlistCatalogService.searchTracks(keyword, deviceId);
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (SpotifyRateLimitException exception) {
             return ResponseEntity.status(ErrorCode.SPOTIFY_RATE_LIMITED.getStatus())

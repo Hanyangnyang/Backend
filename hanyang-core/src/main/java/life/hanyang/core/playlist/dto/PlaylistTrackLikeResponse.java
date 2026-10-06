@@ -7,12 +7,14 @@ public record PlaylistTrackLikeResponse(
         String title,
         String artist,
         String albumArtUrl,
-        int likeCount
+        int likeCount,
+        boolean isLiked
 ) {
     public static PlaylistTrackLikeResponse of(PlaylistTrack track) {
         return new PlaylistTrackLikeResponse(
                 track.getTrackId(), track.getTitle(), track.getArtist(), track.getAlbumArtUrl(),
-                track.getLikeCount() != null ? track.getLikeCount() : 0
+                track.getLikeCount() != null ? track.getLikeCount() : 0,
+                true
         );
     }
 }

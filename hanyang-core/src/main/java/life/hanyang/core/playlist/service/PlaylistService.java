@@ -17,7 +17,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
+import life.hanyang.core.playlist.event.PlaylistReportCreatedEvent;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -47,9 +48,11 @@ public class PlaylistService {
     private final PlaylistSongReactionRepository playlistSongReactionRepository;
     private final PlaylistSongReportRepository playlistSongReportRepository;
     private final PlaylistModerationService playlistModerationService;
+    private final PlaylistRegistrationGuard playlistRegistrationGuard;
     private final PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
     private final PlaylistChartRepository playlistChartRepository;
     private final SpotifyTrackSearchService spotifyTrackSearchService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 1. 곡 추천/등록
@@ -78,11 +81,19 @@ public class PlaylistService {
         }
 
         // 1-4. 위의 모든 검증 통과 시에만 AI 실시간 코멘트/세로드립 검열 수행 (과금 방어)
-        boolean isAiModerated = playlistModerationService.validateSongContent(
-                request.title(),
-                request.artist(),
-                request.comment()
-        );
+        playlistRegistrationGuard.checkBlocked(request.deviceId());
+        boolean isAiModerated;
+        try {
+            isAiModerated = playlistModerationService.validateSongContent(
+                    request.title(), request.artist(), request.comment());
+        } catch (BusinessException exception) {
+            if (exception.getErrorCode() == ErrorCode.PLAYLIST_INAPPROPRIATE_COMMENT) {
+                playlistRegistrationGuard.recordFailure(request.deviceId());
+            }
+            throw exception;
+        }
+        // A concurrent rejected request may have activated the cooldown during AI validation.
+        playlistRegistrationGuard.checkBlocked(request.deviceId());
 
         // 1-4. 음원 마스터(PlaylistTrack) 조회 또는 신규 생성
         PlaylistTrack track = playlistTrackRepository.findById(request.trackId())
@@ -105,7 +116,9 @@ public class PlaylistService {
                 .build();
 
         PlaylistSong saved = playlistSongRepository.save(song);
-        return PlaylistSongResponse.of(saved);
+        boolean isLiked = playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(
+                track.getTrackId(), request.deviceId());
+        return PlaylistSongResponse.of(saved, Collections.emptyList(), isLiked);
     }
 
     /**
@@ -118,7 +131,8 @@ public class PlaylistService {
         Instant startOf7DaysAgo = LocalDate.now(KST).minusDays(6).atStartOfDay(KST).toInstant();
         Set<String> recentTrackIds = playlistSongRepository.findRecentTrackIdsByDeviceIdAndCreatedAtAfter(deviceId, startOf7DaysAgo);
 
-        return PlaylistCreationStatusResponse.of(todayCount, DAILY_MAX_CREATE_LIMIT, recentTrackIds);
+        return PlaylistCreationStatusResponse.of(todayCount, DAILY_MAX_CREATE_LIMIT, recentTrackIds,
+                playlistRegistrationGuard.getBlockedUntil(deviceId));
     }
 
     /**
@@ -136,11 +150,13 @@ public class PlaylistService {
 
         // Reactions N+1 방지를 위한 2번의 Batch IN 쿼리 (카운트 + 내 반응)
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
+        Set<String> likedTrackIds = findLikedTrackIds(songs, currentDeviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
+                        likedTrackIds.contains(song.getTrackId())
                 ))
                 .toList();
 
@@ -156,7 +172,9 @@ public class PlaylistService {
 
         List<PlaylistReactionItemResponse> reactions = buildSingleReactionList(songId, currentDeviceId);
 
-        return PlaylistSongResponse.of(song, reactions);
+        boolean isLiked = currentDeviceId != null
+                && playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(song.getTrackId(), currentDeviceId);
+        return PlaylistSongResponse.of(song, reactions, isLiked);
     }
 
     /**
@@ -174,11 +192,13 @@ public class PlaylistService {
         List<UUID> songIds = songs.stream().map(PlaylistSong::getId).toList();
 
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
+        Set<String> likedTrackIds = findLikedTrackIds(songs, currentDeviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
+                        likedTrackIds.contains(song.getTrackId())
                 ))
                 .toList();
 
@@ -200,15 +220,25 @@ public class PlaylistService {
 
         // Reactions 배치 조회
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, deviceId);
+        Set<String> likedTrackIds = findLikedTrackIds(songs, deviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
+                        likedTrackIds.contains(song.getTrackId())
                 ))
                 .toList();
 
         return new PageImpl<>(responses, pageable, songPage.getTotalElements());
+    }
+
+    private Set<String> findLikedTrackIds(List<PlaylistSong> songs, UUID deviceId) {
+        if (deviceId == null || songs.isEmpty()) {
+            return Collections.emptySet();
+        }
+        List<String> trackIds = songs.stream().map(PlaylistSong::getTrackId).distinct().toList();
+        return playlistTrackLikeRepository.findLikedTrackIds(deviceId, trackIds);
     }
 
     private SpotifySearchExpansion findSpotifyExpansionSafely(String keyword) {
@@ -240,17 +270,18 @@ public class PlaylistService {
 
         // Reactions Batch IN 쿼리 판별
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
+        boolean isLiked = currentDeviceId != null
+                && playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(trackId, currentDeviceId);
 
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
-                        reactionMap.getOrDefault(song.getId(), Collections.emptyList())
+                        reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
+                        isLiked
                 ))
                 .toList();
 
         Page<PlaylistSongResponse> responsePage = new PageImpl<>(responses, pageable, songPage.getTotalElements());
-        boolean isLiked = currentDeviceId != null
-                && playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(trackId, currentDeviceId);
 
         return PlaylistTrackDetailResponse.of(track, songPage.getTotalElements(), isLiked, responsePage);
     }
@@ -263,26 +294,17 @@ public class PlaylistService {
         PlaylistTrack track = playlistTrackRepository.findById(trackId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 음원 트랙입니다. trackId: " + trackId));
 
-        Optional<PlaylistTrackLike> existingLike = playlistTrackLikeRepository.findByTrackTrackIdAndDeviceId(trackId, deviceId);
-
         boolean isLiked;
-        if (existingLike.isPresent()) {
+        if (playlistTrackLikeRepository.deleteIfPresent(trackId, deviceId) > 0) {
             // [좋아요 취소]
-            playlistTrackLikeRepository.delete(existingLike.get());
             playlistTrackRepository.decrementLikeCount(trackId);
             isLiked = false;
         } else {
             // [좋아요 등록]
-            try {
-                PlaylistTrackLike newLike = PlaylistTrackLike.builder()
-                        .track(track)
-                        .deviceId(deviceId)
-                        .build();
-                playlistTrackLikeRepository.save(newLike);
+            if (playlistTrackLikeRepository.insertIfAbsent(trackId, deviceId) > 0) {
                 playlistTrackRepository.incrementLikeCount(trackId);
                 isLiked = true;
-            } catch (DataIntegrityViolationException e) {
-                log.warn("[PlaylistTrackLike] 중복 좋아요 요청 감지 - trackId: {}, deviceId: {}", trackId, deviceId);
+            } else {
                 isLiked = true;
             }
         }
@@ -299,29 +321,17 @@ public class PlaylistService {
         PlaylistSong song = playlistSongRepository.findByIdAndDeletedAtIsNull(songId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않거나 삭제된 곡입니다. id: " + songId));
 
-        Optional<PlaylistSongReaction> existing = playlistSongReactionRepository
-                .findBySongIdAndDeviceIdAndReactionType(songId, request.deviceId(), request.reactionType());
-
         boolean isReacted;
-        if (existing.isPresent()) {
+        if (playlistSongReactionRepository.deleteIfPresent(
+                songId, request.deviceId(), request.reactionType().name()) > 0) {
             // [리액션 취소]
-            playlistSongReactionRepository.deleteBySongIdAndDeviceIdAndReactionType(
-                    songId, request.deviceId(), request.reactionType()
-            );
             isReacted = false;
         } else {
             // [리액션 추가]
-            try {
-                PlaylistSongReaction newReaction = PlaylistSongReaction.builder()
-                        .song(song)
-                        .deviceId(request.deviceId())
-                        .reactionType(request.reactionType())
-                        .build();
-                playlistSongReactionRepository.save(newReaction);
+            if (playlistSongReactionRepository.insertIfAbsent(
+                    songId, request.deviceId(), request.reactionType().name()) > 0) {
                 isReacted = true;
-            } catch (DataIntegrityViolationException e) {
-                log.warn("[PlaylistReaction] 중복 리액션 동시성 방어 - songId: {}, deviceId: {}, type: {}",
-                        songId, request.deviceId(), request.reactionType());
+            } else {
                 isReacted = true;
             }
         }
@@ -420,6 +430,10 @@ public class PlaylistService {
                 .build();
 
         PlaylistSongReport saved = playlistSongReportRepository.save(report);
+        eventPublisher.publishEvent(new PlaylistReportCreatedEvent(
+                saved.getId(), songId, song.getTrack().getTitle(),
+                song.getTrack().getArtist(), song.getComment(), saved.getReason()
+        ));
         return PlaylistSongReportResponse.from(saved);
     }
 

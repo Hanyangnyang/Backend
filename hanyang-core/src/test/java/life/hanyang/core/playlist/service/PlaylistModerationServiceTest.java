@@ -3,6 +3,8 @@ package life.hanyang.core.playlist.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.llm.gemini.GeminiApiClient;
+import life.hanyang.core.global.llm.jev.JevApiClient;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,17 +12,23 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class PlaylistModerationServiceTest {
 
     @Mock
     private GeminiApiClient geminiApiClient;
+
+    @Mock
+    private JevApiClient jevApiClient;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -31,8 +39,72 @@ class PlaylistModerationServiceTest {
     @Test
     @DisplayName("코멘트가 비어있으면 검열을 즉시 통과한다")
     void validateSongContent_PassesImmediately_WhenCommentEmpty() {
-        boolean result = playlistModerationService.validateSongContent("Ditto", "NewJeans", "");
+        boolean result = playlistModerationService.validateSongContent("", "", "");
         assertThat(result).isTrue();
+        verifyNoInteractions(jevApiClient, geminiApiClient);
+    }
+
+    @Test
+    void passesAtExactJevThresholdWithoutGemini() {
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willReturn(0.51);
+        assertThat(playlistModerationService.validateSongContent("곡", "가수", "추천")).isTrue();
+        verifyNoInteractions(geminiApiClient);
+        ArgumentCaptor<String> state = ArgumentCaptor.forClass(String.class);
+        verify(jevApiClient).registrationAllowedProbability(state.capture(), anyString());
+        assertThat(state.getValue()).contains("일베", "정치적 비하", "고인 모독", "정치 성향과 무관");
+    }
+
+    @Test
+    void usesConfiguredApprovalThreshold() {
+        ReflectionTestUtils.setField(playlistModerationService, "approvalThreshold", 0.80);
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willReturn(0.79);
+        given(geminiApiClient.generateContent(anyString())).willReturn("{\"inappropriate\":false}");
+        assertThat(playlistModerationService.validateSongContent("곡", "가수", "추천")).isTrue();
+        verify(geminiApiClient).generateContent(anyString());
+    }
+
+    @Test
+    void passesAtConfiguredApprovalThreshold() {
+        ReflectionTestUtils.setField(playlistModerationService, "approvalThreshold", 0.80);
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willReturn(0.80);
+        assertThat(playlistModerationService.validateSongContent("곡", "가수", "추천")).isTrue();
+        verifyNoInteractions(geminiApiClient);
+    }
+
+    @Test
+    void fallsBackBelowJevThresholdAndPreservesRejection() {
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willReturn(0.5099);
+        given(geminiApiClient.generateContent(anyString()))
+                .willReturn("{\"inappropriate\":true,\"reason\":\"정치적 비하\"}");
+        assertThatThrownBy(() -> playlistModerationService.validateSongContent("곡", "가수", "코멘트"))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("정치적 비하");
+        ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
+        verify(geminiApiClient).generateContent(prompt.capture());
+        assertThat(prompt.getValue()).contains("자동 승인 기준을 충족하지 못했습니다", "등록 허용 추정 확률 (0~1): 0.5099",
+                "정상 문맥이라도 등록 불가", "실제 입력에서 정책 위반 여부를 확인");
+        assertThat(prompt.getValue()).doesNotContain("판정 결과 없음");
+    }
+
+    @Test
+    void fallsBackWhenJevTimesOut() {
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString()))
+                .willThrow(new RuntimeException("timeout"));
+        given(geminiApiClient.generateContent(anyString())).willReturn("{\"inappropriate\":false}");
+        assertThat(playlistModerationService.validateSongContent("곡", "가수", "")).isTrue();
+        ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
+        verify(geminiApiClient).generateContent(prompt.capture());
+        assertThat(prompt.getValue()).contains("사전 검증 실패로 판정 결과 없음", "독립적으로 판단");
+        assertThat(prompt.getValue()).doesNotContain("자동 승인 기준을 충족하지 못했습니다", "등록 허용 추정 확률 (0~1):");
+    }
+
+    @Test
+    void fallsBackOnInvalidJevProbability() {
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willReturn(Double.NaN);
+        given(geminiApiClient.generateContent(anyString())).willReturn("{\"inappropriate\":false}");
+        assertThat(playlistModerationService.validateSongContent("곡", "가수", "추천")).isTrue();
+        ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
+        verify(geminiApiClient).generateContent(prompt.capture());
+        assertThat(prompt.getValue()).contains("판정 결과 없음").doesNotContain("NaN", "등록 허용 추정 확률 (0~1):");
     }
 
     @Test

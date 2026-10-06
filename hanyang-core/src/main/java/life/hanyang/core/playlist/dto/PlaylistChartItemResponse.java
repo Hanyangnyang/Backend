@@ -17,5 +17,12 @@ public record PlaylistChartItemResponse(
         String artist,
 
         @Schema(description = "앨범 커버 이미지 URL", example = "https://i.scdn.co/image/ab67616d0000b273...")
-        String albumArtUrl
-) {}
+        String albumArtUrl,
+
+        @Schema(description = "현재 기기가 이 곡을 좋아요했는지 여부", example = "true")
+        boolean isLiked
+) {
+    public PlaylistChartItemResponse(int rank, String trackId, String title, String artist, String albumArtUrl) {
+        this(rank, trackId, title, artist, albumArtUrl, false);
+    }
+}

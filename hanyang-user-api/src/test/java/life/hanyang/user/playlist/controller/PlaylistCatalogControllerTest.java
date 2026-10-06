@@ -39,12 +39,12 @@ class PlaylistCatalogControllerTest {
     void searchTracks_Success() {
         MusicSearchResponse catalogResponse = new MusicSearchResponse(List.of(
                 new MusicSearchTrackResponse(
-                        "track-1", "Love Lee", "AKMU", "https://i.scdn.co/image/cover", 3L
+                        "track-1", "Love Lee", "AKMU", "https://i.scdn.co/image/cover", 3L, false
                 )
         ));
-        given(playlistCatalogService.searchTracks("악뮤")).willReturn(catalogResponse);
+        given(playlistCatalogService.searchTracks("악뮤", null)).willReturn(catalogResponse);
 
-        ResponseEntity<?> response = playlistCatalogController.searchTracks("악뮤");
+        ResponseEntity<?> response = playlistCatalogController.searchTracks("악뮤", null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isInstanceOf(ApiResponse.class);
@@ -55,7 +55,7 @@ class PlaylistCatalogControllerTest {
     @Test
     @DisplayName("2자 미만 검색어는 Spotify를 호출하지 않고 공통 400 오류를 반환한다")
     void searchTracks_ReturnsBadRequest_WhenKeywordTooShort() {
-        ResponseEntity<?> response = playlistCatalogController.searchTracks("악");
+        ResponseEntity<?> response = playlistCatalogController.searchTracks("악", null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(((ApiResponse<?>) response.getBody()).getError().getCode())
@@ -65,10 +65,10 @@ class PlaylistCatalogControllerTest {
     @Test
     @DisplayName("Spotify 요청 제한은 Retry-After 헤더와 공통 429 오류를 반환한다")
     void searchTracks_ReturnsRetryAfter_WhenRateLimited() {
-        given(playlistCatalogService.searchTracks("악뮤"))
+        given(playlistCatalogService.searchTracks("악뮤", null))
                 .willThrow(new SpotifyRateLimitException(17, new RuntimeException()));
 
-        ResponseEntity<?> response = playlistCatalogController.searchTracks("악뮤");
+        ResponseEntity<?> response = playlistCatalogController.searchTracks("악뮤", null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("17");
