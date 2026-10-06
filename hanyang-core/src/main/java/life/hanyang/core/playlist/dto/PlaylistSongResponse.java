@@ -39,6 +39,9 @@ public record PlaylistSongResponse(
         @Schema(description = "해당 음원의 전체 누적 재생수", example = "128")
         Integer totalPlayCount,
 
+        @Schema(description = "현재 기기가 이 곡을 좋아요했는지 여부", example = "true")
+        boolean isLiked,
+
         @Schema(description = "10대 이모지 리액션 목록")
         List<PlaylistReactionItemResponse> reactions,
 
@@ -53,6 +56,10 @@ public record PlaylistSongResponse(
     }
 
     public static PlaylistSongResponse of(PlaylistSong song, List<PlaylistReactionItemResponse> reactions) {
+        return of(song, reactions, false);
+    }
+
+    public static PlaylistSongResponse of(PlaylistSong song, List<PlaylistReactionItemResponse> reactions, boolean isLiked) {
         return new PlaylistSongResponse(
                 song.getId(),
                 song.getTrackId(),
@@ -63,6 +70,7 @@ public record PlaylistSongResponse(
                 song.getDeviceId(),
                 song.getGenres(),
                 song.getTotalPlayCount() != null ? song.getTotalPlayCount() : 0,
+                isLiked,
                 (reactions != null) ? reactions : Collections.emptyList(),
                 song.getCreatedAt(),
                 song.getUpdatedAt()

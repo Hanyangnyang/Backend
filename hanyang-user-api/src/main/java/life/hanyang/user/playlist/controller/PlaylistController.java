@@ -12,6 +12,7 @@ import life.hanyang.core.playlist.domain.ChartType;
 import life.hanyang.core.playlist.domain.Genre;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.service.PlaylistService;
+import life.hanyang.core.playlist.service.PlaylistChartQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
@@ -34,6 +35,7 @@ import java.util.UUID;
 public class PlaylistController {
 
     private final PlaylistService playlistService;
+    private final PlaylistChartQueryService playlistChartQueryService;
 
     @Operation(
             summary = "곡 추천 및 등록",
@@ -56,9 +58,11 @@ public class PlaylistController {
     @Operation(
             summary = "곡 작성 전 사용자 기기 상태 조회 (등록 제한 사전 확인)",
             description = "사용자가 곡 등록 화면에 진입할 때 오늘 남은 등록 가능 횟수 및 최근 7일 내 이미 추천한 곡 목록을 조회합니다.\n\n" +
-                    "• **canCreate**: 오늘 추가 등록 가능 여부 (오늘 등록 수 < 3)\n" +
+                    "• **canCreate**: 등록 가능 여부 (일일 제한 미초과 및 임시 제한 없음)\n" +
                     "• **dailyCount**: 오늘 이미 등록한 곡 수 (0~3)\n" +
                     "• **remainingCount**: 오늘 남은 등록 가능 횟수\n" +
+                    "• **temporarilyBlocked**: 반복된 콘텐츠 검증 실패로 인한 임시 제한 여부\n" +
+                    "• **blockedUntil**: 임시 제한 해제 시각 (UTC ISO 8601). 미차단 또는 Redis 장애 시 null\n" +
                     "• **recentTrackIdsIn7Days**: 최근 7일 이내에 이미 추천한 Spotify 트랙 ID 목록 (검색 시 중복 선택 방지용)"
     )
     @GetMapping("/creation-status")
@@ -136,9 +140,9 @@ public class PlaylistController {
 
     @Operation(
             summary = "특정 곡의 추천글 모아보기 (상세 조회)",
-            description = "특정 음원(trackId)의 메타데이터 및 해당 곡에 학생들이 작성한 추천글 목록을 인기순(기본값) 또는 최신순으로 페이징 조회합니다.\n\n" +
+            description = "특정 음원(trackId)의 메타데이터 및 해당 곡에 학생들이 작성한 추천글 목록을 이모지 반응 수 기준 인기순으로 페이징 조회합니다.\n\n" +
                     "• **deviceId**: 현재 기기 식별자 ID 전달 시 각 글의 `isLiked: true/false` 반환\n" +
-                    "• **sort**: 인기순(기본값: `heartCount,desc`) / 최신순(`createdAt,desc`)\n" +
+                    "• **정렬**: 전체 이모지 반응 수가 많은 순서로 조회하며, 반응 수가 같으면 최신순으로 정렬합니다.\n" +
                     "• **page/size**: 0부터 시작하는 페이지 번호와 페이지당 개수 (기본값: size=20)"
     )
     @GetMapping("/tracks/{trackId}")
@@ -177,9 +181,11 @@ public class PlaylistController {
             @Parameter(description = "차트 유형 (RISING, WEEKLY, MONTHLY)", example = "RISING")
             @RequestParam(required = false, defaultValue = "RISING") ChartType type,
             @Parameter(description = "장르별 차트 필터 (미입력 시 전체)", example = "KPOP")
-            @RequestParam(required = false) Genre genre
+            @RequestParam(required = false) Genre genre,
+            @Parameter(description = "기기 식별자 ID (곡 좋아요 여부 계산용)")
+            @RequestParam(required = false) UUID deviceId
     ) {
-        PlaylistChartResponse response = playlistService.getChart(type, genre);
+        PlaylistChartResponse response = playlistChartQueryService.getChart(type, genre, deviceId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

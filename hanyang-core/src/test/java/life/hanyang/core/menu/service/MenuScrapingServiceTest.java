@@ -50,6 +50,28 @@ class MenuScrapingServiceTest {
     }
 
     @Test
+    @DisplayName("설명의 슬래시와 줄바꿈을 분리하고 대표 메뉴명의 슬래시는 유지한다")
+    void parseSlashSeparatedDescriptions() {
+        Document document = Jsoup.parse("""
+                <div class="menu-group">
+                  <div class="menu-group__title">조식</div>
+                  <div class="menu-item">
+                    <div class="menu-item__name">[천원의 아침밥] 토스트/데니쉬빵 (Brunch Set)</div>
+                    <div class="menu-item__desc"> / <span>양배추샐러드&amp;드레싱</span> / 흰우유//<br/>바나나<br>양념밥 / </div>
+                    <span class="menu-item__price">1,000원</span>
+                  </div>
+                </div>
+                """);
+
+        List<MenuCrawlResultDto.MenuDetailDto> menus = service.parseMenus(document);
+
+        assertEquals(1, menus.size());
+        assertEquals("[천원의 아침밥]\n토스트/데니쉬빵\n양배추샐러드&드레싱\n흰우유\n바나나\n양념밥",
+                menus.get(0).displayMenu());
+        assertEquals(1000, menus.get(0).price());
+    }
+
+    @Test
     @DisplayName("시설 정보 표에서 식사별 운영시간을 파싱한다")
     void parseOperatingHours() {
         Document document = Jsoup.parse("""

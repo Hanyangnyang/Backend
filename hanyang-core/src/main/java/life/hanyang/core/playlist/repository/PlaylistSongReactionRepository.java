@@ -14,6 +14,18 @@ import java.util.UUID;
 
 public interface PlaylistSongReactionRepository extends JpaRepository<PlaylistSongReaction, UUID> {
 
+    @Modifying
+    @Query(value = """
+            INSERT INTO playlist_song_reactions (id, song_id, device_id, reaction_type, created_at)
+            VALUES (gen_random_uuid(), :songId, :deviceId, :reactionType, CURRENT_TIMESTAMP)
+            ON CONFLICT (song_id, device_id, reaction_type) DO NOTHING
+            """, nativeQuery = true)
+    int insertIfAbsent(
+            @Param("songId") UUID songId,
+            @Param("deviceId") UUID deviceId,
+            @Param("reactionType") String reactionType
+    );
+
     Optional<PlaylistSongReaction> findBySongIdAndDeviceIdAndReactionType(
             UUID songId,
             UUID deviceId,
@@ -26,6 +38,17 @@ public interface PlaylistSongReactionRepository extends JpaRepository<PlaylistSo
             @Param("songId") UUID songId,
             @Param("deviceId") UUID deviceId,
             @Param("reactionType") ReactionType reactionType
+    );
+
+    @Modifying
+    @Query(value = """
+            DELETE FROM playlist_song_reactions
+            WHERE song_id = :songId AND device_id = :deviceId AND reaction_type = :reactionType
+            """, nativeQuery = true)
+    int deleteIfPresent(
+            @Param("songId") UUID songId,
+            @Param("deviceId") UUID deviceId,
+            @Param("reactionType") String reactionType
     );
 
     /**

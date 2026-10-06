@@ -150,6 +150,7 @@ public class MenuScrapingService {
                     Arrays.stream(descriptionElement.html().split("(?i)<br\\s*/?>"))
                             .map(Jsoup::parse)
                             .map(Document::text)
+                            .flatMap(text -> Arrays.stream(text.split("/")))
                             .map(String::trim)
                             .filter(text -> !text.isBlank())
                             .forEach(menuItems::add);
