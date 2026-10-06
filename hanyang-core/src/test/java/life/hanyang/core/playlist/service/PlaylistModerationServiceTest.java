@@ -3,10 +3,14 @@ package life.hanyang.core.playlist.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.llm.gemini.GeminiApiClient;
+import life.hanyang.core.global.llm.gemini.GeminiApiResponse;
+import java.util.function.BiConsumer;
 import life.hanyang.core.global.llm.jev.JevApiClient;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -17,6 +21,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -33,8 +39,34 @@ class PlaylistModerationServiceTest {
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+    @Spy
+    private PlaylistModerationMetrics metrics = new PlaylistModerationMetrics(registry);
+
+    @BeforeEach
+    void forwardUsageOverloadToExistingResponseStubs() {
+        lenient().doAnswer(invocation -> geminiApiClient.generateContent(invocation.getArgument(0)))
+                .when(geminiApiClient).generateContent(anyString(), any());
+    }
+
     @InjectMocks
     private PlaylistModerationService playlistModerationService;
+
+    @Test
+    void recordsGeminiUsageForModerationOnly() {
+        org.mockito.Mockito.doAnswer(invocation -> {
+            BiConsumer<String, GeminiApiResponse.UsageMetadata> observer = invocation.getArgument(1);
+            observer.accept("test-model", new GeminiApiResponse.UsageMetadata(100, 10, 5, 20, 115));
+            return "{\"inappropriate\":false}";
+        }).when(geminiApiClient).generateContent(anyString(), any());
+        assertThat(playlistModerationService.validateSongContent("곡", "가수", "추천")).isTrue();
+        assertResult("below_threshold", "approved");
+        assertThat(registry.get("playlist.moderation.tokens").tags("model", "test-model", "type", "input")
+                .counter().count()).isEqualTo(100);
+        assertThat(registry.get("playlist.moderation.tokens").tags("model", "test-model", "type", "thoughts")
+                .counter().count()).isEqualTo(5);
+    }
 
     @Test
     @DisplayName("코멘트가 비어있으면 검열을 즉시 통과한다")
@@ -42,6 +74,7 @@ class PlaylistModerationServiceTest {
         boolean result = playlistModerationService.validateSongContent("", "", "");
         assertThat(result).isTrue();
         verifyNoInteractions(jevApiClient, geminiApiClient);
+        assertResult("skipped", "not_called");
     }
 
     @Test
@@ -49,6 +82,7 @@ class PlaylistModerationServiceTest {
         given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willReturn(0.51);
         assertThat(playlistModerationService.validateSongContent("곡", "가수", "추천")).isTrue();
         verifyNoInteractions(geminiApiClient);
+        assertResult("approved", "not_called");
         ArgumentCaptor<String> state = ArgumentCaptor.forClass(String.class);
         verify(jevApiClient).registrationAllowedProbability(state.capture(), anyString());
         assertThat(state.getValue()).contains("일베", "정치적 비하", "고인 모독", "정치 성향과 무관");
@@ -83,6 +117,7 @@ class PlaylistModerationServiceTest {
         assertThat(prompt.getValue()).contains("자동 승인 기준을 충족하지 못했습니다", "등록 허용 추정 확률 (0~1): 0.5099",
                 "정상 문맥이라도 등록 불가", "실제 입력에서 정책 위반 여부를 확인");
         assertThat(prompt.getValue()).doesNotContain("판정 결과 없음");
+        assertResult("below_threshold", "rejected");
     }
 
     @Test
@@ -95,6 +130,7 @@ class PlaylistModerationServiceTest {
         verify(geminiApiClient).generateContent(prompt.capture());
         assertThat(prompt.getValue()).contains("사전 검증 실패로 판정 결과 없음", "독립적으로 판단");
         assertThat(prompt.getValue()).doesNotContain("자동 승인 기준을 충족하지 못했습니다", "등록 허용 추정 확률 (0~1):");
+        assertResult("error", "approved");
     }
 
     @Test
@@ -179,5 +215,21 @@ class PlaylistModerationServiceTest {
 
         // then
         assertThat(result).isFalse();
+        assertResult("below_threshold", "error");
+    }
+
+    private void assertResult(String jevResult, String geminiResult) {
+        assertThat(registry.get("playlist.moderation").tags("jev_result", jevResult,
+                "gemini_result", geminiResult).counter().count()).isEqualTo(1);
+        assertThat(registry.find("playlist.moderation").counters().stream()
+                .mapToDouble(counter -> counter.count()).sum()).isEqualTo(1);
+        if (!jevResult.equals("skipped")) {
+            assertThat(registry.get("playlist.moderation.api").tags("provider", "jev")
+                    .timer().count()).isEqualTo(1);
+        }
+        if (!geminiResult.equals("not_called")) {
+            assertThat(registry.get("playlist.moderation.api").tags("provider", "gemini")
+                    .timer().count()).isEqualTo(1);
+        }
     }
 }
