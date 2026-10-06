@@ -41,6 +41,9 @@ playlist:
     failure-window: ${PLAYLIST_REGISTRATION_FAILURE_WINDOW:1h}
     cooldown: ${PLAYLIST_REGISTRATION_COOLDOWN:30m}
     failure-limit: ${PLAYLIST_REGISTRATION_FAILURE_LIMIT:3}
+  report:
+    webhook:
+      url: ${PLAYLIST_REPORT_WEBHOOK_URL:}
 
 aws:
   s3:
@@ -125,8 +128,3 @@ logging:
 feedback:
   webhook:
     url: ${FEEDBACK_WEBHOOK_URL:}
-
-playlist:
-  report:
-    webhook:
-      url: ${PLAYLIST_REPORT_WEBHOOK_URL:}
