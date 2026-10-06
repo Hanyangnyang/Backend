@@ -49,6 +49,7 @@ public class PlaylistService {
     private final PlaylistSongReportRepository playlistSongReportRepository;
     private final PlaylistModerationService playlistModerationService;
     private final PlaylistRegistrationGuard playlistRegistrationGuard;
+    private final PlaylistRegistrationLock playlistRegistrationLock;
     private final PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
     private final PlaylistChartRepository playlistChartRepository;
     private final SpotifyTrackSearchService spotifyTrackSearchService;
@@ -63,6 +64,8 @@ public class PlaylistService {
         if (request.genres() == null || request.genres().isEmpty() || request.genres().size() > 3) {
             throw new BusinessException("장르는 최소 1개에서 최대 3개까지 선택해야 합니다.", ErrorCode.INVALID_INPUT_VALUE);
         }
+
+        playlistRegistrationLock.acquireUntilTransactionCompletion(request.deviceId());
 
         // 1-2. 오늘(00:00~23:59:59 KST) 등록 횟수 3곡 제한 검증 (비용 0원)
         Instant startOfToday = LocalDate.now(KST).atStartOfDay(KST).toInstant();
