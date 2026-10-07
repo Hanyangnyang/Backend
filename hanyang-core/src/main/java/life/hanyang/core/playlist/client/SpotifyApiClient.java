@@ -2,6 +2,7 @@ package life.hanyang.core.playlist.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import life.hanyang.core.playlist.dto.SpotifyTrackSearchResponse;
 import life.hanyang.core.global.exception.EntityNotFoundException;
 import life.hanyang.core.playlist.exception.SpotifyRateLimitException;
@@ -74,7 +75,8 @@ public class SpotifyApiClient {
         ensureCredentialsConfigured();
         return executeWithAccessToken(accessToken -> {
             SpotifyTrackItem item = apiClient.get()
-                    .uri("/tracks/{trackId}", trackId)
+                    .uri(uriBuilder -> uriBuilder.path("/tracks/{trackId}")
+                            .queryParam("market", market).build(trackId))
                     .headers(headers -> {
                         headers.setBearerAuth(accessToken);
                         headers.set(HttpHeaders.ACCEPT_LANGUAGE, "ko-KR,ko;q=0.9");
@@ -83,12 +85,27 @@ public class SpotifyApiClient {
                     .onStatus(status -> status.value() == 404, (request, response) -> {
                         throw new EntityNotFoundException("존재하지 않는 Spotify 트랙입니다. trackId: " + trackId);
                     })
+                    .onStatus(status -> status.value() == 400, (request, response) -> {
+                        SpotifyErrorResponse error = new ObjectMapper().readValue(
+                                response.getBody(), SpotifyErrorResponse.class);
+                        if (error != null && error.error() != null
+                                && "invalid id".equalsIgnoreCase(error.error().message())) {
+                            throw new EntityNotFoundException("존재하지 않는 Spotify 트랙입니다. trackId: " + trackId);
+                        }
+                        throw new SpotifyServiceUnavailableException();
+                    })
                     .body(SpotifyTrackItem.class);
-            if (item == null || !trackId.equals(item.id()) || !StringUtils.hasText(item.name())) {
+            if (item == null || !StringUtils.hasText(item.id()) || !StringUtils.hasText(item.name())
+                    || (!trackId.equals(item.id())
+                        && (item.linkedFrom() == null || !trackId.equals(item.linkedFrom().id())))) {
                 throw new SpotifyServiceUnavailableException();
             }
+            if (!Boolean.TRUE.equals(item.isPlayable())) {
+                throw new EntityNotFoundException("해당 시장에서 재생할 수 없는 Spotify 트랙입니다. trackId: " + trackId);
+            }
+            // 좋아요의 식별자는 요청 ID를 유지하고, Spotify가 연결한 재생 가능한 곡의 메타데이터를 사용한다.
             return new SpotifyTrackSearchResponse(
-                    item.id(), item.name(), firstArtist(item), albumArtUrl(item), 1);
+                    trackId, item.name(), firstArtist(item), albumArtUrl(item), 1);
         });
     }
 
@@ -254,9 +271,20 @@ public class SpotifyApiClient {
             String id,
             String name,
             List<SpotifyArtist> artists,
-            SpotifyAlbum album
+            SpotifyAlbum album,
+            @JsonProperty("is_playable") Boolean isPlayable,
+            @JsonProperty("linked_from") SpotifyLinkedTrack linkedFrom
     ) {
     }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record SpotifyLinkedTrack(String id) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record SpotifyErrorResponse(SpotifyError error) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record SpotifyError(String message) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record SpotifyArtist(String name) {

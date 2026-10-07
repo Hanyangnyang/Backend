@@ -8,6 +8,9 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import life.hanyang.core.global.response.ApiResponse;
+import life.hanyang.core.global.exception.ErrorCode;
+import life.hanyang.core.playlist.exception.SpotifyRateLimitException;
+import org.springframework.http.HttpHeaders;
 import life.hanyang.core.playlist.domain.ChartType;
 import life.hanyang.core.playlist.domain.Genre;
 import life.hanyang.core.playlist.dto.*;
@@ -215,6 +218,14 @@ public class PlaylistController {
     ) {
         PlaylistLikeToggleResponse response = playlistService.toggleTrackLike(trackId, request.deviceId());
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @ExceptionHandler(SpotifyRateLimitException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSpotifyRateLimit(SpotifyRateLimitException exception) {
+        return ResponseEntity.status(ErrorCode.SPOTIFY_RATE_LIMITED.getStatus())
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.getRetryAfterSeconds()))
+                .body(ApiResponse.fail(ErrorCode.SPOTIFY_RATE_LIMITED.getCode(),
+                        ErrorCode.SPOTIFY_RATE_LIMITED.getMessage()));
     }
 
     @Operation(

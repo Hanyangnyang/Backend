@@ -81,6 +81,9 @@ class PlaylistServiceTest {
     private SpotifyTrackSearchService spotifyTrackSearchService;
 
     @Mock
+    private PlaylistTrackLikeService playlistTrackLikeService;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
@@ -500,91 +503,88 @@ class PlaylistServiceTest {
 
 
     @Test
-    @DisplayName("곡 좋아요 등록 토글 성공")
-    void toggleTrackLike_Success_AddLike() {
-        // given
+    void toggleTrackLike_FetchesBeforeDatabaseWrite() {
         String trackId = "track-1";
         UUID deviceId = UUID.randomUUID();
-        PlaylistTrack track = PlaylistTrack.builder()
-                .trackId("track-1")
-                .title("Ditto")
-                .artist("NewJeans")
-                .build();
-        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
-        given(playlistTrackLikeRepository.deleteIfPresent(trackId, deviceId)).willReturn(0);
-        given(playlistTrackLikeRepository.insertIfAbsent(trackId, deviceId)).willReturn(1);
-        given(playlistTrackRepository.getLikeCount(trackId)).willReturn(Optional.of(1));
-
-        // when
-        PlaylistLikeToggleResponse response = playlistService.toggleTrackLike(trackId, deviceId);
-
-        // then
-        assertThat(response.isLiked()).isTrue();
-        assertThat(response.likeCount()).isEqualTo(1);
-        verify(playlistTrackRepository).incrementLikeCount(trackId);
-        verify(playlistTrackLikeRepository).insertIfAbsent(trackId, deviceId);
-        verifyNoInteractions(spotifyTrackSearchService);
-    }
-
-    @Test
-    @DisplayName("미등록 트랙은 Spotify 조회 후 저장하고 좋아요를 등록한다")
-    void toggleTrackLike_RegistersMissingTrack() {
-        String trackId = "track-1";
-        UUID deviceId = UUID.randomUUID();
+        var metadata = new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1);
         given(playlistTrackRepository.findById(trackId)).willReturn(Optional.empty());
-        given(spotifyTrackSearchService.getTrack(trackId)).willReturn(
-                new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1));
-        given(playlistTrackLikeRepository.insertIfAbsent(trackId, deviceId)).willReturn(1);
-        given(playlistTrackRepository.getLikeCount(trackId)).willReturn(Optional.of(1));
+        given(spotifyTrackSearchService.getTrack(trackId)).willReturn(metadata);
+        given(playlistTrackLikeService.toggle(trackId, deviceId, metadata))
+                .willReturn(new PlaylistLikeToggleResponse(true, 1));
 
-        PlaylistLikeToggleResponse response = playlistService.toggleTrackLike(trackId, deviceId);
-
-        assertThat(response.isLiked()).isTrue();
-        assertThat(response.likeCount()).isEqualTo(1);
-        var order = org.mockito.Mockito.inOrder(playlistTrackRepository, playlistTrackLikeRepository);
-        order.verify(playlistTrackRepository).insertIfAbsent(trackId, "Ditto", "NewJeans", "cover");
-        order.verify(playlistTrackLikeRepository).deleteIfPresent(trackId, deviceId);
-        order.verify(playlistTrackLikeRepository).insertIfAbsent(trackId, deviceId);
-        order.verify(playlistTrackRepository).incrementLikeCount(trackId);
+        assertThat(playlistService.toggleTrackLike(trackId, deviceId).isLiked()).isTrue();
+        var order = org.mockito.Mockito.inOrder(spotifyTrackSearchService, playlistTrackLikeService);
+        order.verify(spotifyTrackSearchService).getTrack(trackId);
+        order.verify(playlistTrackLikeService).toggle(trackId, deviceId, metadata);
     }
 
     @Test
-    @DisplayName("Spotify 조회 실패 시 트랙과 좋아요를 저장하지 않는다")
-    void toggleTrackLike_DoesNotLikeWhenSpotifyFails() {
+    void toggleTrackLike_ExistingTrackSkipsSpotify() {
+        String trackId = "track-1";
+        UUID deviceId = UUID.randomUUID();
+        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(
+                PlaylistTrack.builder().trackId(trackId).title("Ditto").artist("NewJeans").build()));
+        playlistService.toggleTrackLike(trackId, deviceId);
+        verifyNoInteractions(spotifyTrackSearchService);
+        verify(playlistTrackLikeService).toggle(trackId, deviceId, null);
+    }
+
+    @Test
+    void toggleTrackLike_FailureSkipsDatabaseWrite() {
         String trackId = "track-1";
         given(playlistTrackRepository.findById(trackId)).willReturn(Optional.empty());
         given(spotifyTrackSearchService.getTrack(trackId)).willThrow(new SpotifyServiceUnavailableException());
-
         assertThatThrownBy(() -> playlistService.toggleTrackLike(trackId, UUID.randomUUID()))
                 .isInstanceOf(SpotifyServiceUnavailableException.class);
-        verifyNoInteractions(playlistTrackLikeRepository);
-        verify(playlistTrackRepository, org.mockito.Mockito.never())
-                .insertIfAbsent(any(), any(), any(), any());
+        verifyNoInteractions(playlistTrackLikeService, playlistTrackLikeRepository);
     }
 
     @Test
-    @DisplayName("곡 좋아요 취소 토글 성공")
-    void toggleTrackLike_Success_RemoveLike() {
-        // given
+    void toggleTrackLike_SpotifyRunsOutsideWriteTransaction() {
         String trackId = "track-1";
         UUID deviceId = UUID.randomUUID();
-        PlaylistTrack track = PlaylistTrack.builder()
-                .trackId("track-1")
-                .title("Ditto")
-                .artist("NewJeans")
-                .build();
-        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
-        given(playlistTrackLikeRepository.deleteIfPresent(trackId, deviceId)).willReturn(1);
-        given(playlistTrackRepository.getLikeCount(trackId)).willReturn(Optional.of(0));
+        var metadata = new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1);
+        var manager = new org.springframework.transaction.support.AbstractPlatformTransactionManager() {
+            protected Object doGetTransaction() { return new Object(); }
+            protected void doBegin(Object transaction, org.springframework.transaction.TransactionDefinition definition) {}
+            protected void doCommit(org.springframework.transaction.support.DefaultTransactionStatus status) {}
+            protected void doRollback(org.springframework.transaction.support.DefaultTransactionStatus status) {}
+        };
+        var attributes = new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource();
+        var writerFactory = new org.springframework.aop.framework.ProxyFactory(
+                new PlaylistTrackLikeService(playlistTrackRepository, playlistTrackLikeRepository));
+        writerFactory.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, attributes));
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                playlistService, "playlistTrackLikeService", writerFactory.getProxy());
+        var serviceFactory = new org.springframework.aop.framework.ProxyFactory(playlistService);
+        serviceFactory.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, attributes));
+        var service = (PlaylistService) serviceFactory.getProxy();
+        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.empty());
+        given(spotifyTrackSearchService.getTrack(trackId)).willAnswer(invocation -> {
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager
+                    .isActualTransactionActive()).isFalse();
+            return metadata;
+        });
+        given(playlistTrackRepository.insertIfAbsent(trackId, "Ditto", "NewJeans", "cover"))
+                .willAnswer(invocation -> {
+                    assertThat(org.springframework.transaction.support.TransactionSynchronizationManager
+                            .isActualTransactionActive()).isTrue();
+                    return 1;
+                });
+        given(playlistTrackLikeRepository.insertIfAbsent(trackId, deviceId)).willReturn(1);
+        given(playlistTrackRepository.getLikeCount(trackId)).willReturn(Optional.of(1));
 
-        // when
-        PlaylistLikeToggleResponse response = playlistService.toggleTrackLike(trackId, deviceId);
+        assertThat(service.toggleTrackLike(trackId, deviceId).isLiked()).isTrue();
+        verify(playlistTrackRepository).insertIfAbsent(trackId, "Ditto", "NewJeans", "cover");
+        verify(playlistTrackRepository).incrementLikeCount(trackId);
+    }
 
-        // then
-        assertThat(response.isLiked()).isFalse();
-        assertThat(response.likeCount()).isEqualTo(0);
-        verify(playlistTrackRepository).decrementLikeCount(trackId);
-        verify(playlistTrackLikeRepository).deleteIfPresent(trackId, deviceId);
+    @Test
+    void toggleTrackLike_SuspendsTransaction() throws Exception {
+        var annotation = PlaylistService.class.getMethod("toggleTrackLike", String.class, UUID.class)
+                .getAnnotation(Transactional.class);
+        assertThat(annotation.propagation())
+                .isEqualTo(org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED);
     }
 
     @Test
