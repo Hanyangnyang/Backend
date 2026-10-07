@@ -523,6 +523,43 @@ class PlaylistServiceTest {
         assertThat(response.likeCount()).isEqualTo(1);
         verify(playlistTrackRepository).incrementLikeCount(trackId);
         verify(playlistTrackLikeRepository).insertIfAbsent(trackId, deviceId);
+        verifyNoInteractions(spotifyTrackSearchService);
+    }
+
+    @Test
+    @DisplayName("미등록 트랙은 Spotify 조회 후 저장하고 좋아요를 등록한다")
+    void toggleTrackLike_RegistersMissingTrack() {
+        String trackId = "track-1";
+        UUID deviceId = UUID.randomUUID();
+        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.empty());
+        given(spotifyTrackSearchService.getTrack(trackId)).willReturn(
+                new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1));
+        given(playlistTrackLikeRepository.insertIfAbsent(trackId, deviceId)).willReturn(1);
+        given(playlistTrackRepository.getLikeCount(trackId)).willReturn(Optional.of(1));
+
+        PlaylistLikeToggleResponse response = playlistService.toggleTrackLike(trackId, deviceId);
+
+        assertThat(response.isLiked()).isTrue();
+        assertThat(response.likeCount()).isEqualTo(1);
+        var order = org.mockito.Mockito.inOrder(playlistTrackRepository, playlistTrackLikeRepository);
+        order.verify(playlistTrackRepository).insertIfAbsent(trackId, "Ditto", "NewJeans", "cover");
+        order.verify(playlistTrackLikeRepository).deleteIfPresent(trackId, deviceId);
+        order.verify(playlistTrackLikeRepository).insertIfAbsent(trackId, deviceId);
+        order.verify(playlistTrackRepository).incrementLikeCount(trackId);
+    }
+
+    @Test
+    @DisplayName("Spotify 조회 실패 시 트랙과 좋아요를 저장하지 않는다")
+    void toggleTrackLike_DoesNotLikeWhenSpotifyFails() {
+        String trackId = "track-1";
+        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.empty());
+        given(spotifyTrackSearchService.getTrack(trackId)).willThrow(new SpotifyServiceUnavailableException());
+
+        assertThatThrownBy(() -> playlistService.toggleTrackLike(trackId, UUID.randomUUID()))
+                .isInstanceOf(SpotifyServiceUnavailableException.class);
+        verifyNoInteractions(playlistTrackLikeRepository);
+        verify(playlistTrackRepository, org.mockito.Mockito.never())
+                .insertIfAbsent(any(), any(), any(), any());
     }
 
     @Test

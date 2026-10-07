@@ -291,8 +291,12 @@ public class PlaylistService {
      */
     @Transactional
     public PlaylistLikeToggleResponse toggleTrackLike(String trackId, UUID deviceId) {
-        PlaylistTrack track = playlistTrackRepository.findById(trackId)
-                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 음원 트랙입니다. trackId: " + trackId));
+        if (playlistTrackRepository.findById(trackId).isEmpty()) {
+            SpotifyTrackSearchResponse track = spotifyTrackSearchService.getTrack(trackId);
+            // 같은 트랙의 최초 좋아요 요청이 겹쳐도 트랙은 한 번만 등록한다.
+            playlistTrackRepository.insertIfAbsent(
+                    trackId, track.title(), track.artist(), track.albumArtUrl());
+        }
 
         boolean isLiked;
         if (playlistTrackLikeRepository.deleteIfPresent(trackId, deviceId) > 0) {

@@ -3,6 +3,7 @@ package life.hanyang.core.playlist.client;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import life.hanyang.core.playlist.dto.SpotifyTrackSearchResponse;
+import life.hanyang.core.global.exception.EntityNotFoundException;
 import life.hanyang.core.playlist.exception.SpotifyRateLimitException;
 import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import org.springframework.beans.factory.annotation.Value;
@@ -67,6 +68,28 @@ public class SpotifyApiClient {
         return executeWithAccessToken(accessToken -> mapSearchResults(
                 fetchTracks(keyword, limit, accessToken)
         ));
+    }
+
+    public SpotifyTrackSearchResponse getTrack(String trackId) {
+        ensureCredentialsConfigured();
+        return executeWithAccessToken(accessToken -> {
+            SpotifyTrackItem item = apiClient.get()
+                    .uri("/tracks/{trackId}", trackId)
+                    .headers(headers -> {
+                        headers.setBearerAuth(accessToken);
+                        headers.set(HttpHeaders.ACCEPT_LANGUAGE, "ko-KR,ko;q=0.9");
+                    })
+                    .retrieve()
+                    .onStatus(status -> status.value() == 404, (request, response) -> {
+                        throw new EntityNotFoundException("존재하지 않는 Spotify 트랙입니다. trackId: " + trackId);
+                    })
+                    .body(SpotifyTrackItem.class);
+            if (item == null || !trackId.equals(item.id()) || !StringUtils.hasText(item.name())) {
+                throw new SpotifyServiceUnavailableException();
+            }
+            return new SpotifyTrackSearchResponse(
+                    item.id(), item.name(), firstArtist(item), albumArtUrl(item), 1);
+        });
     }
 
     private <T> T executeWithAccessToken(Function<String, T> request) {

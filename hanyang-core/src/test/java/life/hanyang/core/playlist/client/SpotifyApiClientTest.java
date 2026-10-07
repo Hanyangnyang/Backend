@@ -96,6 +96,36 @@ class SpotifyApiClientTest {
                 .isInstanceOf(SpotifyServiceUnavailableException.class);
     }
 
+    @Test
+    void getTrack_Success() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/track-1", exchange -> {
+            assertThat(exchange.getRequestHeaders().getFirst("Authorization")).isEqualTo("Bearer access-token");
+            respond(exchange, 200, """
+                    {"id":"track-1","name":"Ditto","artists":[{"name":"NewJeans"}],
+                     "album":{"images":[{"url":"cover"}]}}
+                    """);
+        });
+        assertThat(createClient("client-id", "client-secret").getTrack("track-1"))
+                .isEqualTo(new SpotifyTrackSearchResponse("track-1", "Ditto", "NewJeans", "cover", 1));
+    }
+
+    @Test
+    void getTrack_NotFound() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/missing", exchange -> respond(exchange, 404, "{}"));
+        assertThatThrownBy(() -> createClient("client-id", "client-secret").getTrack("missing"))
+                .isInstanceOf(life.hanyang.core.global.exception.EntityNotFoundException.class);
+    }
+
+    @Test
+    void getTrack_RejectsInvalidResponse() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/track-1", exchange -> respond(exchange, 200, "{}"));
+        assertThatThrownBy(() -> createClient("client-id", "client-secret").getTrack("track-1"))
+                .isInstanceOf(SpotifyServiceUnavailableException.class);
+    }
+
     private SpotifyApiClient createClient(String clientId, String clientSecret) {
         return new SpotifyApiClient(
                 RestClient.builder(),
