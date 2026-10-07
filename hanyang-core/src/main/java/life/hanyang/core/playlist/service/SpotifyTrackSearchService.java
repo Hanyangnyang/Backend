@@ -35,6 +35,10 @@ public class SpotifyTrackSearchService {
         return spotifyApiClient.searchTracks(keyword.strip(), limit);
     }
 
+    public SpotifyTrackSearchResponse getTrack(String trackId) {
+        return spotifyApiClient.getTrack(trackId);
+    }
+
     public String cacheKey(String keyword, int limit) {
         String normalized = normalize(keyword);
         return market + ":" + limit + ":" + sha256(normalized);

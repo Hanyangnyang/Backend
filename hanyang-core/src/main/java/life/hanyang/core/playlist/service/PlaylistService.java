@@ -24,6 +24,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -52,6 +53,7 @@ public class PlaylistService {
     private final PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
     private final PlaylistChartRepository playlistChartRepository;
     private final SpotifyTrackSearchService spotifyTrackSearchService;
+    private final PlaylistTrackLikeService playlistTrackLikeService;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -289,28 +291,12 @@ public class PlaylistService {
     /**
      * 4. 곡 좋아요 토글 (동시성 제어 및 원자적 카운트 증감)
      */
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public PlaylistLikeToggleResponse toggleTrackLike(String trackId, UUID deviceId) {
-        PlaylistTrack track = playlistTrackRepository.findById(trackId)
-                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 음원 트랙입니다. trackId: " + trackId));
-
-        boolean isLiked;
-        if (playlistTrackLikeRepository.deleteIfPresent(trackId, deviceId) > 0) {
-            // [좋아요 취소]
-            playlistTrackRepository.decrementLikeCount(trackId);
-            isLiked = false;
-        } else {
-            // [좋아요 등록]
-            if (playlistTrackLikeRepository.insertIfAbsent(trackId, deviceId) > 0) {
-                playlistTrackRepository.incrementLikeCount(trackId);
-                isLiked = true;
-            } else {
-                isLiked = true;
-            }
-        }
-
-        Integer currentLikeCount = playlistTrackRepository.getLikeCount(trackId).orElse(0);
-        return new PlaylistLikeToggleResponse(isLiked, currentLikeCount);
+        SpotifyTrackSearchResponse metadata = playlistTrackRepository.findById(trackId).isEmpty()
+                ? spotifyTrackSearchService.getTrack(trackId)
+                : null;
+        return playlistTrackLikeService.toggle(trackId, deviceId, metadata);
     }
 
     /**
