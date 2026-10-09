@@ -1,5 +1,6 @@
 package life.hanyang.core.playlist.repository;
 
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.NumberExpression;
@@ -12,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.util.List;
 
@@ -77,6 +80,10 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
 
     @Override
     public Page<PlaylistSong> searchSongsByTrackId(String trackId, Pageable pageable) {
+        boolean latest = pageable.getSort().getOrderFor("createdAt") != null;
+        OrderSpecifier<?>[] ordering = latest
+                ? new OrderSpecifier<?>[]{playlistSong.createdAt.desc(), playlistSong.id.desc()}
+                : new OrderSpecifier<?>[]{playlistSongReaction.id.count().desc(), playlistSong.createdAt.desc(), playlistSong.id.desc()};
         List<PlaylistSong> content = queryFactory
                 .selectFrom(playlistSong)
                 .join(playlistSong.track, playlistTrack).fetchJoin()
@@ -86,7 +93,7 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
                         playlistSong.deletedAt.isNull()
                 )
                 .groupBy(playlistSong, playlistTrack)
-                .orderBy(playlistSongReaction.id.count().desc(), playlistSong.createdAt.desc())
+                .orderBy(ordering)
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
@@ -100,7 +107,12 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
                 )
                 .fetchOne();
 
-        return new PageImpl<>(content, pageable, total != null ? total : 0L);
+        Pageable effectivePageable = pageable.isPaged()
+                ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), latest
+                    ? Sort.by(Sort.Direction.DESC, "createdAt", "id")
+                    : Sort.by(Sort.Direction.DESC, "reactionCount", "createdAt", "id"))
+                : pageable;
+        return new PageImpl<>(content, effectivePageable, total != null ? total : 0L);
     }
 
     @Override
