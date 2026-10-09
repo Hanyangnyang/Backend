@@ -607,7 +607,7 @@ class PlaylistServiceTest {
         };
         var attributes = new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource();
         var writerFactory = new org.springframework.aop.framework.ProxyFactory(
-                new PlaylistTrackLikeService(playlistTrackRepository, playlistTrackLikeRepository));
+                new PlaylistTrackLikeService(playlistTrackRepository, playlistTrackLikeRepository, eventPublisher));
         writerFactory.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, attributes));
         org.springframework.test.util.ReflectionTestUtils.setField(
                 playlistService, "playlistTrackLikeService", writerFactory.getProxy());

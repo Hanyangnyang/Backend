@@ -245,6 +245,27 @@ class SpotifyApiClientTest {
     }
 
     @Test
+    void getTrackArtists_AcceptsVerifiedRelinkAndRejectsWrongLinkedFrom() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/0000000000000000000001", exchange -> respond(exchange, 200, """
+                {"id":"0000000000000000000003", "linked_from":{"id":"0000000000000000000001"},
+                 "artists":[{"id":"000000000000000000000A"}]}
+                """));
+        server.createContext("/v1/tracks/0000000000000000000002", exchange -> respond(exchange, 200, """
+                {"id":"0000000000000000000003", "linked_from":{"id":"0000000000000000000001"},
+                 "artists":[{"id":"000000000000000000000A"}]}
+                """));
+        server.createContext("/v1/artists/000000000000000000000A", exchange -> respond(exchange, 200, """
+                {"id":"000000000000000000000A", "name":"Artist A"}
+                """));
+        SpotifyApiClient client = createClient("client", "secret");
+        assertThat(client.getTrackArtists("0000000000000000000001"))
+                .containsExactly(new SpotifyArtistMetadata("000000000000000000000A", "Artist A", null));
+        assertThatThrownBy(() -> client.getTrackArtists("0000000000000000000002"))
+                .isInstanceOf(SpotifyServiceUnavailableException.class);
+    }
+
+    @Test
     void getTrackArtists_DoesNotReturnPartialArtistsOnRateLimit() {
         createTokenEndpoint();
         server.createContext("/v1/tracks/0000000000000000000001", exchange -> respond(exchange, 200, """

@@ -81,13 +81,16 @@ public class SpotifyApiClient {
             throw new SpotifyServiceUnavailableException();
         }
         return executeWithAccessToken(accessToken -> {
-            // Client credentials require an explicit market. Reject a substituted track ID below.
+            // Client credentials require an explicit market. Accept only verified relinks.
             SpotifyTrackItem track = apiClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/tracks/{id}")
                             .queryParam("market", market).build(trackId))
                     .headers(headers -> headers.setBearerAuth(accessToken))
                     .retrieve().body(SpotifyTrackItem.class);
-            if (track == null || !trackId.equals(track.id()) || track.artists() == null || track.artists().isEmpty()) {
+            if (track == null || !StringUtils.hasText(track.id())
+                    || (!trackId.equals(track.id())
+                        && (track.linkedFrom() == null || !trackId.equals(track.linkedFrom().id())))
+                    || track.artists() == null || track.artists().isEmpty()) {
                 throw new SpotifyServiceUnavailableException();
             }
 
