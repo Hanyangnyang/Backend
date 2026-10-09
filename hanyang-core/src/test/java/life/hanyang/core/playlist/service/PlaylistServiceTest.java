@@ -13,6 +13,7 @@ import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackHourlyPlayRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackArtistRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +28,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
 import life.hanyang.core.playlist.event.PlaylistReportCreatedEvent;
+import life.hanyang.core.playlist.event.PlaylistTrackRegisteredEvent;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
@@ -52,6 +54,9 @@ class PlaylistServiceTest {
 
     @Mock
     private PlaylistTrackRepository playlistTrackRepository;
+
+    @Mock
+    private PlaylistTrackArtistRepository playlistTrackArtistRepository;
 
     @Mock
     private PlaylistSongRepository playlistSongRepository;
@@ -144,6 +149,7 @@ class PlaylistServiceTest {
         assertThat(response.title()).isEqualTo("Ditto");
         assertThat(response.artist()).isEqualTo("NewJeans");
         assertThat(response.genres()).containsExactly(Genre.KPOP);
+        verify(eventPublisher).publishEvent(new PlaylistTrackRegisteredEvent(request.trackId()));
         var order = org.mockito.Mockito.inOrder(playlistRegistrationLock, playlistSongRepository, playlistModerationService);
         order.verify(playlistRegistrationLock).acquireUntilTransactionCompletion(deviceId);
         order.verify(playlistSongRepository).countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(eq(deviceId), any());
@@ -224,6 +230,34 @@ class PlaylistServiceTest {
         assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("오늘 추천 가능한 곡 수(최대 3곡)를 초과했습니다.");
+    }
+
+    @Test
+    void configuredDailyLimit_AppliesToStatusAndRegistration() {
+        playlistService.configureDailyCreateLimit(5);
+        UUID deviceId = UUID.randomUUID();
+        given(playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any()))
+                .willReturn(3L, 5L);
+
+        PlaylistCreationStatusResponse status = playlistService.getCreationStatus(deviceId);
+        assertThat(status.dailyMaxLimit()).isEqualTo(5);
+        assertThat(status.remainingCount()).isEqualTo(2);
+        assertThat(status.canCreate()).isTrue();
+
+        PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
+                "track-123", "Ditto", "NewJeans", "https://example.com/image", "좋아요", deviceId, Set.of(Genre.KPOP));
+        assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("최대 5곡");
+        verifyNoInteractions(playlistModerationService, playlistTrackRepository);
+    }
+
+    @Test
+    void configuredDailyLimit_RejectsNonPositiveValues() {
+        assertThatThrownBy(() -> playlistService.configureDailyCreateLimit(0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> playlistService.configureDailyCreateLimit(-1))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -527,7 +561,7 @@ class PlaylistServiceTest {
     void toggleTrackLike_FetchesBeforeDatabaseWrite() {
         String trackId = "track-1";
         UUID deviceId = UUID.randomUUID();
-        var metadata = new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1);
+        var metadata = new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1, java.util.List.of());
         given(playlistTrackRepository.findById(trackId)).willReturn(Optional.empty());
         given(spotifyTrackSearchService.getTrack(trackId)).willReturn(metadata);
         given(playlistTrackLikeService.toggle(trackId, deviceId, metadata))
@@ -564,7 +598,7 @@ class PlaylistServiceTest {
     void toggleTrackLike_SpotifyRunsOutsideWriteTransaction() {
         String trackId = "track-1";
         UUID deviceId = UUID.randomUUID();
-        var metadata = new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1);
+        var metadata = new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1, java.util.List.of());
         var manager = new org.springframework.transaction.support.AbstractPlatformTransactionManager() {
             protected Object doGetTransaction() { return new Object(); }
             protected void doBegin(Object transaction, org.springframework.transaction.TransactionDefinition definition) {}
@@ -573,7 +607,7 @@ class PlaylistServiceTest {
         };
         var attributes = new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource();
         var writerFactory = new org.springframework.aop.framework.ProxyFactory(
-                new PlaylistTrackLikeService(playlistTrackRepository, playlistTrackLikeRepository));
+                new PlaylistTrackLikeService(playlistTrackRepository, playlistTrackLikeRepository, eventPublisher));
         writerFactory.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, attributes));
         org.springframework.test.util.ReflectionTestUtils.setField(
                 playlistService, "playlistTrackLikeService", writerFactory.getProxy());
@@ -764,6 +798,33 @@ class PlaylistServiceTest {
         assertThat(response.tracks().get(0).rank()).isEqualTo(1);
         verify(playlistChartRepository).saveAll(any());
         verify(playlistTrackHourlyPlayRepository).findWeeklyChartRaw(any(), any(), eq(Genre.KPOP.name()), anyInt());
+    }
+
+    @Test
+    void recalculatedChartIncludesOrderedArtistIdsAndPhotos() {
+        Object[] row = new Object[]{"track", "곡", "가수 A, 가수 B", null, 100L};
+        given(playlistTrackHourlyPlayRepository.findWeeklyChartRaw(any(), any(), any(), anyInt()))
+                .willReturn(Collections.singletonList(row));
+        PlaylistTrack track = PlaylistTrack.builder().trackId("track").title("곡").artist("legacy").build();
+        given(playlistTrackRepository.getReferenceById("track")).willReturn(track);
+        PlaylistArtist a = org.mockito.Mockito.mock(PlaylistArtist.class);
+        PlaylistArtist b = org.mockito.Mockito.mock(PlaylistArtist.class);
+        UUID idA = UUID.randomUUID();
+        UUID idB = UUID.randomUUID();
+        given(a.getId()).willReturn(idA);
+        given(a.getSpotifyArtistId()).willReturn("spotify-A");
+        given(a.getName()).willReturn("가수 A");
+        given(a.getImageUrl()).willReturn("photo-A");
+        given(b.getId()).willReturn(idB);
+        given(b.getSpotifyArtistId()).willReturn("spotify-B");
+        given(b.getName()).willReturn("가수 B");
+        given(b.getImageUrl()).willReturn("photo-B");
+        given(playlistTrackArtistRepository.findWithArtistsByTrackIds(List.of("track")))
+                .willReturn(List.of(new PlaylistTrackArtist(track, a, 0), new PlaylistTrackArtist(track, b, 1)));
+        var result = playlistService.calculateAndSaveChart(ChartType.WEEKLY, Instant.now()).tracks().get(0);
+        assertThat(result.artist()).isEqualTo("가수 A, 가수 B");
+        assertThat(result.artists()).containsExactly(new PlaylistArtistResponse(idA, "spotify-A", "가수 A", "photo-A"),
+                new PlaylistArtistResponse(idB, "spotify-B", "가수 B", "photo-B"));
     }
 
     @Test

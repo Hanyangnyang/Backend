@@ -12,13 +12,16 @@ import life.hanyang.core.playlist.repository.PlaylistSongRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackHourlyPlayRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackLikeRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackArtistRepository;
 import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
 import life.hanyang.core.playlist.event.PlaylistReportCreatedEvent;
+import life.hanyang.core.playlist.event.PlaylistTrackRegisteredEvent;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -41,9 +44,10 @@ public class PlaylistService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("MM.dd HH:00").withZone(KST);
-    public static final int DAILY_MAX_CREATE_LIMIT = 3;
+    private int dailyCreateLimit = 3;
 
     private final PlaylistTrackRepository playlistTrackRepository;
+    private final PlaylistTrackArtistRepository playlistTrackArtistRepository;
     private final PlaylistSongRepository playlistSongRepository;
     private final PlaylistTrackLikeRepository playlistTrackLikeRepository;
     private final PlaylistSongReactionRepository playlistSongReactionRepository;
@@ -57,6 +61,14 @@ public class PlaylistService {
     private final PlaylistTrackLikeService playlistTrackLikeService;
     private final ApplicationEventPublisher eventPublisher;
 
+    @Value("${playlist.registration.daily-create-limit:3}")
+    void configureDailyCreateLimit(int dailyCreateLimit) {
+        if (dailyCreateLimit < 1) {
+            throw new IllegalArgumentException("playlist.registration.daily-create-limit must be at least 1");
+        }
+        this.dailyCreateLimit = dailyCreateLimit;
+    }
+
     /**
      * 1. 곡 추천/등록
      */
@@ -69,11 +81,11 @@ public class PlaylistService {
 
         playlistRegistrationLock.acquireUntilTransactionCompletion(request.deviceId());
 
-        // 1-2. 오늘(00:00~23:59:59 KST) 등록 횟수 3곡 제한 검증 (비용 0원)
+        // 1-2. 오늘(00:00~23:59:59 KST) 등록 횟수 제한 검증 (비용 0원)
         Instant startOfToday = LocalDate.now(KST).atStartOfDay(KST).toInstant();
         long todayCount = playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(request.deviceId(), startOfToday);
-        if (todayCount >= DAILY_MAX_CREATE_LIMIT) {
-            throw new BusinessException("오늘 추천 가능한 곡 수(최대 3곡)를 초과했습니다.", ErrorCode.PLAYLIST_DAILY_LIMIT_EXCEEDED);
+        if (todayCount >= dailyCreateLimit) {
+            throw new BusinessException("오늘 추천 가능한 곡 수(최대 " + dailyCreateLimit + "곡)를 초과했습니다.", ErrorCode.PLAYLIST_DAILY_LIMIT_EXCEEDED);
         }
 
         // 1-3. 최근 7일(요일 기준) 동일 곡 중복 추천 검증 (비용 0원)
@@ -121,6 +133,7 @@ public class PlaylistService {
                 .build();
 
         PlaylistSong saved = playlistSongRepository.save(song);
+        eventPublisher.publishEvent(new PlaylistTrackRegisteredEvent(track.getTrackId()));
         boolean isLiked = playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(
                 track.getTrackId(), request.deviceId());
         return PlaylistSongResponse.of(saved, Collections.emptyList(), isLiked);
@@ -136,7 +149,7 @@ public class PlaylistService {
         Instant startOf7DaysAgo = LocalDate.now(KST).minusDays(6).atStartOfDay(KST).toInstant();
         Set<String> recentTrackIds = playlistSongRepository.findRecentTrackIdsByDeviceIdAndCreatedAtAfter(deviceId, startOf7DaysAgo);
 
-        return PlaylistCreationStatusResponse.of(todayCount, DAILY_MAX_CREATE_LIMIT, recentTrackIds,
+        return PlaylistCreationStatusResponse.of(todayCount, dailyCreateLimit, recentTrackIds,
                 playlistRegistrationGuard.getBlockedUntil(deviceId));
     }
 
@@ -443,13 +456,13 @@ public class PlaylistService {
     /**
      * 8. 인기 차트 순위 조회 (Redis 캐시 우선 조회 ➡️ DB 스냅샷 ➡️ 비어있을 시 즉시 계산 폴백)
      */
-    @Cacheable(cacheNames = "playlistChart", key = "{#type != null ? #type : T(life.hanyang.core.playlist.domain.ChartType).RISING, null}")
+    @Cacheable(cacheNames = "playlistChart", key = "{'artists-array-v3', #type != null ? #type : T(life.hanyang.core.playlist.domain.ChartType).RISING, null}")
     @Transactional
     public PlaylistChartResponse getChart(ChartType type) {
         return getChart(type, null);
     }
 
-    @Cacheable(cacheNames = "playlistChart", key = "{#type != null ? #type : T(life.hanyang.core.playlist.domain.ChartType).RISING, #genre}")
+    @Cacheable(cacheNames = "playlistChart", key = "{'artists-array-v3', #type != null ? #type : T(life.hanyang.core.playlist.domain.ChartType).RISING, #genre}")
     @Transactional
     public PlaylistChartResponse getChart(ChartType type, Genre genre) {
         ChartType chartType = (type != null) ? type : ChartType.RISING;
@@ -459,13 +472,7 @@ public class PlaylistService {
         if (!latestChart.isEmpty()) {
             PlaylistChart first = latestChart.get(0);
             List<PlaylistChartItemResponse> items = latestChart.stream()
-                    .map(c -> new PlaylistChartItemResponse(
-                            c.getRank(),
-                            c.getTrack().getTrackId(),
-                            c.getTrack().getTitle(),
-                            c.getTrack().getArtist(),
-                            c.getTrack().getAlbumArtUrl()
-                    ))
+                    .map(c -> PlaylistChartItemResponse.from(c.getRank(), c.getTrack()))
                     .toList();
 
             String displayTitle = formatDisplayTitle(chartType, first.getSnapshotTime(), first.getStartPeriod(), genre);
@@ -495,7 +502,7 @@ public class PlaylistService {
         }
         PlaylistChart first = latestChart.get(0);
         List<PlaylistChartItemResponse> items = latestChart.stream()
-                .map(c -> new PlaylistChartItemResponse(c.getRank(), c.getTrack().getTrackId(), c.getTrack().getTitle(), c.getTrack().getArtist(), c.getTrack().getAlbumArtUrl()))
+                .map(c -> PlaylistChartItemResponse.from(c.getRank(), c.getTrack()))
                 .toList();
         return PlaylistChartResponse.of(chartType, genre, first.getSnapshotTime(), first.getStartPeriod(), first.getEndPeriod(),
                 formatDisplayTitle(chartType, first.getSnapshotTime(), first.getStartPeriod(), genre), items);
@@ -546,12 +553,21 @@ public class PlaylistService {
             case MONTHLY -> playlistTrackHourlyPlayRepository.findMonthlyChartRaw(period.startPeriod(), period.endPeriod(), genreName(genre), 100);
         };
 
+        List<String> trackIds = rows.stream().map(row -> (String) row[0]).distinct().toList();
+        Map<String, List<PlaylistArtistResponse>> artistsByTrack = new HashMap<>();
+        if (!trackIds.isEmpty()) {
+            for (PlaylistTrackArtist link : playlistTrackArtistRepository.findWithArtistsByTrackIds(trackIds)) {
+                artistsByTrack.computeIfAbsent(link.getTrack().getTrackId(), key -> new ArrayList<>())
+                        .add(PlaylistArtistResponse.from(link.getArtist()));
+            }
+        }
         List<PlaylistChartItemResponse> items = new ArrayList<>(rows.size());
         for (int i = 0; i < rows.size(); i++) {
             Object[] row = rows.get(i);
             int rank = i + 1;
             String trackId = (String) row[0];
-            items.add(new PlaylistChartItemResponse(rank, trackId, (String) row[1], (String) row[2], (String) row[3]));
+            items.add(new PlaylistChartItemResponse(rank, trackId, (String) row[1], (String) row[2], (String) row[3],
+                    false, List.copyOf(artistsByTrack.getOrDefault(trackId, List.of()))));
             Long score = (row.length > 4 && row[4] instanceof Number n) ? n.longValue() : 0L;
             entities.add(PlaylistChart.builder()
                     .chartType(chartType).genre(genre).snapshotTime(period.snapshotTime())

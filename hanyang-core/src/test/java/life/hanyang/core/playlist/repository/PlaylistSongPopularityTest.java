@@ -22,6 +22,8 @@ class PlaylistSongPopularityTest {
     void sortsByAllReactionsThenNewestAndPreservesPagination() {
         try (SessionFactory factory = new Configuration()
                 .addAnnotatedClass(PlaylistTrack.class)
+                .addAnnotatedClass(PlaylistArtist.class)
+                .addAnnotatedClass(PlaylistTrackArtist.class)
                 .addAnnotatedClass(PlaylistSong.class)
                 .addAnnotatedClass(PlaylistSongReaction.class)
                 .setProperty("hibernate.connection.driver_class", "org.h2.Driver")

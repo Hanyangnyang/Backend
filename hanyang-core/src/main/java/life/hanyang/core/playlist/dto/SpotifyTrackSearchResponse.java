@@ -3,6 +3,7 @@ package life.hanyang.core.playlist.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.io.Serializable;
+import java.util.List;
 
 @Schema(description = "외부 음원 카탈로그 검색 결과")
 public record SpotifyTrackSearchResponse(
@@ -19,6 +20,12 @@ public record SpotifyTrackSearchResponse(
         String albumArtUrl,
 
         @Schema(description = "Spotify 검색 순위", example = "1")
-        int rank
+        int rank,
+
+        @Schema(description = "Spotify 참여 순서의 아티스트. DB 보강 전이므로 내부 ID와 사진은 null")
+        List<PlaylistArtistResponse> artists
 ) implements Serializable {
+    public SpotifyTrackSearchResponse {
+        artists = artists == null ? List.of() : List.copyOf(artists);
+    }
 }

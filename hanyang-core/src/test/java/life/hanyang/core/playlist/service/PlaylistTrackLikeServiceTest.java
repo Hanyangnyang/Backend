@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verify;
 class PlaylistTrackLikeServiceTest {
     @Mock private PlaylistTrackRepository playlistTrackRepository;
     @Mock private PlaylistTrackLikeRepository playlistTrackLikeRepository;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
     @InjectMocks private PlaylistTrackLikeService playlistTrackLikeService;
 
     @Test
@@ -48,12 +49,13 @@ class PlaylistTrackLikeServiceTest {
     @DisplayName("미등록 트랙은 Spotify 조회 후 저장하고 좋아요를 등록한다")
     void toggleTrackLike_RegistersMissingTrack() {
         String trackId = "track-1";
+        given(playlistTrackRepository.insertIfAbsent(trackId, "Ditto", "NewJeans", "cover")).willReturn(1);
         UUID deviceId = UUID.randomUUID();
         given(playlistTrackLikeRepository.insertIfAbsent(trackId, deviceId)).willReturn(1);
         given(playlistTrackRepository.getLikeCount(trackId)).willReturn(Optional.of(1));
 
         PlaylistLikeToggleResponse response = playlistTrackLikeService.toggle(trackId, deviceId,
-                new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1));
+                new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1, java.util.List.of()));
 
         assertThat(response.isLiked()).isTrue();
         assertThat(response.likeCount()).isEqualTo(1);
@@ -62,6 +64,15 @@ class PlaylistTrackLikeServiceTest {
         order.verify(playlistTrackLikeRepository).deleteIfPresent(trackId, deviceId);
         order.verify(playlistTrackLikeRepository).insertIfAbsent(trackId, deviceId);
         order.verify(playlistTrackRepository).incrementLikeCount(trackId);
+        verify(eventPublisher).publishEvent(new life.hanyang.core.playlist.event.PlaylistTrackRegisteredEvent(trackId));
+    }
+
+    @Test
+    void concurrentExistingTrackDoesNotPublishRegistrationEvent() {
+        String trackId = "track-1";
+        playlistTrackLikeService.toggle(trackId, UUID.randomUUID(),
+                new SpotifyTrackSearchResponse(trackId, "Ditto", "NewJeans", "cover", 1, java.util.List.of()));
+        org.mockito.Mockito.verifyNoInteractions(eventPublisher);
     }
 
     @Test

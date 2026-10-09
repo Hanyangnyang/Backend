@@ -39,7 +39,7 @@ class PlaylistCatalogControllerTest {
     void searchTracks_Success() {
         MusicSearchResponse catalogResponse = new MusicSearchResponse(List.of(
                 new MusicSearchTrackResponse(
-                        "track-1", "Love Lee", "AKMU", "https://i.scdn.co/image/cover", 3L, false
+                        "track-1", "Love Lee", "AKMU", "https://i.scdn.co/image/cover", 3L, false, List.of()
                 )
         ));
         given(playlistCatalogService.searchTracks("악뮤", null)).willReturn(catalogResponse);

@@ -3,6 +3,8 @@ package life.hanyang.core.playlist.service;
 import life.hanyang.core.playlist.dto.MusicSearchResponse;
 import life.hanyang.core.playlist.dto.PlaylistTrackRecommendationCount;
 import life.hanyang.core.playlist.dto.SpotifyTrackSearchResponse;
+import life.hanyang.core.playlist.dto.PlaylistArtistResponse;
+import life.hanyang.core.playlist.repository.PlaylistArtistRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackLikeRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ public class PlaylistCatalogService {
     private final SpotifyTrackSearchService spotifyTrackSearchService;
     private final PlaylistSongRepository playlistSongRepository;
     private final PlaylistTrackLikeRepository playlistTrackLikeRepository;
+    private final PlaylistArtistRepository playlistArtistRepository;
 
     public MusicSearchResponse searchTracks(String keyword) {
         return searchTracks(keyword, null);
@@ -48,6 +51,12 @@ public class PlaylistCatalogService {
 
         Set<String> likedTrackIds = deviceId == null ? Set.of()
                 : playlistTrackLikeRepository.findLikedTrackIds(deviceId, trackIds);
-        return MusicSearchResponse.from(tracks, recommendationCounts, likedTrackIds);
+        List<String> artistIds = tracks.stream().flatMap(track -> track.artists().stream())
+                .map(PlaylistArtistResponse::spotifyArtistId).filter(java.util.Objects::nonNull).distinct().toList();
+        Map<String, PlaylistArtistResponse> storedArtists = artistIds.isEmpty() ? Map.of()
+                : playlistArtistRepository.findBySpotifyArtistIdIn(artistIds).stream()
+                .map(PlaylistArtistResponse::from)
+                .collect(Collectors.toMap(PlaylistArtistResponse::spotifyArtistId, Function.identity()));
+        return MusicSearchResponse.from(tracks, recommendationCounts, likedTrackIds, storedArtists);
     }
 }

@@ -13,6 +13,9 @@ import life.hanyang.core.playlist.dto.PlaylistReportProcessRequest;
 import life.hanyang.core.playlist.dto.PlaylistSongDeleteRequest;
 import life.hanyang.core.playlist.dto.PlaylistSongReportResponse;
 import life.hanyang.core.playlist.dto.PlaylistSongResponse;
+import life.hanyang.core.playlist.dto.PlaylistArtistBackfillRequest;
+import life.hanyang.core.playlist.dto.PlaylistArtistBackfillResponse;
+import life.hanyang.core.playlist.service.PlaylistArtistSyncService;
 import life.hanyang.core.playlist.service.PlaylistAdminService;
 import life.hanyang.core.playlist.service.PlaylistService;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +39,16 @@ public class PlaylistAdminController {
 
     private final PlaylistAdminService playlistAdminService;
     private final PlaylistService playlistService;
+    private final PlaylistArtistSyncService playlistArtistSyncService;
+
+    @Operation(summary = "미연결 곡 아티스트 백필", description = "관리자 수동 실행 전용입니다. 요청당 최대 20곡을 처리하며 " +
+            "nextAfterTrackId로 다음 구간을 조회합니다. scanComplete는 해당 커서의 스캔 완료를 뜻하며 실패 건 완료를 뜻하지 않습니다. " +
+            "실패 건은 커서를 생략하여 재시도합니다. retryAfterSeconds가 있으면 해당 시간 이후 재시도하세요.")
+    @PostMapping("/artists/backfill")
+    public ResponseEntity<ApiResponse<PlaylistArtistBackfillResponse>> backfillArtists(
+            @Valid @RequestBody PlaylistArtistBackfillRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(playlistArtistSyncService.backfill(request)));
+    }
 
     @Operation(
             summary = "인기 차트 수동 재집계",
