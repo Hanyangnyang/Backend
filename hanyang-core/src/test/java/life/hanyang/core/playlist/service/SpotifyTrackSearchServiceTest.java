@@ -34,7 +34,7 @@ class SpotifyTrackSearchServiceTest {
     @DisplayName("Spotify 검색 시 API에는 앞뒤 공백을 제거한 원문을 전달한다")
     void searchTracks_StripsKeyword() {
         SpotifyTrackSearchResponse track = new SpotifyTrackSearchResponse(
-                "track-1", "Love Lee", "AKMU", "https://i.scdn.co/image/test", 1
+                "track-1", "Love Lee", "AKMU", "https://i.scdn.co/image/test", 1, List.of()
         );
         given(spotifyApiClient.searchTracks("악뮤", 10)).willReturn(List.of(track));
 

@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import life.hanyang.core.playlist.dto.SpotifyTrackSearchResponse;
+import life.hanyang.core.playlist.dto.SpotifyArtistMetadata;
+import life.hanyang.core.playlist.dto.PlaylistArtistResponse;
+import java.util.stream.Collectors;
 import life.hanyang.core.global.exception.EntityNotFoundException;
 import life.hanyang.core.playlist.exception.SpotifyRateLimitException;
 import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
@@ -57,6 +60,7 @@ public class SpotifyApiClient {
                 .build();
         this.apiClient = builder.clone()
                 .baseUrl(apiBaseUrl)
+                .defaultHeader(HttpHeaders.ACCEPT_LANGUAGE, "ko-KR,ko;q=0.9")
                 .requestFactory(requestFactory)
                 .build();
         this.clientId = clientId;
@@ -69,6 +73,47 @@ public class SpotifyApiClient {
         return executeWithAccessToken(accessToken -> mapSearchResults(
                 fetchTracks(keyword, limit, accessToken)
         ));
+    }
+
+    public List<SpotifyArtistMetadata> getTrackArtists(String trackId) {
+        ensureCredentialsConfigured();
+        if (trackId == null || !trackId.matches("[A-Za-z0-9]{22}")) {
+            throw new SpotifyServiceUnavailableException();
+        }
+        return executeWithAccessToken(accessToken -> {
+            // Client credentials require an explicit market. Accept only verified relinks.
+            SpotifyTrackItem track = apiClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/tracks/{id}")
+                            .queryParam("market", market).build(trackId))
+                    .headers(headers -> headers.setBearerAuth(accessToken))
+                    .retrieve().body(SpotifyTrackItem.class);
+            if (track == null || !StringUtils.hasText(track.id())
+                    || (!trackId.equals(track.id())
+                        && (track.linkedFrom() == null || !trackId.equals(track.linkedFrom().id())))
+                    || track.artists() == null || track.artists().isEmpty()) {
+                throw new SpotifyServiceUnavailableException();
+            }
+
+            List<SpotifyArtistMetadata> artists = new ArrayList<>();
+            for (SpotifyArtist reference : track.artists()) {
+                if (reference == null || reference.id() == null || !reference.id().matches("[A-Za-z0-9]{22}")) {
+                    throw new SpotifyServiceUnavailableException();
+                }
+                SpotifyArtist artist = apiClient.get()
+                        .uri("/artists/{id}", reference.id())
+                        .headers(headers -> headers.setBearerAuth(accessToken))
+                        .retrieve().body(SpotifyArtist.class);
+                if (artist == null || !reference.id().equals(artist.id()) || !StringUtils.hasText(artist.name())) {
+                    throw new SpotifyServiceUnavailableException();
+                }
+                String imageUrl = artist.images() == null ? null : artist.images().stream()
+                        .filter(Objects::nonNull).map(SpotifyImage::url)
+                        .filter(StringUtils::hasText).findFirst().orElse(null);
+                artists.add(new SpotifyArtistMetadata(artist.id(), artist.name(), imageUrl));
+            }
+            // Return only after every artist has been fetched successfully.
+            return List.copyOf(artists);
+        });
     }
 
     public SpotifyTrackSearchResponse getTrack(String trackId) {
@@ -104,8 +149,9 @@ public class SpotifyApiClient {
                 throw new EntityNotFoundException("해당 시장에서 재생할 수 없는 Spotify 트랙입니다. trackId: " + trackId);
             }
             // 좋아요의 식별자는 요청 ID를 유지하고, Spotify가 연결한 재생 가능한 곡의 메타데이터를 사용한다.
-            return new SpotifyTrackSearchResponse(
-                    trackId, item.name(), firstArtist(item), albumArtUrl(item), 1);
+            SpotifyTrackSearchResponse metadata = mapSearchResults(List.of(item)).get(0);
+            return new SpotifyTrackSearchResponse(trackId, metadata.title(), metadata.artist(),
+                    metadata.albumArtUrl(), 1, metadata.artists());
         });
     }
 
@@ -141,10 +187,7 @@ public class SpotifyApiClient {
                     builder.queryParam("market", market);
                     return builder.build();
                 })
-                .headers(headers -> {
-                    headers.setBearerAuth(accessToken);
-                    headers.set(HttpHeaders.ACCEPT_LANGUAGE, "ko-KR,ko;q=0.9");
-                })
+                .headers(headers -> headers.setBearerAuth(accessToken))
                 .retrieve()
                 .body(SpotifySearchResponse.class);
 
@@ -163,20 +206,14 @@ public class SpotifyApiClient {
                 continue;
             }
 
-            tracks.add(new SpotifyTrackSearchResponse(
-                    item.id(), item.name(), firstArtist(item), albumArtUrl(item), rank
-            ));
+            List<PlaylistArtistResponse> artists = item.artists() == null ? List.of() : item.artists().stream()
+                    .filter(Objects::nonNull).filter(artist -> StringUtils.hasText(artist.name()))
+                    .map(artist -> new PlaylistArtistResponse(null, artist.id(), artist.name(), null)).toList();
+            tracks.add(new SpotifyTrackSearchResponse(item.id(), item.name(),
+                    artists.stream().map(PlaylistArtistResponse::name).collect(Collectors.joining(", ")),
+                    albumArtUrl(item), rank, artists));
         }
         return tracks;
-    }
-
-    private String firstArtist(SpotifyTrackItem item) {
-        return item.artists() == null ? "" : item.artists().stream()
-                .filter(Objects::nonNull)
-                .map(SpotifyArtist::name)
-                .filter(StringUtils::hasText)
-                .findFirst()
-                .orElse("");
     }
 
     private String albumArtUrl(SpotifyTrackItem item) {
@@ -287,7 +324,7 @@ public class SpotifyApiClient {
     private record SpotifyError(String message) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record SpotifyArtist(String name) {
+    private record SpotifyArtist(String id, String name, List<SpotifyImage> images) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

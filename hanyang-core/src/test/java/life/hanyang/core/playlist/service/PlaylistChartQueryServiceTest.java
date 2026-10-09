@@ -4,6 +4,7 @@ import life.hanyang.core.playlist.domain.ChartType;
 import life.hanyang.core.playlist.dto.PlaylistChartItemResponse;
 import life.hanyang.core.playlist.dto.PlaylistChartResponse;
 import life.hanyang.core.playlist.dto.PlaylistTrackLikeResponse;
+import life.hanyang.core.playlist.dto.PlaylistArtistResponse;
 import life.hanyang.core.playlist.domain.PlaylistTrack;
 import life.hanyang.core.playlist.repository.PlaylistTrackLikeRepository;
 import org.junit.jupiter.api.Test;
@@ -65,5 +66,21 @@ class PlaylistChartQueryServiceTest {
     void likedTrackResponseAlwaysReturnsTrue() {
         PlaylistTrack track = PlaylistTrack.builder().trackId("track-1").title("곡").artist("가수").build();
         assertThat(PlaylistTrackLikeResponse.of(track).isLiked()).isTrue();
+    }
+
+    @Test
+    void addingDeviceLikesPreservesArtistIdentityPhotosAndOrder() {
+        var artists = List.of(new PlaylistArtistResponse(UUID.randomUUID(), "spotify-A", "가수 A", "photo-A"),
+                new PlaylistArtistResponse(UUID.randomUUID(), "spotify-B", "가수 B", "photo-B"));
+        Instant now = Instant.now();
+        var cached = PlaylistChartResponse.of(ChartType.RISING, null, now, now, now, "차트", List.of(
+                new PlaylistChartItemResponse(1, "track", "곡", "가수 A, 가수 B", null, false, artists)));
+        UUID device = UUID.randomUUID();
+        given(playlistService.getChart(ChartType.RISING, null)).willReturn(cached);
+        given(playlistTrackLikeRepository.findLikedTrackIds(device, List.of("track"))).willReturn(Set.of("track"));
+        var result = service.getChart(ChartType.RISING, null, device).tracks().get(0);
+        assertThat(result.artists()).containsExactlyElementsOf(artists);
+        assertThat(result.isLiked()).isTrue();
+        assertThat(cached.tracks().get(0).isLiked()).isFalse();
     }
 }

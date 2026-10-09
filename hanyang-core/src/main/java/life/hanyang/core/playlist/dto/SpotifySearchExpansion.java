@@ -33,7 +33,8 @@ public record SpotifySearchExpansion(
                 .forEach(track -> {
                     addIfPresent(trackIds, track.trackId());
                     addIfPresent(titles, track.title());
-                    addIfPresent(artists, track.artist());
+                    if (track.artists().isEmpty()) addIfPresent(artists, track.artist());
+                    else track.artists().forEach(artist -> addIfPresent(artists, artist.name()));
                 });
 
         return new SpotifySearchExpansion(

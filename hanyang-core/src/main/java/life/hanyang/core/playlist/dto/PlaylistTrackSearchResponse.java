@@ -1,6 +1,7 @@
 package life.hanyang.core.playlist.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.List;
 
 @Schema(description = "음원 트랙 검색 결과 응답 DTO")
 public record PlaylistTrackSearchResponse(
@@ -20,5 +21,8 @@ public record PlaylistTrackSearchResponse(
         long totalSongsCount,
 
         @Schema(description = "해당 음원의 모든 추천글 좋아요 총합", example = "298")
-        long totalHeartCount
+        long totalHeartCount,
+
+        @Schema(description = "참여 순서대로 정렬된 아티스트. 미연결 곡은 빈 배열")
+        List<PlaylistArtistResponse> artists
 ) {}

@@ -4,6 +4,8 @@ import life.hanyang.core.playlist.dto.PlaylistLikeToggleResponse;
 import life.hanyang.core.playlist.dto.SpotifyTrackSearchResponse;
 import life.hanyang.core.playlist.repository.PlaylistTrackLikeRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
+import life.hanyang.core.playlist.event.PlaylistTrackRegisteredEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,13 +18,16 @@ public class PlaylistTrackLikeService {
 
     private final PlaylistTrackRepository playlistTrackRepository;
     private final PlaylistTrackLikeRepository playlistTrackLikeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public PlaylistLikeToggleResponse toggle(String trackId, UUID deviceId, SpotifyTrackSearchResponse metadata) {
         if (metadata != null) {
             // 같은 트랙의 최초 좋아요 요청이 겹쳐도 트랙은 한 번만 등록한다.
-            playlistTrackRepository.insertIfAbsent(
-                    trackId, metadata.title(), metadata.artist(), metadata.albumArtUrl());
+            if (playlistTrackRepository.insertIfAbsent(
+                    trackId, metadata.title(), metadata.artist(), metadata.albumArtUrl()) > 0) {
+                eventPublisher.publishEvent(new PlaylistTrackRegisteredEvent(trackId));
+            }
         }
 
         boolean isLiked;

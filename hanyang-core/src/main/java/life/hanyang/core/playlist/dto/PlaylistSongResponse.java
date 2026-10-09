@@ -37,7 +37,7 @@ public record PlaylistSongResponse(
         Set<Genre> genres,
 
         @Schema(description = "해당 음원의 전체 누적 재생수", example = "128")
-        Integer totalPlayCount,
+        long totalPlayCount,
 
         @Schema(description = "현재 기기가 이 곡을 좋아요했는지 여부", example = "true")
         boolean isLiked,
@@ -49,7 +49,10 @@ public record PlaylistSongResponse(
         Instant createdAt,
 
         @Schema(description = "수정 일시 (KST/UTC)", example = "2026-08-27T10:15:30Z")
-        Instant updatedAt
+        Instant updatedAt,
+
+        @Schema(description = "참여 순서대로 정렬된 아티스트. 미연결 곡은 빈 배열")
+        List<PlaylistArtistResponse> artists
 ) {
     public static PlaylistSongResponse of(PlaylistSong song) {
         return of(song, Collections.emptyList());
@@ -60,6 +63,11 @@ public record PlaylistSongResponse(
     }
 
     public static PlaylistSongResponse of(PlaylistSong song, List<PlaylistReactionItemResponse> reactions, boolean isLiked) {
+        return of(song, reactions, isLiked, 0L);
+    }
+
+    public static PlaylistSongResponse of(PlaylistSong song, List<PlaylistReactionItemResponse> reactions,
+                                          boolean isLiked, long totalPlayCount) {
         return new PlaylistSongResponse(
                 song.getId(),
                 song.getTrackId(),
@@ -69,11 +77,12 @@ public record PlaylistSongResponse(
                 song.getComment(),
                 song.getDeviceId(),
                 song.getGenres(),
-                song.getTotalPlayCount() != null ? song.getTotalPlayCount() : 0,
+                totalPlayCount,
                 isLiked,
                 (reactions != null) ? reactions : Collections.emptyList(),
                 song.getCreatedAt(),
-                song.getUpdatedAt()
+                song.getUpdatedAt(),
+                PlaylistArtistResponse.fromTrack(song.getTrack())
         );
     }
 }

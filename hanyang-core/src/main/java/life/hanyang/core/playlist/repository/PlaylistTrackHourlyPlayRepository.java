@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,6 +15,19 @@ import java.util.UUID;
 public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<PlaylistTrackHourlyPlay, UUID> {
 
     Optional<PlaylistTrackHourlyPlay> findByTrackIdAndPlayHour(String trackId, Instant playHour);
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO playlist_track_daily_devices (track_id, device_id, play_date)
+            VALUES (:trackId, :deviceId, :playDate)
+            ON CONFLICT (track_id, device_id, play_date) DO NOTHING
+            """, nativeQuery = true)
+    int insertDailyDeviceIfAbsent(@Param("trackId") String trackId, @Param("deviceId") UUID deviceId,
+                                  @Param("playDate") LocalDate playDate);
+
+    @Query("select p.trackId, sum(p.playCount) from PlaylistTrackHourlyPlay p "
+            + "where p.trackId in :trackIds group by p.trackId")
+    List<Object[]> sumPlayCountsByTrackIds(@Param("trackIds") List<String> trackIds);
 
     @Modifying
     @Query(value = """
@@ -77,7 +91,12 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             SELECT 
                 t.track_id,
                 t.title,
-                t.artist,
+                COALESCE((
+                    SELECT string_agg(a.name, ', ' ORDER BY ta.artist_order)
+                    FROM playlist_track_artists ta
+                    JOIN playlist_artists a ON a.id = ta.artist_id
+                    WHERE ta.track_id = t.track_id
+                ), t.artist) AS artist,
                 t.album_art_url,
                 (
                     COALESCE(ls.likes_24h, 0) * 3
@@ -161,7 +180,12 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             SELECT 
                 t.track_id,
                 t.title,
-                t.artist,
+                COALESCE((
+                    SELECT string_agg(a.name, ', ' ORDER BY ta.artist_order)
+                    FROM playlist_track_artists ta
+                    JOIN playlist_artists a ON a.id = ta.artist_id
+                    WHERE ta.track_id = t.track_id
+                ), t.artist) AS artist,
                 t.album_art_url,
                 (
                     COALESCE(ls.likes_7d, 0) * 5
@@ -236,7 +260,12 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             SELECT 
                 t.track_id,
                 t.title,
-                t.artist,
+                COALESCE((
+                    SELECT string_agg(a.name, ', ' ORDER BY ta.artist_order)
+                    FROM playlist_track_artists ta
+                    JOIN playlist_artists a ON a.id = ta.artist_id
+                    WHERE ta.track_id = t.track_id
+                ), t.artist) AS artist,
                 t.album_art_url,
                 (
                     COALESCE(ls.likes_30d, 0) * 5

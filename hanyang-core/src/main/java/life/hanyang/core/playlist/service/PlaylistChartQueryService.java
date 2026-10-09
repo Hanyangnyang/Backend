@@ -25,7 +25,7 @@ public class PlaylistChartQueryService {
                 : playlistTrackLikeRepository.findLikedTrackIds(deviceId, trackIds);
         var tracks = chart.tracks().stream().map(track -> new PlaylistChartItemResponse(
                 track.rank(), track.trackId(), track.title(), track.artist(), track.albumArtUrl(),
-                likedTrackIds.contains(track.trackId())
+                likedTrackIds.contains(track.trackId()), track.artists()
         )).toList();
         return PlaylistChartResponse.of(chart.chartType(), chart.genre(), chart.snapshotTime(),
                 chart.startPeriod(), chart.endPeriod(), chart.displayTitle(), tracks);

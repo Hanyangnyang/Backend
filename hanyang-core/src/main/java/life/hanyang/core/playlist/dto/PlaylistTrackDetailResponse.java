@@ -3,6 +3,7 @@ package life.hanyang.core.playlist.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import life.hanyang.core.playlist.domain.PlaylistTrack;
 import org.springframework.data.domain.Page;
+import java.util.List;
 
 @Schema(description = "특정 음원 트랙의 상세 정보 및 추천글 목록 응답 DTO")
 public record PlaylistTrackDetailResponse(
@@ -28,7 +29,10 @@ public record PlaylistTrackDetailResponse(
         boolean isLiked,
 
         @Schema(description = "학생들의 추천글 페이징 목록")
-        Page<PlaylistSongResponse> songs
+        Page<PlaylistSongResponse> songs,
+
+        @Schema(description = "참여 순서대로 정렬된 아티스트. 미연결 곡은 빈 배열")
+        List<PlaylistArtistResponse> artists
 ) {
     public static PlaylistTrackDetailResponse of(
             PlaylistTrack track,
@@ -44,7 +48,8 @@ public record PlaylistTrackDetailResponse(
                 totalSongsCount,
                 track.getLikeCount() != null ? track.getLikeCount() : 0,
                 isLiked,
-                songs
+                songs,
+                PlaylistArtistResponse.fromTrack(track)
         );
     }
 }

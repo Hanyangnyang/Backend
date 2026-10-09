@@ -5,6 +5,7 @@ import life.hanyang.core.playlist.domain.ReportStatus;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.List;
 
 public record PlaylistSongReportResponse(
         UUID id,
@@ -16,7 +17,8 @@ public record PlaylistSongReportResponse(
         ReportStatus status,
         String adminMemo,
         Instant reviewedAt,
-        Instant createdAt
+        Instant createdAt,
+        List<PlaylistArtistResponse> artists
 ) {
     public static PlaylistSongReportResponse from(PlaylistSongReport report) {
         return new PlaylistSongReportResponse(
@@ -29,7 +31,8 @@ public record PlaylistSongReportResponse(
                 report.getStatus(),
                 report.getAdminMemo(),
                 report.getReviewedAt(),
-                report.getCreatedAt()
+                report.getCreatedAt(),
+                PlaylistArtistResponse.fromTrack(report.getSong().getTrack())
         );
     }
 }

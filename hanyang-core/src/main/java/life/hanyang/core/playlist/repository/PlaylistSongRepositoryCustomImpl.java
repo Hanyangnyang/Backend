@@ -1,5 +1,6 @@
 package life.hanyang.core.playlist.repository;
 
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.NumberExpression;
@@ -12,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.util.List;
 
@@ -77,6 +80,10 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
 
     @Override
     public Page<PlaylistSong> searchSongsByTrackId(String trackId, Pageable pageable) {
+        boolean latest = pageable.getSort().getOrderFor("createdAt") != null;
+        OrderSpecifier<?>[] ordering = latest
+                ? new OrderSpecifier<?>[]{playlistSong.createdAt.desc(), playlistSong.id.desc()}
+                : new OrderSpecifier<?>[]{playlistSongReaction.id.count().desc(), playlistSong.createdAt.desc(), playlistSong.id.desc()};
         List<PlaylistSong> content = queryFactory
                 .selectFrom(playlistSong)
                 .join(playlistSong.track, playlistTrack).fetchJoin()
@@ -86,7 +93,7 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
                         playlistSong.deletedAt.isNull()
                 )
                 .groupBy(playlistSong, playlistTrack)
-                .orderBy(playlistSongReaction.id.count().desc(), playlistSong.createdAt.desc())
+                .orderBy(ordering)
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
@@ -100,7 +107,12 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
                 )
                 .fetchOne();
 
-        return new PageImpl<>(content, pageable, total != null ? total : 0L);
+        Pageable effectivePageable = pageable.isPaged()
+                ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), latest
+                    ? Sort.by(Sort.Direction.DESC, "createdAt", "id")
+                    : Sort.by(Sort.Direction.DESC, "reactionCount", "createdAt", "id"))
+                : pageable;
+        return new PageImpl<>(content, effectivePageable, total != null ? total : 0L);
     }
 
     @Override
@@ -111,25 +123,25 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
 
         SpotifySearchExpansion safeExpansion = expansion != null ? expansion : SpotifySearchExpansion.empty();
         BooleanExpression directMatchCondition = playlistSong.track.title.containsIgnoreCase(keyword)
-                .or(playlistSong.track.artist.containsIgnoreCase(keyword))
+                .or(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.containsIgnoreCase(keyword)))
                 .or(playlistSong.comment.containsIgnoreCase(keyword));
         BooleanExpression matchCondition = directMatchCondition.or(spotifyMatch(safeExpansion));
 
         NumberExpression<Integer> matchPriority = new CaseBuilder()
                 .when(playlistSong.track.title.equalsIgnoreCase(keyword)).then(1)
-                .when(playlistSong.track.artist.equalsIgnoreCase(keyword)).then(2)
+                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.equalsIgnoreCase(keyword))).then(2)
                 .when(playlistSong.track.title.startsWithIgnoreCase(keyword)).then(3)
-                .when(playlistSong.track.artist.startsWithIgnoreCase(keyword)).then(4)
+                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.startsWithIgnoreCase(keyword))).then(4)
                 .when(playlistSong.track.title.containsIgnoreCase(keyword)).then(5)
-                .when(playlistSong.track.artist.containsIgnoreCase(keyword)).then(6)
+                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.containsIgnoreCase(keyword))).then(6)
                 .when(matchesTrackId(safeExpansion.trackIds())).then(7)
                 .when(matchesText(playlistSong.track.title, safeExpansion.titles(), false)).then(8)
-                .when(matchesText(playlistSong.track.artist, safeExpansion.artists(), true)).then(9)
+                .when(matchesArtists(safeExpansion.artists())).then(9)
                 .when(playlistSong.comment.containsIgnoreCase(keyword)).then(10)
                 .otherwise(11);
         NumberExpression<Integer> spotifyTrackRank = rankedTrackId(safeExpansion.trackIds());
         NumberExpression<Integer> spotifyTitleRank = rankedText(playlistSong.track.title, safeExpansion.titles(), false);
-        NumberExpression<Integer> spotifyArtistRank = rankedText(playlistSong.track.artist, safeExpansion.artists(), true);
+        NumberExpression<Integer> spotifyArtistRank = rankedArtists(safeExpansion.artists());
 
         List<PlaylistSong> content = queryFactory
                 .selectFrom(playlistSong)
@@ -164,7 +176,24 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
     private BooleanExpression spotifyMatch(SpotifySearchExpansion expansion) {
         return matchesTrackId(expansion.trackIds())
                 .or(matchesText(playlistSong.track.title, expansion.titles(), false))
-                .or(matchesText(playlistSong.track.artist, expansion.artists(), true));
+                .or(matchesArtists(expansion.artists()));
+    }
+
+    private BooleanExpression matchesArtists(List<String> names) {
+        return PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> matchesText(name, names, true));
+    }
+
+    private NumberExpression<Integer> rankedArtists(List<String> names) {
+        if (names.isEmpty()) return rankedNever(playlistSong.track.trackId);
+        CaseBuilder.Cases<Integer, NumberExpression<Integer>> cases = new CaseBuilder()
+                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track,
+                        name -> name.containsIgnoreCase(names.get(0)))).then(1);
+        for (int index = 1; index < names.size(); index++) {
+            String value = names.get(index);
+            cases = cases.when(PlaylistArtistSearchExpressions.matches(playlistSong.track,
+                    name -> name.containsIgnoreCase(value))).then(index + 1);
+        }
+        return cases.otherwise(Integer.MAX_VALUE);
     }
 
     private BooleanExpression matchesTrackId(List<String> trackIds) {
