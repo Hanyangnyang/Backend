@@ -16,6 +16,7 @@ import life.hanyang.core.playlist.repository.PlaylistTrackArtistRepository;
 import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
@@ -42,7 +43,7 @@ public class PlaylistService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("MM.dd HH:00").withZone(KST);
-    public static final int DAILY_MAX_CREATE_LIMIT = 3;
+    private int dailyCreateLimit = 3;
 
     private final PlaylistTrackRepository playlistTrackRepository;
     private final PlaylistTrackArtistRepository playlistTrackArtistRepository;
@@ -57,6 +58,14 @@ public class PlaylistService {
     private final SpotifyTrackSearchService spotifyTrackSearchService;
     private final ApplicationEventPublisher eventPublisher;
 
+    @Value("${playlist.registration.daily-create-limit:3}")
+    void configureDailyCreateLimit(int dailyCreateLimit) {
+        if (dailyCreateLimit < 1) {
+            throw new IllegalArgumentException("playlist.registration.daily-create-limit must be at least 1");
+        }
+        this.dailyCreateLimit = dailyCreateLimit;
+    }
+
     /**
      * 1. 곡 추천/등록
      */
@@ -67,11 +76,11 @@ public class PlaylistService {
             throw new BusinessException("장르는 최소 1개에서 최대 3개까지 선택해야 합니다.", ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        // 1-2. 오늘(00:00~23:59:59 KST) 등록 횟수 3곡 제한 검증 (비용 0원)
+        // 1-2. 오늘(00:00~23:59:59 KST) 등록 횟수 제한 검증 (비용 0원)
         Instant startOfToday = LocalDate.now(KST).atStartOfDay(KST).toInstant();
         long todayCount = playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(request.deviceId(), startOfToday);
-        if (todayCount >= DAILY_MAX_CREATE_LIMIT) {
-            throw new BusinessException("오늘 추천 가능한 곡 수(최대 3곡)를 초과했습니다.", ErrorCode.PLAYLIST_DAILY_LIMIT_EXCEEDED);
+        if (todayCount >= dailyCreateLimit) {
+            throw new BusinessException("오늘 추천 가능한 곡 수(최대 " + dailyCreateLimit + "곡)를 초과했습니다.", ErrorCode.PLAYLIST_DAILY_LIMIT_EXCEEDED);
         }
 
         // 1-3. 최근 7일(요일 기준) 동일 곡 중복 추천 검증 (비용 0원)
@@ -135,7 +144,7 @@ public class PlaylistService {
         Instant startOf7DaysAgo = LocalDate.now(KST).minusDays(6).atStartOfDay(KST).toInstant();
         Set<String> recentTrackIds = playlistSongRepository.findRecentTrackIdsByDeviceIdAndCreatedAtAfter(deviceId, startOf7DaysAgo);
 
-        return PlaylistCreationStatusResponse.of(todayCount, DAILY_MAX_CREATE_LIMIT, recentTrackIds,
+        return PlaylistCreationStatusResponse.of(todayCount, dailyCreateLimit, recentTrackIds,
                 playlistRegistrationGuard.getBlockedUntil(deviceId));
     }
 

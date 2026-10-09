@@ -209,6 +209,34 @@ class PlaylistServiceTest {
     }
 
     @Test
+    void configuredDailyLimit_AppliesToStatusAndRegistration() {
+        playlistService.configureDailyCreateLimit(5);
+        UUID deviceId = UUID.randomUUID();
+        given(playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any()))
+                .willReturn(3L, 5L);
+
+        PlaylistCreationStatusResponse status = playlistService.getCreationStatus(deviceId);
+        assertThat(status.dailyMaxLimit()).isEqualTo(5);
+        assertThat(status.remainingCount()).isEqualTo(2);
+        assertThat(status.canCreate()).isTrue();
+
+        PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
+                "track-123", "Ditto", "NewJeans", "https://example.com/image", "좋아요", deviceId, Set.of(Genre.KPOP));
+        assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("최대 5곡");
+        verifyNoInteractions(playlistModerationService, playlistTrackRepository);
+    }
+
+    @Test
+    void configuredDailyLimit_RejectsNonPositiveValues() {
+        assertThatThrownBy(() -> playlistService.configureDailyCreateLimit(0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> playlistService.configureDailyCreateLimit(-1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     @DisplayName("최근 7일 이내에 이미 추천한 곡이면 예외가 발생한다")
     void createSong_ThrowsException_WhenDuplicateSongIn7Days() {
         // given

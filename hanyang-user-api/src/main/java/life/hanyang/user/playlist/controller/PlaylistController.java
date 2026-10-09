@@ -42,7 +42,7 @@ public class PlaylistController {
             description = "Spotify 곡 정보(trackId, title, artist, albumArtUrl)와 1~3개의 장르 태그 및 추천 코멘트를 입력하여 플레이리스트에 등록합니다.\n\n" +
                     "• **장르 종류**: KPOP(K-POP), BAND(밴드), ROCK(락), R_AND_B(R&B), HIPHOP(힙합), INDIE(인디), BALLAD(발라드), POP(POP), JPOP(J-POP), OST(OST), OTHER(기타)\n" +
                     "• **장르 선택 수**: 최소 1개 ~ 최대 3개\n" +
-                    "• **등록 제한**: 1일 최대 3곡 / 최근 7일 내 동일 곡 중복 추천 불가\n" +
+                    "• **등록 제한**: 1일 등록 한도는 서버 설정에 따름 (기본 3곡) / 최근 7일 내 동일 곡 중복 추천 불가\n" +
                     "• **등록자 IP**: 클라이언트 헤더를 통해 백엔드에서 자동으로 수집/기록됩니다."
     )
     @PostMapping
@@ -59,7 +59,7 @@ public class PlaylistController {
             summary = "곡 작성 전 사용자 기기 상태 조회 (등록 제한 사전 확인)",
             description = "사용자가 곡 등록 화면에 진입할 때 오늘 남은 등록 가능 횟수 및 최근 7일 내 이미 추천한 곡 목록을 조회합니다.\n\n" +
                     "• **canCreate**: 등록 가능 여부 (일일 제한 미초과 및 임시 제한 없음)\n" +
-                    "• **dailyCount**: 오늘 이미 등록한 곡 수 (0~3)\n" +
+                    "• **dailyCount**: 오늘 이미 등록한 곡 수\n" +
                     "• **remainingCount**: 오늘 남은 등록 가능 횟수\n" +
                     "• **temporarilyBlocked**: 반복된 콘텐츠 검증 실패로 인한 임시 제한 여부\n" +
                     "• **blockedUntil**: 임시 제한 해제 시각 (UTC ISO 8601). 미차단 또는 Redis 장애 시 null\n" +
