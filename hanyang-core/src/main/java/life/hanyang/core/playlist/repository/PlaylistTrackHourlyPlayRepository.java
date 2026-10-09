@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,19 +14,6 @@ import java.util.UUID;
 public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<PlaylistTrackHourlyPlay, UUID> {
 
     Optional<PlaylistTrackHourlyPlay> findByTrackIdAndPlayHour(String trackId, Instant playHour);
-
-    @Modifying
-    @Query(value = """
-            INSERT INTO playlist_track_daily_devices (track_id, device_id, play_date)
-            VALUES (:trackId, :deviceId, :playDate)
-            ON CONFLICT (track_id, device_id, play_date) DO NOTHING
-            """, nativeQuery = true)
-    int insertDailyDeviceIfAbsent(@Param("trackId") String trackId, @Param("deviceId") UUID deviceId,
-                                  @Param("playDate") LocalDate playDate);
-
-    @Query("select p.trackId, sum(p.playCount) from PlaylistTrackHourlyPlay p "
-            + "where p.trackId in :trackIds group by p.trackId")
-    List<Object[]> sumPlayCountsByTrackIds(@Param("trackIds") List<String> trackIds);
 
     @Modifying
     @Query(value = """

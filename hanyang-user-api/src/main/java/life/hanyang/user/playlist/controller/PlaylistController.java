@@ -145,7 +145,7 @@ public class PlaylistController {
             summary = "특정 곡의 추천글 모아보기 (상세 조회)",
             description = "특정 음원(trackId)의 메타데이터 및 해당 곡에 학생들이 작성한 추천글 목록을 이모지 반응 수 기준 인기순으로 페이징 조회합니다.\n\n" +
                     "• **deviceId**: 현재 기기 식별자 ID 전달 시 각 글의 `isLiked: true/false` 반환\n" +
-                    "• **정렬**: 기본 인기순(반응 합계, 동률이면 최신순). 최신순은 sort=createdAt,desc, 인기순은 sort=reactionCount,desc를 사용합니다.\n" +
+                    "• **정렬**: 전체 이모지 반응 수가 많은 순서로 조회하며, 반응 수가 같으면 최신순으로 정렬합니다.\n" +
                     "• **page/size**: 0부터 시작하는 페이지 번호와 페이지당 개수 (기본값: size=20)"
     )
     @GetMapping("/tracks/{trackId}")
@@ -162,15 +162,14 @@ public class PlaylistController {
 
     @Operation(
             summary = "음원 재생수 기록 (인기 차트 집계용)",
-            description = "곡·기기별 한국 시간 자정 기준 하루 최초 요청만 재생수를 1 증가시킵니다. deviceId는 필수입니다. 중복 요청도 성공 응답을 반환합니다. 차트는 정기 집계 후 반영됩니다."
+            description = "사용자가 특정 음원의 재생 버튼(▶️)을 누를 때 호출하여 오늘 일자별 재생수를 1 증가시킵니다."
     )
     @PostMapping("/tracks/{trackId}/play")
     public ResponseEntity<ApiResponse<Void>> recordTrackPlay(
             @Parameter(description = "Spotify 트랙 ID", example = "4cOdK2wGLETKBW3PvgPWqT")
-            @PathVariable String trackId,
-            @Valid @RequestBody PlaylistTrackPlayRequest request
+            @PathVariable String trackId
     ) {
-        playlistService.recordTrackPlay(trackId, request.deviceId());
+        playlistService.recordTrackPlay(trackId);
         return ResponseEntity.ok(ApiResponse.success());
     }
 

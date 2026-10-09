@@ -123,8 +123,7 @@ public class PlaylistService {
         PlaylistSong saved = playlistSongRepository.save(song);
         boolean isLiked = playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(
                 track.getTrackId(), request.deviceId());
-        return PlaylistSongResponse.of(saved, Collections.emptyList(), isLiked,
-                findPlayCounts(List.of(saved)).getOrDefault(saved.getTrackId(), 0L));
+        return PlaylistSongResponse.of(saved, Collections.emptyList(), isLiked);
     }
 
     /**
@@ -158,13 +157,11 @@ public class PlaylistService {
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
         Set<String> likedTrackIds = findLikedTrackIds(songs, currentDeviceId);
 
-        Map<String, Long> playCounts = findPlayCounts(songs);
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
                         reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
-                        likedTrackIds.contains(song.getTrackId()),
-                        playCounts.getOrDefault(song.getTrackId(), 0L)
+                        likedTrackIds.contains(song.getTrackId())
                 ))
                 .toList();
 
@@ -182,8 +179,7 @@ public class PlaylistService {
 
         boolean isLiked = currentDeviceId != null
                 && playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(song.getTrackId(), currentDeviceId);
-        return PlaylistSongResponse.of(song, reactions, isLiked,
-                findPlayCounts(List.of(song)).getOrDefault(song.getTrackId(), 0L));
+        return PlaylistSongResponse.of(song, reactions, isLiked);
     }
 
     /**
@@ -203,13 +199,11 @@ public class PlaylistService {
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, currentDeviceId);
         Set<String> likedTrackIds = findLikedTrackIds(songs, currentDeviceId);
 
-        Map<String, Long> playCounts = findPlayCounts(songs);
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
                         reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
-                        likedTrackIds.contains(song.getTrackId()),
-                        playCounts.getOrDefault(song.getTrackId(), 0L)
+                        likedTrackIds.contains(song.getTrackId())
                 ))
                 .toList();
 
@@ -233,29 +227,15 @@ public class PlaylistService {
         Map<UUID, List<PlaylistReactionItemResponse>> reactionMap = buildBatchReactionMap(songIds, deviceId);
         Set<String> likedTrackIds = findLikedTrackIds(songs, deviceId);
 
-        Map<String, Long> playCounts = findPlayCounts(songs);
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
                         reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
-                        likedTrackIds.contains(song.getTrackId()),
-                        playCounts.getOrDefault(song.getTrackId(), 0L)
+                        likedTrackIds.contains(song.getTrackId())
                 ))
                 .toList();
 
         return new PageImpl<>(responses, pageable, songPage.getTotalElements());
-    }
-
-    private Map<String, Long> findPlayCounts(List<PlaylistSong> songs) {
-        if (songs.isEmpty()) {
-            return Map.of();
-        }
-        List<String> trackIds = songs.stream().map(PlaylistSong::getTrackId).distinct().toList();
-        Map<String, Long> counts = new HashMap<>();
-        for (Object[] row : playlistTrackHourlyPlayRepository.sumPlayCountsByTrackIds(trackIds)) {
-            counts.put((String) row[0], ((Number) row[1]).longValue());
-        }
-        return counts;
     }
 
     private Set<String> findLikedTrackIds(List<PlaylistSong> songs, UUID deviceId) {
@@ -298,17 +278,15 @@ public class PlaylistService {
         boolean isLiked = currentDeviceId != null
                 && playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(trackId, currentDeviceId);
 
-        Map<String, Long> playCounts = findPlayCounts(songs);
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
                         reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
-                        isLiked,
-                        playCounts.getOrDefault(song.getTrackId(), 0L)
+                        isLiked
                 ))
                 .toList();
 
-        Page<PlaylistSongResponse> responsePage = new PageImpl<>(responses, songPage.getPageable(), songPage.getTotalElements());
+        Page<PlaylistSongResponse> responsePage = new PageImpl<>(responses, pageable, songPage.getTotalElements());
 
         return PlaylistTrackDetailResponse.of(track, songPage.getTotalElements(), isLiked, responsePage);
     }
@@ -452,20 +430,12 @@ public class PlaylistService {
      * 7. 음원 재생수 카운트 1 증가 (원자적 1시간 단위 Upsert)
      */
     @Transactional
-    public void recordTrackPlay(String trackId, UUID deviceId) {
-        if (deviceId == null) {
-            throw new BusinessException("기기 식별자 ID는 필수입니다.", ErrorCode.INVALID_INPUT_VALUE);
-        }
+    public void recordTrackPlay(String trackId) {
         if (!playlistTrackRepository.existsById(trackId)) {
             throw new EntityNotFoundException("존재하지 않는 음원 트랙입니다. trackId: " + trackId);
         }
 
-        Instant now = Instant.now();
-        LocalDate playDate = now.atZone(KST).toLocalDate();
-        if (playlistTrackHourlyPlayRepository.insertDailyDeviceIfAbsent(trackId, deviceId, playDate) == 0) {
-            return;
-        }
-        Instant currentHour = now.truncatedTo(ChronoUnit.HOURS);
+        Instant currentHour = Instant.now().truncatedTo(ChronoUnit.HOURS);
         playlistTrackHourlyPlayRepository.upsertHourlyPlayCount(trackId, currentHour);
         log.debug("[PlaylistPlay] 음원 재생수 기록 완료 - trackId: {}, playHour: {}", trackId, currentHour);
     }

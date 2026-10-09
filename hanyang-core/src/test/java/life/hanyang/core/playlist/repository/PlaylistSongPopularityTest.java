@@ -8,7 +8,6 @@ import org.hibernate.cfg.Configuration;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -25,7 +24,6 @@ class PlaylistSongPopularityTest {
                 .addAnnotatedClass(PlaylistTrack.class)
                 .addAnnotatedClass(PlaylistSong.class)
                 .addAnnotatedClass(PlaylistSongReaction.class)
-                .addAnnotatedClass(PlaylistTrackHourlyPlay.class)
                 .setProperty("hibernate.connection.driver_class", "org.h2.Driver")
                 .setProperty("hibernate.connection.url", "jdbc:h2:mem:popularity;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
                 .setProperty("hibernate.hbm2ddl.auto", "create-drop")
@@ -39,9 +37,6 @@ class PlaylistSongPopularityTest {
                         .trackId("other").title("다른 곡").artist("가수").build();
                 em.persist(track);
                 em.persist(otherTrack);
-                em.persist(new PlaylistTrackHourlyPlay("target", Instant.parse("2026-10-08T14:00:00Z"), 4));
-                em.persist(new PlaylistTrackHourlyPlay("target", Instant.parse("2026-10-09T14:00:00Z"), 7));
-                em.persist(new PlaylistTrackHourlyPlay("other", Instant.parse("2026-10-09T14:00:00Z"), 9));
                 PlaylistSong popular = song(em, track, "반응 3개", 0, 0);
                 PlaylistSong olderTie = song(em, track, "반응 2개 오래된 글", 0, 1);
                 PlaylistSong newerTie = song(em, track, "반응 2개 최신 글", 0, 2);
@@ -57,13 +52,6 @@ class PlaylistSongPopularityTest {
                 em.flush();
                 em.clear();
 
-                PlaylistTrackHourlyPlayRepository plays = new org.springframework.data.jpa.repository.support.JpaRepositoryFactory(em)
-                        .getRepository(PlaylistTrackHourlyPlayRepository.class);
-                var counts = plays.sumPlayCountsByTrackIds(java.util.List.of("target"));
-                assertThat(counts).hasSize(1);
-                assertThat(counts.get(0)[0]).isEqualTo("target");
-                assertThat(((Number) counts.get(0)[1]).longValue()).isEqualTo(11L);
-
                 PlaylistSongRepositoryCustomImpl repository =
                         new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em));
                 Page<PlaylistSong> first = repository.searchSongsByTrackId("target", PageRequest.of(0, 2));
@@ -75,10 +63,6 @@ class PlaylistSongPopularityTest {
                         .containsExactly(olderTie.getId(), zero.getId());
                 assertThat(first.getTotalElements()).isEqualTo(4);
                 assertThat(first.getTotalPages()).isEqualTo(2);
-                Page<PlaylistSong> newest = repository.searchSongsByTrackId("target",
-                        PageRequest.of(0, 2, Sort.by(Sort.Direction.DESC, "createdAt")));
-                assertThat(newest.getContent()).extracting(PlaylistSong::getId)
-                        .containsExactly(zero.getId(), newerTie.getId());
                 assertThat(repository.searchSongsByTrackId("missing", PageRequest.of(0, 2)).getContent()).isEmpty();
                 em.getTransaction().rollback();
             } finally {
