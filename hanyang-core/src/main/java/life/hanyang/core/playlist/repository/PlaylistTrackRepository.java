@@ -27,6 +27,15 @@ public interface PlaylistTrackRepository extends JpaRepository<PlaylistTrack, St
     List<String> findTrackIdsWithoutArtists(@Param("afterTrackId") String afterTrackId, Pageable pageable);
 
     @Modifying
+    @Query(value = """
+            INSERT INTO playlist_tracks (track_id, title, artist, album_art_url, like_count, created_at, updated_at)
+            VALUES (:trackId, :title, :artist, :albumArtUrl, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (track_id) DO NOTHING
+            """, nativeQuery = true)
+    int insertIfAbsent(@Param("trackId") String trackId, @Param("title") String title,
+                       @Param("artist") String artist, @Param("albumArtUrl") String albumArtUrl);
+
+    @Modifying
     @Query("UPDATE PlaylistTrack t SET t.likeCount = t.likeCount + 1 WHERE t.trackId = :trackId")
     void incrementLikeCount(@Param("trackId") String trackId);
 

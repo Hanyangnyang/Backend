@@ -100,6 +100,90 @@ class SpotifyApiClientTest {
                 .isInstanceOf(SpotifyServiceUnavailableException.class);
     }
 
+    @Test
+    void getTrack_Success() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/track-1", exchange -> {
+            assertThat(exchange.getRequestURI().getQuery()).isEqualTo("market=KR");
+            assertThat(exchange.getRequestHeaders().getFirst("Authorization")).isEqualTo("Bearer access-token");
+            respond(exchange, 200, """
+                    {"id":"track-1","is_playable":true,"name":"Ditto","artists":[{"name":"NewJeans"}],
+                     "album":{"images":[{"url":"cover"}]}}
+                    """);
+        });
+        assertThat(createClient("client-id", "client-secret").getTrack("track-1"))
+                .isEqualTo(new SpotifyTrackSearchResponse("track-1", "Ditto", "NewJeans", "cover", 1,
+                        java.util.List.of(new life.hanyang.core.playlist.dto.PlaylistArtistResponse(null, null, "NewJeans", null))));
+    }
+
+    @Test
+    void getTrack_NotFound() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/missing", exchange -> respond(exchange, 404, "{}"));
+        assertThatThrownBy(() -> createClient("client-id", "client-secret").getTrack("missing"))
+                .isInstanceOf(life.hanyang.core.global.exception.EntityNotFoundException.class);
+    }
+
+    @Test
+    void getTrack_RejectsInvalidResponse() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/track-1", exchange -> respond(exchange, 200, "{}"));
+        assertThatThrownBy(() -> createClient("client-id", "client-secret").getTrack("track-1"))
+                .isInstanceOf(SpotifyServiceUnavailableException.class);
+    }
+
+    @Test
+    void getTrack_InvalidIdIsNotFound() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/missing", exchange -> respond(exchange, 400,
+                "{\"error\":{\"status\":400,\"message\":\"invalid id\"}}"));
+        assertThatThrownBy(() -> createClient("client-id", "client-secret").getTrack("missing"))
+                .isInstanceOf(life.hanyang.core.global.exception.EntityNotFoundException.class);
+    }
+
+    @Test
+    void getTrack_RejectsUnplayableTrack() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/track-1", exchange -> respond(exchange, 200,
+                "{\"id\":\"track-1\",\"name\":\"Ditto\",\"is_playable\":false}"));
+        assertThatThrownBy(() -> createClient("client-id", "client-secret").getTrack("track-1"))
+                .isInstanceOf(life.hanyang.core.global.exception.EntityNotFoundException.class);
+    }
+
+    @Test
+    void getTrack_AcceptsVerifiedRelinkingAndKeepsRequestedId() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/original", exchange -> respond(exchange, 200, """
+                {"id":"replacement","name":"Ditto","is_playable":true,
+                 "linked_from":{"id":"original"},"artists":[{"name":"NewJeans"}]}
+                """));
+        var track = createClient("client-id", "client-secret").getTrack("original");
+        assertThat(track.trackId()).isEqualTo("original");
+        assertThat(track.title()).isEqualTo("Ditto");
+    }
+
+    @Test
+    void getTrack_RejectsUnrelatedResponseId() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/original", exchange -> respond(exchange, 200, """
+                {"id":"unrelated","name":"Ditto","is_playable":true}
+                """));
+        assertThatThrownBy(() -> createClient("client-id", "client-secret").getTrack("original"))
+                .isInstanceOf(SpotifyServiceUnavailableException.class);
+    }
+
+    @Test
+    void getTrack_PreservesRateLimitDelay() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/track-1", exchange -> {
+            exchange.getResponseHeaders().set("Retry-After", "17");
+            respond(exchange, 429, "{}");
+        });
+        assertThatThrownBy(() -> createClient("client-id", "client-secret").getTrack("track-1"))
+                .isInstanceOf(SpotifyRateLimitException.class)
+                .extracting("retryAfterSeconds").isEqualTo(17L);
+    }
+
     private SpotifyApiClient createClient(String clientId, String clientSecret) {
         return new SpotifyApiClient(
                 RestClient.builder(),
