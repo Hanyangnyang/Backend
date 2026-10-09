@@ -410,6 +410,8 @@ class PlaylistServiceTest {
 
         given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
         given(playlistSongRepository.searchSongsByTrackId(trackId, pageable)).willReturn(page);
+        given(playlistTrackHourlyPlayRepository.sumPlayCountsByTrackIds(List.of(trackId)))
+                .willReturn(Collections.singletonList(new Object[]{trackId, 17L}));
         given(playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(trackId, deviceId)).willReturn(true);
 
         // when
@@ -422,6 +424,8 @@ class PlaylistServiceTest {
         assertThat(response.totalSongsCount()).isEqualTo(1L);
         assertThat(response.isLiked()).isTrue();
         assertThat(response.songs().getContent()).hasSize(1);
+        assertThat(response.songs().getContent()).extracting(PlaylistSongResponse::totalPlayCount)
+                .containsOnly(17L);
     }
 
     @Test
@@ -636,11 +640,40 @@ class PlaylistServiceTest {
         String trackId = "track-123";
         given(playlistTrackRepository.existsById(trackId)).willReturn(true);
 
+        given(playlistTrackHourlyPlayRepository.insertDailyDeviceIfAbsent(eq(trackId), any(), any())).willReturn(1);
+
         // when
-        playlistService.recordTrackPlay(trackId);
+        playlistService.recordTrackPlay(trackId, UUID.randomUUID());
 
         // then
         verify(playlistTrackHourlyPlayRepository).upsertHourlyPlayCount(org.mockito.ArgumentMatchers.eq(trackId), any());
+    }
+
+    @Test
+    void recordTrackPlay_DuplicateDoesNotIncrement() {
+        given(playlistTrackRepository.existsById("track")).willReturn(true);
+        playlistService.recordTrackPlay("track", UUID.randomUUID());
+        verify(playlistTrackHourlyPlayRepository, org.mockito.Mockito.never()).upsertHourlyPlayCount(any(), any());
+    }
+
+    @Test
+    void recordTrackPlay_UsesKoreanDateAndSameInstantForHourlyBucket() {
+        given(playlistTrackRepository.existsById("track")).willReturn(true);
+        UUID deviceId = UUID.randomUUID();
+        given(playlistTrackHourlyPlayRepository.insertDailyDeviceIfAbsent(eq("track"), eq(deviceId), any())).willReturn(1);
+        playlistService.recordTrackPlay("track", deviceId);
+        var date = org.mockito.ArgumentCaptor.forClass(java.time.LocalDate.class);
+        var hour = org.mockito.ArgumentCaptor.forClass(Instant.class);
+        verify(playlistTrackHourlyPlayRepository).insertDailyDeviceIfAbsent(eq("track"), eq(deviceId), date.capture());
+        verify(playlistTrackHourlyPlayRepository).upsertHourlyPlayCount(eq("track"), hour.capture());
+        assertThat(date.getValue()).isEqualTo(hour.getValue().atZone(java.time.ZoneId.of("Asia/Seoul")).toLocalDate());
+    }
+
+    @Test
+    void recordTrackPlay_RejectsMissingDevice() {
+        assertThatThrownBy(() -> playlistService.recordTrackPlay("track", null))
+                .isInstanceOf(BusinessException.class);
+        verifyNoInteractions(playlistTrackRepository, playlistTrackHourlyPlayRepository);
     }
 
     @Test
@@ -651,7 +684,7 @@ class PlaylistServiceTest {
         given(playlistTrackRepository.existsById(trackId)).willReturn(false);
 
         // when & then
-        assertThatThrownBy(() -> playlistService.recordTrackPlay(trackId))
+        assertThatThrownBy(() -> playlistService.recordTrackPlay(trackId, UUID.randomUUID()))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("존재하지 않는 음원 트랙입니다.");
     }
