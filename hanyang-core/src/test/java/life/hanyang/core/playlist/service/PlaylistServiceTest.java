@@ -27,6 +27,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
 import life.hanyang.core.playlist.event.PlaylistReportCreatedEvent;
+import life.hanyang.core.playlist.event.PlaylistTrackRegisteredEvent;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
@@ -138,6 +139,7 @@ class PlaylistServiceTest {
         assertThat(response.title()).isEqualTo("Ditto");
         assertThat(response.artist()).isEqualTo("NewJeans");
         assertThat(response.genres()).containsExactly(Genre.KPOP);
+        verify(eventPublisher).publishEvent(new PlaylistTrackRegisteredEvent(request.trackId()));
     }
 
     @Test

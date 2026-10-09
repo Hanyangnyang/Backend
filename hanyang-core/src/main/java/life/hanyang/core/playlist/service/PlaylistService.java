@@ -19,6 +19,7 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
 import life.hanyang.core.playlist.event.PlaylistReportCreatedEvent;
+import life.hanyang.core.playlist.event.PlaylistTrackRegisteredEvent;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -116,6 +117,7 @@ public class PlaylistService {
                 .build();
 
         PlaylistSong saved = playlistSongRepository.save(song);
+        eventPublisher.publishEvent(new PlaylistTrackRegisteredEvent(track.getTrackId()));
         boolean isLiked = playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(
                 track.getTrackId(), request.deviceId());
         return PlaylistSongResponse.of(saved, Collections.emptyList(), isLiked);

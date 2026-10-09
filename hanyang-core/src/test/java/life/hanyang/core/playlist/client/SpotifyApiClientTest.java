@@ -3,6 +3,7 @@ package life.hanyang.core.playlist.client;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import life.hanyang.core.playlist.dto.SpotifyTrackSearchResponse;
+import life.hanyang.core.playlist.dto.SpotifyArtistMetadata;
 import life.hanyang.core.playlist.exception.SpotifyRateLimitException;
 import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import org.junit.jupiter.api.AfterEach;
@@ -107,6 +108,71 @@ class SpotifyApiClientTest {
                 Duration.ofSeconds(1),
                 Duration.ofSeconds(1)
         );
+    }
+
+    @Test
+    void getTrackArtists_PreservesAllArtistsAndOrder() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/0000000000000000000001", exchange -> {
+            assertThat(exchange.getRequestURI().getQuery()).isEqualTo("market=KR");
+            assertThat(exchange.getRequestHeaders().getFirst("Accept-Language")).isEqualTo("ko-KR,ko;q=0.9");
+            respond(exchange, 200, """
+                {"id":"0000000000000000000001", "artists":[
+                  {"id":"000000000000000000000B", "name":"B"},
+                  {"id":"000000000000000000000A", "name":"A"}]}
+                """);
+        });
+        server.createContext("/v1/artists/000000000000000000000B", exchange -> {
+            assertThat(exchange.getRequestHeaders().getFirst("Accept-Language")).isEqualTo("ko-KR,ko;q=0.9");
+            respond(exchange, 200, """
+                    {"id":"000000000000000000000B", "name":"가수 B", "images":[{"url":"https://i.scdn.co/image/artist"}]}
+                    """);
+        });
+        server.createContext("/v1/artists/000000000000000000000A", exchange -> {
+            assertThat(exchange.getRequestHeaders().getFirst("Accept-Language")).isEqualTo("ko-KR,ko;q=0.9");
+            respond(exchange, 200, """
+                    {"id":"000000000000000000000A", "name":"가수 A", "images":[]}
+                    """);
+        });
+
+        assertThat(createClient("client", "secret").getTrackArtists("0000000000000000000001"))
+                .containsExactly(
+                        new SpotifyArtistMetadata("000000000000000000000B", "가수 B", "https://i.scdn.co/image/artist"),
+                        new SpotifyArtistMetadata("000000000000000000000A", "가수 A", null));
+    }
+
+    @Test
+    void getTrackArtists_RejectsEmptyAndMismatchedTrack() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/0000000000000000000001", exchange -> respond(exchange, 200, """
+                {"id":"0000000000000000000001", "artists":[]}
+                """));
+        server.createContext("/v1/tracks/0000000000000000000002", exchange -> respond(exchange, 200, """
+                {"id":"0000000000000000000003", "artists":[{"id":"000000000000000000000A"}]}
+                """));
+        SpotifyApiClient client = createClient("client", "secret");
+        assertThatThrownBy(() -> client.getTrackArtists("0000000000000000000001"))
+                .isInstanceOf(SpotifyServiceUnavailableException.class);
+        assertThatThrownBy(() -> client.getTrackArtists("0000000000000000000002"))
+                .isInstanceOf(SpotifyServiceUnavailableException.class);
+    }
+
+    @Test
+    void getTrackArtists_DoesNotReturnPartialArtistsOnRateLimit() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/0000000000000000000001", exchange -> respond(exchange, 200, """
+                {"id":"0000000000000000000001", "artists":[
+                  {"id":"000000000000000000000A"}, {"id":"000000000000000000000B"}]}
+                """));
+        server.createContext("/v1/artists/000000000000000000000A", exchange -> respond(exchange, 200, """
+                {"id":"000000000000000000000A", "name":"Artist A"}
+                """));
+        server.createContext("/v1/artists/000000000000000000000B", exchange -> {
+            exchange.getResponseHeaders().set("Retry-After", "30");
+            respond(exchange, 429, "{}");
+        });
+        assertThatThrownBy(() -> createClient("client", "secret").getTrackArtists("0000000000000000000001"))
+                .isInstanceOf(SpotifyRateLimitException.class).extracting("retryAfterSeconds").isEqualTo(30L);
     }
 
     private void createTokenEndpoint() {

@@ -3,6 +3,7 @@ package life.hanyang.core.playlist.client;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import life.hanyang.core.playlist.dto.SpotifyTrackSearchResponse;
+import life.hanyang.core.playlist.dto.SpotifyArtistMetadata;
 import life.hanyang.core.playlist.exception.SpotifyRateLimitException;
 import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,6 +56,7 @@ public class SpotifyApiClient {
                 .build();
         this.apiClient = builder.clone()
                 .baseUrl(apiBaseUrl)
+                .defaultHeader(HttpHeaders.ACCEPT_LANGUAGE, "ko-KR,ko;q=0.9")
                 .requestFactory(requestFactory)
                 .build();
         this.clientId = clientId;
@@ -67,6 +69,44 @@ public class SpotifyApiClient {
         return executeWithAccessToken(accessToken -> mapSearchResults(
                 fetchTracks(keyword, limit, accessToken)
         ));
+    }
+
+    public List<SpotifyArtistMetadata> getTrackArtists(String trackId) {
+        ensureCredentialsConfigured();
+        if (trackId == null || !trackId.matches("[A-Za-z0-9]{22}")) {
+            throw new SpotifyServiceUnavailableException();
+        }
+        return executeWithAccessToken(accessToken -> {
+            // Client credentials require an explicit market. Reject a substituted track ID below.
+            SpotifyTrackItem track = apiClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/tracks/{id}")
+                            .queryParam("market", market).build(trackId))
+                    .headers(headers -> headers.setBearerAuth(accessToken))
+                    .retrieve().body(SpotifyTrackItem.class);
+            if (track == null || !trackId.equals(track.id()) || track.artists() == null || track.artists().isEmpty()) {
+                throw new SpotifyServiceUnavailableException();
+            }
+
+            List<SpotifyArtistMetadata> artists = new ArrayList<>();
+            for (SpotifyArtist reference : track.artists()) {
+                if (reference == null || reference.id() == null || !reference.id().matches("[A-Za-z0-9]{22}")) {
+                    throw new SpotifyServiceUnavailableException();
+                }
+                SpotifyArtist artist = apiClient.get()
+                        .uri("/artists/{id}", reference.id())
+                        .headers(headers -> headers.setBearerAuth(accessToken))
+                        .retrieve().body(SpotifyArtist.class);
+                if (artist == null || !reference.id().equals(artist.id()) || !StringUtils.hasText(artist.name())) {
+                    throw new SpotifyServiceUnavailableException();
+                }
+                String imageUrl = artist.images() == null ? null : artist.images().stream()
+                        .filter(Objects::nonNull).map(SpotifyImage::url)
+                        .filter(StringUtils::hasText).findFirst().orElse(null);
+                artists.add(new SpotifyArtistMetadata(artist.id(), artist.name(), imageUrl));
+            }
+            // Return only after every artist has been fetched successfully.
+            return List.copyOf(artists);
+        });
     }
 
     private <T> T executeWithAccessToken(Function<String, T> request) {
@@ -101,10 +141,7 @@ public class SpotifyApiClient {
                     builder.queryParam("market", market);
                     return builder.build();
                 })
-                .headers(headers -> {
-                    headers.setBearerAuth(accessToken);
-                    headers.set(HttpHeaders.ACCEPT_LANGUAGE, "ko-KR,ko;q=0.9");
-                })
+                .headers(headers -> headers.setBearerAuth(accessToken))
                 .retrieve()
                 .body(SpotifySearchResponse.class);
 
@@ -236,7 +273,7 @@ public class SpotifyApiClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record SpotifyArtist(String name) {
+    private record SpotifyArtist(String id, String name, List<SpotifyImage> images) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
