@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import life.hanyang.core.playlist.dto.SpotifyTrackSearchResponse;
 import life.hanyang.core.playlist.dto.SpotifyArtistMetadata;
+import life.hanyang.core.playlist.dto.PlaylistArtistResponse;
 import life.hanyang.core.playlist.exception.SpotifyRateLimitException;
 import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import org.junit.jupiter.api.AfterEach;
@@ -55,7 +56,7 @@ class SpotifyApiClientTest {
                           {
                             "id": "track-1",
                             "name": "Love Lee",
-                            "artists": [{"name": "AKMU"}, {"name": "IU"}],
+                            "artists": [{"id":"artist-1", "name": "AKMU"}, {"id":"artist-2", "name": "IU"}],
                             "album": {"images": [{"url": "https://i.scdn.co/image/cover"}]}
                           }
                         ]
@@ -69,7 +70,9 @@ class SpotifyApiClientTest {
         List<SpotifyTrackSearchResponse> tracks = client.searchTracks("악뮤", 10);
 
         assertThat(tracks).containsExactly(new SpotifyTrackSearchResponse(
-                "track-1", "Love Lee", "AKMU", "https://i.scdn.co/image/cover", 1
+                "track-1", "Love Lee", "AKMU, IU", "https://i.scdn.co/image/cover", 1,
+                List.of(new PlaylistArtistResponse(null, "artist-1", "AKMU", null),
+                        new PlaylistArtistResponse(null, "artist-2", "IU", null))
         ));
     }
 

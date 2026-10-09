@@ -77,7 +77,12 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             SELECT 
                 t.track_id,
                 t.title,
-                t.artist,
+                COALESCE((
+                    SELECT string_agg(a.name, ', ' ORDER BY ta.artist_order)
+                    FROM playlist_track_artists ta
+                    JOIN playlist_artists a ON a.id = ta.artist_id
+                    WHERE ta.track_id = t.track_id
+                ), t.artist) AS artist,
                 t.album_art_url,
                 (
                     COALESCE(ls.likes_24h, 0) * 3
@@ -161,7 +166,12 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             SELECT 
                 t.track_id,
                 t.title,
-                t.artist,
+                COALESCE((
+                    SELECT string_agg(a.name, ', ' ORDER BY ta.artist_order)
+                    FROM playlist_track_artists ta
+                    JOIN playlist_artists a ON a.id = ta.artist_id
+                    WHERE ta.track_id = t.track_id
+                ), t.artist) AS artist,
                 t.album_art_url,
                 (
                     COALESCE(ls.likes_7d, 0) * 5
@@ -236,7 +246,12 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             SELECT 
                 t.track_id,
                 t.title,
-                t.artist,
+                COALESCE((
+                    SELECT string_agg(a.name, ', ' ORDER BY ta.artist_order)
+                    FROM playlist_track_artists ta
+                    JOIN playlist_artists a ON a.id = ta.artist_id
+                    WHERE ta.track_id = t.track_id
+                ), t.artist) AS artist,
                 t.album_art_url,
                 (
                     COALESCE(ls.likes_30d, 0) * 5

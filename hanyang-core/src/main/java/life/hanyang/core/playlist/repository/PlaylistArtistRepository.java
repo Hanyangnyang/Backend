@@ -8,9 +8,11 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 public interface PlaylistArtistRepository extends JpaRepository<PlaylistArtist, UUID> {
     Optional<PlaylistArtist> findBySpotifyArtistId(String spotifyArtistId);
+    List<PlaylistArtist> findBySpotifyArtistIdIn(List<String> spotifyArtistIds);
 
     // PostgreSQL upsert prevents duplicate artists across simultaneous track registrations.
     // An empty image response must not erase a previously available artist photo.

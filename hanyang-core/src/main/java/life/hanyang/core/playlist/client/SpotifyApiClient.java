@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import life.hanyang.core.playlist.dto.SpotifyTrackSearchResponse;
 import life.hanyang.core.playlist.dto.SpotifyArtistMetadata;
+import life.hanyang.core.playlist.dto.PlaylistArtistResponse;
+import java.util.stream.Collectors;
 import life.hanyang.core.playlist.exception.SpotifyRateLimitException;
 import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import org.springframework.beans.factory.annotation.Value;
@@ -160,20 +162,14 @@ public class SpotifyApiClient {
                 continue;
             }
 
-            tracks.add(new SpotifyTrackSearchResponse(
-                    item.id(), item.name(), firstArtist(item), albumArtUrl(item), rank
-            ));
+            List<PlaylistArtistResponse> artists = item.artists() == null ? List.of() : item.artists().stream()
+                    .filter(Objects::nonNull).filter(artist -> StringUtils.hasText(artist.name()))
+                    .map(artist -> new PlaylistArtistResponse(null, artist.id(), artist.name(), null)).toList();
+            tracks.add(new SpotifyTrackSearchResponse(item.id(), item.name(),
+                    artists.stream().map(PlaylistArtistResponse::name).collect(Collectors.joining(", ")),
+                    albumArtUrl(item), rank, artists));
         }
         return tracks;
-    }
-
-    private String firstArtist(SpotifyTrackItem item) {
-        return item.artists() == null ? "" : item.artists().stream()
-                .filter(Objects::nonNull)
-                .map(SpotifyArtist::name)
-                .filter(StringUtils::hasText)
-                .findFirst()
-                .orElse("");
     }
 
     private String albumArtUrl(SpotifyTrackItem item) {

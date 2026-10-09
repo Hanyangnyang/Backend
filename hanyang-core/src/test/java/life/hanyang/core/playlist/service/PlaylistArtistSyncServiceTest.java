@@ -1,6 +1,7 @@
 package life.hanyang.core.playlist.service;
 
 import life.hanyang.core.global.exception.BusinessException;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.playlist.client.SpotifyApiClient;
 import life.hanyang.core.playlist.domain.PlaylistArtist;
 import life.hanyang.core.playlist.domain.PlaylistTrack;
@@ -41,11 +42,12 @@ class PlaylistArtistSyncServiceTest {
     @Mock PlaylistArtistRepository artists;
     @Mock PlaylistTrackArtistRepository links;
     @Mock PlatformTransactionManager transactions;
+    @Mock TransactionCacheEvictor cacheEvictor;
     private PlaylistArtistSyncService service;
 
     @BeforeEach
     void setUp() {
-        service = new PlaylistArtistSyncService(client, tracks, artists, links, transactions);
+        service = new PlaylistArtistSyncService(client, tracks, artists, links, transactions, cacheEvictor);
         lenient().when(transactions.getTransaction(any())).thenAnswer(invocation -> new SimpleTransactionStatus());
     }
 
@@ -77,6 +79,7 @@ class PlaylistArtistSyncServiceTest {
         assertThat(saved.getValue()).extracting(PlaylistTrackArtist::getArtistOrder).containsExactly(0, 1);
         assertThat(track.getArtist()).isEqualTo("legacy");
         verify(transactions).commit(any());
+        verify(cacheEvictor).evictCacheAfterCommit("playlistChart");
     }
 
     @Test
@@ -114,6 +117,7 @@ class PlaylistArtistSyncServiceTest {
         assertThatThrownBy(() -> service.syncMissingTrack(TRACK)).isInstanceOf(IllegalStateException.class);
         verify(transactions).rollback(any());
         verify(transactions, never()).commit(any());
+        verifyNoInteractions(cacheEvictor);
     }
 
     @Test

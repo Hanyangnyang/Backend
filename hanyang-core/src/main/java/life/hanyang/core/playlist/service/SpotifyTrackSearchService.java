@@ -37,7 +37,7 @@ public class SpotifyTrackSearchService {
 
     public String cacheKey(String keyword, int limit) {
         String normalized = normalize(keyword);
-        return market + ":" + limit + ":" + sha256(normalized);
+        return market + ":" + limit + ":artists-array-v2:" + sha256(normalized);
     }
 
     static String normalize(String keyword) {

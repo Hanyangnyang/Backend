@@ -13,6 +13,7 @@ import life.hanyang.core.playlist.repository.PlaylistSongReportRepository;
 import life.hanyang.core.playlist.repository.PlaylistSongRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackHourlyPlayRepository;
 import life.hanyang.core.playlist.repository.PlaylistTrackRepository;
+import life.hanyang.core.playlist.repository.PlaylistTrackArtistRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +54,9 @@ class PlaylistServiceTest {
 
     @Mock
     private PlaylistTrackRepository playlistTrackRepository;
+
+    @Mock
+    private PlaylistTrackArtistRepository playlistTrackArtistRepository;
 
     @Mock
     private PlaylistSongRepository playlistSongRepository;
@@ -708,6 +712,33 @@ class PlaylistServiceTest {
         assertThat(response.tracks().get(0).rank()).isEqualTo(1);
         verify(playlistChartRepository).saveAll(any());
         verify(playlistTrackHourlyPlayRepository).findWeeklyChartRaw(any(), any(), eq(Genre.KPOP.name()), anyInt());
+    }
+
+    @Test
+    void recalculatedChartIncludesOrderedArtistIdsAndPhotos() {
+        Object[] row = new Object[]{"track", "곡", "가수 A, 가수 B", null, 100L};
+        given(playlistTrackHourlyPlayRepository.findWeeklyChartRaw(any(), any(), any(), anyInt()))
+                .willReturn(Collections.singletonList(row));
+        PlaylistTrack track = PlaylistTrack.builder().trackId("track").title("곡").artist("legacy").build();
+        given(playlistTrackRepository.getReferenceById("track")).willReturn(track);
+        PlaylistArtist a = org.mockito.Mockito.mock(PlaylistArtist.class);
+        PlaylistArtist b = org.mockito.Mockito.mock(PlaylistArtist.class);
+        UUID idA = UUID.randomUUID();
+        UUID idB = UUID.randomUUID();
+        given(a.getId()).willReturn(idA);
+        given(a.getSpotifyArtistId()).willReturn("spotify-A");
+        given(a.getName()).willReturn("가수 A");
+        given(a.getImageUrl()).willReturn("photo-A");
+        given(b.getId()).willReturn(idB);
+        given(b.getSpotifyArtistId()).willReturn("spotify-B");
+        given(b.getName()).willReturn("가수 B");
+        given(b.getImageUrl()).willReturn("photo-B");
+        given(playlistTrackArtistRepository.findWithArtistsByTrackIds(List.of("track")))
+                .willReturn(List.of(new PlaylistTrackArtist(track, a, 0), new PlaylistTrackArtist(track, b, 1)));
+        var result = playlistService.calculateAndSaveChart(ChartType.WEEKLY, Instant.now()).tracks().get(0);
+        assertThat(result.artist()).isEqualTo("가수 A, 가수 B");
+        assertThat(result.artists()).containsExactly(new PlaylistArtistResponse(idA, "spotify-A", "가수 A", "photo-A"),
+                new PlaylistArtistResponse(idB, "spotify-B", "가수 B", "photo-B"));
     }
 
     @Test

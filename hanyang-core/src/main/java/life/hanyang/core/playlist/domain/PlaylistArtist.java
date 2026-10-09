@@ -4,12 +4,14 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Getter
 @Entity
+@BatchSize(size = 100)
 @Table(name = "playlist_artists", uniqueConstraints =
         @UniqueConstraint(name = "uk_playlist_artists_spotify_id", columnNames = "spotify_artist_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

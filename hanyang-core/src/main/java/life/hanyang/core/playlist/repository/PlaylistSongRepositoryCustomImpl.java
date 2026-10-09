@@ -111,25 +111,25 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
 
         SpotifySearchExpansion safeExpansion = expansion != null ? expansion : SpotifySearchExpansion.empty();
         BooleanExpression directMatchCondition = playlistSong.track.title.containsIgnoreCase(keyword)
-                .or(playlistSong.track.artist.containsIgnoreCase(keyword))
+                .or(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.containsIgnoreCase(keyword)))
                 .or(playlistSong.comment.containsIgnoreCase(keyword));
         BooleanExpression matchCondition = directMatchCondition.or(spotifyMatch(safeExpansion));
 
         NumberExpression<Integer> matchPriority = new CaseBuilder()
                 .when(playlistSong.track.title.equalsIgnoreCase(keyword)).then(1)
-                .when(playlistSong.track.artist.equalsIgnoreCase(keyword)).then(2)
+                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.equalsIgnoreCase(keyword))).then(2)
                 .when(playlistSong.track.title.startsWithIgnoreCase(keyword)).then(3)
-                .when(playlistSong.track.artist.startsWithIgnoreCase(keyword)).then(4)
+                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.startsWithIgnoreCase(keyword))).then(4)
                 .when(playlistSong.track.title.containsIgnoreCase(keyword)).then(5)
-                .when(playlistSong.track.artist.containsIgnoreCase(keyword)).then(6)
+                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.containsIgnoreCase(keyword))).then(6)
                 .when(matchesTrackId(safeExpansion.trackIds())).then(7)
                 .when(matchesText(playlistSong.track.title, safeExpansion.titles(), false)).then(8)
-                .when(matchesText(playlistSong.track.artist, safeExpansion.artists(), true)).then(9)
+                .when(matchesArtists(safeExpansion.artists())).then(9)
                 .when(playlistSong.comment.containsIgnoreCase(keyword)).then(10)
                 .otherwise(11);
         NumberExpression<Integer> spotifyTrackRank = rankedTrackId(safeExpansion.trackIds());
         NumberExpression<Integer> spotifyTitleRank = rankedText(playlistSong.track.title, safeExpansion.titles(), false);
-        NumberExpression<Integer> spotifyArtistRank = rankedText(playlistSong.track.artist, safeExpansion.artists(), true);
+        NumberExpression<Integer> spotifyArtistRank = rankedArtists(safeExpansion.artists());
 
         List<PlaylistSong> content = queryFactory
                 .selectFrom(playlistSong)
@@ -164,7 +164,24 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
     private BooleanExpression spotifyMatch(SpotifySearchExpansion expansion) {
         return matchesTrackId(expansion.trackIds())
                 .or(matchesText(playlistSong.track.title, expansion.titles(), false))
-                .or(matchesText(playlistSong.track.artist, expansion.artists(), true));
+                .or(matchesArtists(expansion.artists()));
+    }
+
+    private BooleanExpression matchesArtists(List<String> names) {
+        return PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> matchesText(name, names, true));
+    }
+
+    private NumberExpression<Integer> rankedArtists(List<String> names) {
+        if (names.isEmpty()) return rankedNever(playlistSong.track.trackId);
+        CaseBuilder.Cases<Integer, NumberExpression<Integer>> cases = new CaseBuilder()
+                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track,
+                        name -> name.containsIgnoreCase(names.get(0)))).then(1);
+        for (int index = 1; index < names.size(); index++) {
+            String value = names.get(index);
+            cases = cases.when(PlaylistArtistSearchExpressions.matches(playlistSong.track,
+                    name -> name.containsIgnoreCase(value))).then(index + 1);
+        }
+        return cases.otherwise(Integer.MAX_VALUE);
     }
 
     private BooleanExpression matchesTrackId(List<String> trackIds) {

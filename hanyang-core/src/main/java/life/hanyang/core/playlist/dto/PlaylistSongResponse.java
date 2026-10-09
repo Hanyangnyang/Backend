@@ -49,7 +49,10 @@ public record PlaylistSongResponse(
         Instant createdAt,
 
         @Schema(description = "수정 일시 (KST/UTC)", example = "2026-08-27T10:15:30Z")
-        Instant updatedAt
+        Instant updatedAt,
+
+        @Schema(description = "참여 순서대로 정렬된 아티스트. 미연결 곡은 빈 배열")
+        List<PlaylistArtistResponse> artists
 ) {
     public static PlaylistSongResponse of(PlaylistSong song) {
         return of(song, Collections.emptyList());
@@ -73,7 +76,8 @@ public record PlaylistSongResponse(
                 isLiked,
                 (reactions != null) ? reactions : Collections.emptyList(),
                 song.getCreatedAt(),
-                song.getUpdatedAt()
+                song.getUpdatedAt(),
+                PlaylistArtistResponse.fromTrack(song.getTrack())
         );
     }
 }

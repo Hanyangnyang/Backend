@@ -2,6 +2,7 @@ package life.hanyang.core.playlist.service;
 
 import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.exception.ErrorCode;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.playlist.client.SpotifyApiClient;
 import life.hanyang.core.playlist.domain.PlaylistArtist;
 import life.hanyang.core.playlist.domain.PlaylistTrack;
@@ -41,16 +42,18 @@ public class PlaylistArtistSyncService {
     private final PlaylistArtistRepository artistRepository;
     private final PlaylistTrackArtistRepository linkRepository;
     private final TransactionTemplate writeTransaction;
+    private final TransactionCacheEvictor transactionCacheEvictor;
 
     public PlaylistArtistSyncService(SpotifyApiClient spotifyApiClient, PlaylistTrackRepository trackRepository,
                                    PlaylistArtistRepository artistRepository, PlaylistTrackArtistRepository linkRepository,
-                                   PlatformTransactionManager transactionManager) {
+                                   PlatformTransactionManager transactionManager, TransactionCacheEvictor transactionCacheEvictor) {
         this.spotifyApiClient = spotifyApiClient;
         this.trackRepository = trackRepository;
         this.artistRepository = artistRepository;
         this.linkRepository = linkRepository;
         this.writeTransaction = new TransactionTemplate(transactionManager);
         this.writeTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.transactionCacheEvictor = transactionCacheEvictor;
     }
 
     @Async("scrapingTaskExecutor")
@@ -122,6 +125,7 @@ public class PlaylistArtistSyncService {
                 links.add(new PlaylistTrackArtist(track, artists.get(metadata.get(index).spotifyArtistId()), index));
             }
             linkRepository.saveAllAndFlush(links);
+            transactionCacheEvictor.evictCacheAfterCommit("playlistChart");
             return true;
         }));
     }

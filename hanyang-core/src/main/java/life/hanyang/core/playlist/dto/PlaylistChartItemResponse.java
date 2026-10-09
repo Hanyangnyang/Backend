@@ -1,6 +1,8 @@
 package life.hanyang.core.playlist.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import life.hanyang.core.playlist.domain.PlaylistTrack;
+import java.util.List;
 
 @Schema(description = "차트 개별 순위 항목 응답 DTO")
 public record PlaylistChartItemResponse(
@@ -20,9 +22,17 @@ public record PlaylistChartItemResponse(
         String albumArtUrl,
 
         @Schema(description = "현재 기기가 이 곡을 좋아요했는지 여부", example = "true")
-        boolean isLiked
+        boolean isLiked,
+
+        @Schema(description = "참여 순서대로 정렬된 아티스트. 미연결 곡은 빈 배열")
+        List<PlaylistArtistResponse> artists
 ) {
     public PlaylistChartItemResponse(int rank, String trackId, String title, String artist, String albumArtUrl) {
-        this(rank, trackId, title, artist, albumArtUrl, false);
+        this(rank, trackId, title, artist, albumArtUrl, false, List.of());
+    }
+
+    public static PlaylistChartItemResponse from(int rank, PlaylistTrack track) {
+        return new PlaylistChartItemResponse(rank, track.getTrackId(), track.getTitle(), track.getArtist(),
+                track.getAlbumArtUrl(), false, PlaylistArtistResponse.fromTrack(track));
     }
 }

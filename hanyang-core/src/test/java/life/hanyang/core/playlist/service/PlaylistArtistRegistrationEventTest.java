@@ -1,6 +1,7 @@
 package life.hanyang.core.playlist.service;
 
 import life.hanyang.core.playlist.client.SpotifyApiClient;
+import life.hanyang.core.global.util.TransactionCacheEvictor;
 import life.hanyang.core.playlist.event.PlaylistTrackRegisteredEvent;
 import life.hanyang.core.playlist.exception.SpotifyServiceUnavailableException;
 import life.hanyang.core.playlist.repository.PlaylistArtistRepository;
@@ -71,10 +72,11 @@ class PlaylistArtistRegistrationEventTest {
         @Bean PlaylistTrackRepository tracks() { return mock(PlaylistTrackRepository.class); }
         @Bean PlaylistArtistRepository artists() { return mock(PlaylistArtistRepository.class); }
         @Bean PlaylistTrackArtistRepository links() { return mock(PlaylistTrackArtistRepository.class); }
+        @Bean TransactionCacheEvictor cacheEvictor() { return mock(TransactionCacheEvictor.class); }
         @Bean PlaylistArtistSyncService service(SpotifyApiClient client, PlaylistTrackRepository tracks,
                                                 PlaylistArtistRepository artists, PlaylistTrackArtistRepository links,
-                                                DataSourceTransactionManager manager) {
-            return new PlaylistArtistSyncService(client, tracks, artists, links, manager);
+                                                DataSourceTransactionManager manager, TransactionCacheEvictor cacheEvictor) {
+            return new PlaylistArtistSyncService(client, tracks, artists, links, manager, cacheEvictor);
         }
     }
 }
