@@ -17,6 +17,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -88,20 +91,22 @@ class FeedbackServiceTest {
                 .content("신청곡 추가해주세요")
                 .build();
 
-        given(feedbackRepository.searchFeedbacks(FeedbackCategory.PLAYLIST, FeedbackType.FEATURE_REQUEST, FeedbackStatus.PENDING))
-                .willReturn(List.of(feedback));
+        var pageable = PageRequest.of(0, 20);
+        given(feedbackRepository.searchFeedbacks(FeedbackCategory.PLAYLIST, FeedbackType.FEATURE_REQUEST, FeedbackStatus.PENDING, pageable))
+                .willReturn(new PageImpl<>(List.of(feedback), pageable, 21));
 
         // when
-        List<FeedbackResponse> result = feedbackService.getFeedbacks(
+        Page<FeedbackResponse> result = feedbackService.getFeedbacks(
                 FeedbackCategory.PLAYLIST,
                 FeedbackType.FEATURE_REQUEST,
-                FeedbackStatus.PENDING
+                FeedbackStatus.PENDING, pageable
         );
 
         // then
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).category()).isEqualTo(FeedbackCategory.PLAYLIST);
-        assertThat(result.get(0).feedbackType()).isEqualTo(FeedbackType.FEATURE_REQUEST);
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getTotalElements()).isEqualTo(21);
+        assertThat(result.getContent().get(0).category()).isEqualTo(FeedbackCategory.PLAYLIST);
+        assertThat(result.getContent().get(0).feedbackType()).isEqualTo(FeedbackType.FEATURE_REQUEST);
     }
 
     @Test

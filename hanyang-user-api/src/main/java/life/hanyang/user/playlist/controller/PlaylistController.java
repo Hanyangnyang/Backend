@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Size;
 import life.hanyang.core.global.response.ApiResponse;
 import life.hanyang.core.global.exception.ErrorCode;
@@ -25,13 +27,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
 @RestController
-@Validated
 @RequestMapping("/api/v1/playlist/songs")
 @RequiredArgsConstructor
 @Tag(name = "에리카 플레이리스트 API", description = "사용자 곡 추천, 피드 조회, 좋아요 토글, 신고 기능을 제공합니다.")
@@ -102,7 +102,7 @@ public class PlaylistController {
                     "• **deviceId**: 현재 기기 식별자 ID (필수)\n" +
                     "• **direction**: 작성일시(createdAt) 기준 정렬 방향 (`DESC`: 최신순, `ASC`: 오래된순 / 기본값: `DESC`)\n" +
                     "• **page**: 0부터 시작하는 페이지 번호 (기본값: 0)\n" +
-                    "• **size**: 페이지당 개수 (기본값: 20)"
+                    "• **size**: 페이지당 개수 (1~100, 기본값: 20)"
     )
     @GetMapping("/my-songs")
     public ResponseEntity<ApiResponse<Page<PlaylistSongResponse>>> getMySongs(
@@ -111,9 +111,9 @@ public class PlaylistController {
             @Parameter(description = "정렬 방향 (DESC: 최신순, ASC: 오래된순)", example = "DESC")
             @RequestParam(defaultValue = "DESC") Sort.Direction direction,
             @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "페이지당 개수", example = "20")
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size
     ) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "createdAt"));
         Page<PlaylistSongResponse> songs = playlistService.getMySongs(deviceId, pageable);
@@ -122,7 +122,7 @@ public class PlaylistController {
 
     @Operation(
             summary = "추천글 가중치 통합 검색 (제목/가수/코멘트)",
-            description = "검색 키워드와 Spotify 상위 검색 결과를 이용해 등록된 추천글을 검색합니다. 직접 일치 결과를 먼저 보여주고 Spotify 트랙 순위로 검색 결과를 확장합니다. Spotify 장애 시 기존 키워드 검색으로 자동 전환됩니다.\n\n" +
+            description = "검색 키워드와 Spotify 상위 검색 결과를 이용해 등록된 추천글을 검색합니다. 가수·제목·본문의 포함 일치 결과를 먼저 보여주고, Spotify 검색 결과와 trackId가 같은 추천글을 추가합니다. 각 그룹은 최신순으로 정렬합니다. Spotify 장애 시 기존 키워드 검색으로 자동 전환됩니다.\n\n" +
                     "• **keyword**: 검색어 (곡명, 가수명, 코멘트 내용)\n" +
                     "• **deviceId**: 현재 기기 ID 전달 시 각 글의 `isLiked: true/false` 반환\n" +
                     "• **page/size**: 페이징 정보 (기본값: size=20)"

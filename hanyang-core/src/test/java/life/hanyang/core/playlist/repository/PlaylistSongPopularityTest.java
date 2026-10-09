@@ -31,6 +31,7 @@ class PlaylistSongPopularityTest {
                 .setProperty("hibernate.connection.driver_class", "org.h2.Driver")
                 .setProperty("hibernate.connection.url", "jdbc:h2:mem:popularity;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
                 .setProperty("hibernate.hbm2ddl.auto", "create-drop")
+                .setProperty("hibernate.generate_statistics", "true")
                 .buildSessionFactory()) {
             EntityManager em = factory.createEntityManager();
             try {
@@ -67,7 +68,7 @@ class PlaylistSongPopularityTest {
                 assertThat(((Number) counts.get(0)[1]).longValue()).isEqualTo(11L);
 
                 PlaylistSongRepositoryCustomImpl repository =
-                        new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em));
+                        new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em), em);
                 Page<PlaylistSong> first = repository.searchSongsByTrackId("target", PageRequest.of(0, 2));
                 Page<PlaylistSong> second = repository.searchSongsByTrackId("target", PageRequest.of(1, 2));
 
@@ -77,8 +78,12 @@ class PlaylistSongPopularityTest {
                         .containsExactly(olderTie.getId(), zero.getId());
                 assertThat(first.getTotalElements()).isEqualTo(4);
                 assertThat(first.getTotalPages()).isEqualTo(2);
+                factory.getStatistics().clear();
                 Page<PlaylistSong> newest = repository.searchSongsByTrackId("target",
                         PageRequest.of(0, 2, Sort.by(Sort.Direction.DESC, "createdAt")));
+                assertThat(factory.getStatistics().getQueries()).allSatisfy(query -> {
+                    assertThat(query).doesNotContain("PlaylistSongReaction", "group by");
+                });
                 assertThat(newest.getContent()).extracting(PlaylistSong::getId)
                         .containsExactly(zero.getId(), newerTie.getId());
                 assertThat(repository.searchSongsByTrackId("missing", PageRequest.of(0, 2)).getContent()).isEmpty();
