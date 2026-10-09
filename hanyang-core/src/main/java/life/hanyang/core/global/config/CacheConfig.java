@@ -63,6 +63,7 @@ public class CacheConfig implements CachingConfigurer {
                 Map.entry("holidays", config.entryTtl(Duration.ofHours(24))),
                 Map.entry("spotifyTrackSearch", config.entryTtl(Duration.ofMinutes(10))),
                 Map.entry("playlistChart", config.entryTtl(Duration.ofHours(24))),
+                Map.entry("playlistRecommendations", config.entryTtl(Duration.ofMinutes(5))),
                 Map.entry("academicOperationStatus", config.entryTtl(Duration.ofHours(24))),
                 Map.entry("academicPeriods", config.entryTtl(Duration.ofHours(24)))
         );
