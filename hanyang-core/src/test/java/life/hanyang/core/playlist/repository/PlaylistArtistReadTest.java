@@ -84,7 +84,7 @@ class PlaylistArtistReadTest {
                 em.flush();
                 em.clear();
 
-                var songs = new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em));
+                var songs = new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em), em);
                 var first = songs.searchSongsWithWeight("가수", SpotifySearchExpansion.empty(), PageRequest.of(0, 2));
                 var second = songs.searchSongsWithWeight("가수", SpotifySearchExpansion.empty(), PageRequest.of(1, 2));
                 assertThat(first.getTotalElements()).isEqualTo(3);
@@ -115,7 +115,7 @@ class PlaylistArtistReadTest {
     }
 
     @Test
-    void spotifyExpandedArtistMatchesCoartistAndRetainsCandidatePriority() {
+    void spotifyExpansionUsesOnlyTrackIdsAndDirectMatchesComeFirst() {
         try (SessionFactory factory = factory()) {
             EntityManager em = factory.createEntityManager();
             try {
@@ -131,10 +131,53 @@ class PlaylistArtistReadTest {
                 em.flush();
                 em.clear();
 
-                var repository = new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em));
+                var repository = new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em), em);
                 var result = repository.searchSongsWithWeight("unmatched query",
-                        new SpotifySearchExpansion(List.of(), List.of(), List.of("가수 B", "가수 A")), PageRequest.of(0, 20));
-                assertThat(result.getContent()).extracting(PlaylistSong::getTrackId).containsExactly("first", "second");
+                        new SpotifySearchExpansion(List.of("first", "second"), List.of(), List.of()), PageRequest.of(0, 20));
+                assertThat(result.getContent()).extracting(PlaylistSong::getTrackId).containsExactlyInAnyOrder("first", "second");
+                var ignoredMetadata = repository.searchSongsWithWeight("unmatched query",
+                        new SpotifySearchExpansion(List.of(), List.of("first"), List.of("가수 A")), PageRequest.of(0, 20));
+                assertThat(ignoredMetadata.getTotalElements()).isZero();
+                var directFirst = repository.searchSongsWithWeight("가수 B",
+                        new SpotifySearchExpansion(List.of("second"), List.of(), List.of()), PageRequest.of(0, 20));
+                assertThat(directFirst.getContent()).extracting(PlaylistSong::getTrackId).containsExactly("first", "second");
+                em.getTransaction().rollback();
+            } finally { em.close(); }
+        }
+    }
+
+    @Test
+    @org.junit.jupiter.api.Timeout(60)
+    void searchWithFullSpotifyExpansionKeepsPagingAndBoundedParserMemory() {
+        try (SessionFactory factory = factory()) {
+            EntityManager em = factory.createEntityManager();
+            try {
+                em.getTransaction().begin();
+                PlaylistTrack first = track(em, "first", "obsolete");
+                PlaylistTrack second = track(em, "second", "legacy");
+                link(em, first, artist(em, "A", "candidate-0"), 0);
+                link(em, first, artist(em, "B", "candidate-1"), 1);
+                link(em, second, artist(em, "C", "candidate-2"), 0);
+                song(em, first, "post");
+                song(em, second, "post");
+                em.flush();
+                em.clear();
+                List<String> candidates = java.util.stream.IntStream.range(0, 16)
+                        .mapToObj(i -> "candidate-" + i).toList();
+                SpotifySearchExpansion expansion = new SpotifySearchExpansion(
+                        java.util.stream.IntStream.range(0, 8).mapToObj(i -> i == 0 ? "first" : i == 1 ? "second" : "external-" + i).toList(),
+                        java.util.stream.IntStream.range(0, 8).mapToObj(i -> "title-" + i).toList(), candidates);
+                var repository = new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em), em);
+                for (int i = 0; i < 4; i++) {
+                    // Different list sizes force distinct query shapes rather than a cached parse.
+                    var varyingExpansion = new SpotifySearchExpansion(expansion.trackIds().subList(0, 8 - i),
+                            expansion.titles().subList(0, 8 - i), candidates.subList(0, 16 - i));
+                    var firstPage = repository.searchSongsWithWeight("candidate-0", varyingExpansion, PageRequest.of(0, 1));
+                    var secondPage = repository.searchSongsWithWeight("candidate-0", varyingExpansion, PageRequest.of(1, 1));
+                    assertThat(firstPage.getTotalElements()).isEqualTo(2);
+                    assertThat(firstPage.getContent()).extracting(PlaylistSong::getTrackId).containsExactly("first");
+                    assertThat(secondPage.getContent()).extracting(PlaylistSong::getTrackId).containsExactly("second");
+                }
                 em.getTransaction().rollback();
             } finally { em.close(); }
         }
@@ -154,11 +197,69 @@ class PlaylistArtistReadTest {
                 em.flush();
                 em.clear();
                 factory.getStatistics().clear();
-                var repository = new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em));
+                var repository = new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em), em);
                 var result = repository.searchSongs(null, PageRequest.of(0, 20));
                 assertThat(result.getContent()).hasSize(12);
                 assertThat(result.getContent().stream().map(PlaylistSong::getArtist)).allMatch(name -> name.startsWith("가수 "));
                 // Page + count + batched links + batched artists, independent of these 12 tracks.
+                assertThat(factory.getStatistics().getPrepareStatementCount()).isLessThanOrEqualTo(4);
+                em.getTransaction().rollback();
+            } finally { em.close(); }
+        }
+    }
+
+    @Test
+    void unionSearchEscapesWildcardsAndKeepsTotalForOutOfRangePages() {
+        try (SessionFactory factory = factory()) {
+            EntityManager em = factory.createEntityManager();
+            try {
+                em.getTransaction().begin();
+                PlaylistTrack track = track(em, "literal", "legacy");
+                PlaylistSong literal = song(em, track, "100%_! literal");
+                song(em, track, "ordinary comment");
+                PlaylistSong deleted = song(em, track, "100%_! deleted");
+                deleted.softDelete();
+                em.flush();
+                em.clear();
+                var repository = new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em), em);
+                for (String keyword : List.of("%", "_", "!")) {
+                    var result = repository.searchSongsWithWeight(keyword, SpotifySearchExpansion.empty(), PageRequest.of(0, 20));
+                    assertThat(result.getContent()).extracting(PlaylistSong::getId).containsExactly(literal.getId());
+                    var emptyPage = repository.searchSongsWithWeight(keyword, SpotifySearchExpansion.empty(), PageRequest.of(2, 1));
+                    assertThat(emptyPage.getContent()).isEmpty();
+                    assertThat(emptyPage.getTotalElements()).isEqualTo(1);
+                }
+                em.getTransaction().rollback();
+            } finally { em.close(); }
+        }
+    }
+
+    @Test
+    void searchResponseArtistNamesAndArraysUseBatchesForMultipleCoartists() {
+        try (SessionFactory factory = factory()) {
+            EntityManager em = factory.createEntityManager();
+            try {
+                em.getTransaction().begin();
+                for (int index = 0; index < 12; index++) {
+                    PlaylistTrack track = track(em, "search-" + index, "obsolete");
+                    link(em, track, artist(em, "search-A-" + index, "가수 A " + index), 0);
+                    link(em, track, artist(em, "search-B-" + index, "가수 B " + index), 1);
+                    song(em, track, "post");
+                    song(em, track, "another post");
+                }
+                em.flush();
+                em.clear();
+                factory.getStatistics().clear();
+                var repository = new PlaylistSongRepositoryCustomImpl(new JPAQueryFactory(em), em);
+                var result = repository.searchSongsWithWeight("가수", SpotifySearchExpansion.empty(), PageRequest.of(0, 20));
+                assertThat(result.getTotalElements()).isEqualTo(24);
+                assertThat(result.getContent()).hasSize(20);
+                for (PlaylistSong song : result) {
+                    PlaylistSongResponse response = PlaylistSongResponse.of(song);
+                    assertThat(response.artist()).startsWith("가수 A ").contains(", 가수 B ");
+                    assertThat(response.artists()).hasSize(2);
+                }
+                // List + distinct count + one batch for links + one batch for artists.
                 assertThat(factory.getStatistics().getPrepareStatementCount()).isLessThanOrEqualTo(4);
                 em.getTransaction().rollback();
             } finally { em.close(); }
@@ -236,8 +337,10 @@ class PlaylistArtistReadTest {
         em.persist(new PlaylistTrackArtist(track, artist, position));
     }
 
-    private void song(EntityManager em, PlaylistTrack track, String comment) {
-        em.persist(PlaylistSong.builder().track(track).comment(comment).genres(Set.of(Genre.KPOP))
-                .deviceId(UUID.randomUUID()).ipAddress("127.0.0.1").build());
+    private PlaylistSong song(EntityManager em, PlaylistTrack track, String comment) {
+        PlaylistSong song = PlaylistSong.builder().track(track).comment(comment).genres(Set.of(Genre.KPOP))
+                .deviceId(UUID.randomUUID()).ipAddress("127.0.0.1").build();
+        em.persist(song);
+        return song;
     }
 }

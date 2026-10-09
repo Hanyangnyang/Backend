@@ -36,4 +36,19 @@ class PlaylistControllerTest {
                 .andExpect(header().string("Retry-After", "17"))
                 .andExpect(jsonPath("$.error.code").value(ErrorCode.SPOTIFY_RATE_LIMITED.getCode()));
     }
+    @Test
+    void mySongsRejectsInvalidPageSizesBeforeQuerying() throws Exception {
+        var mvc = MockMvcBuilders.standaloneSetup(
+                new PlaylistController(playlistService, playlistChartQueryService))
+                .setControllerAdvice(new life.hanyang.core.global.exception.GlobalExceptionHandler()).build();
+        for (int size : new int[]{0, -1, 101, Integer.MAX_VALUE}) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/playlist/songs/my-songs")
+                            .param("deviceId", UUID.randomUUID().toString()).param("size", String.valueOf(size)))
+                    .andExpect(status().isBadRequest());
+        }
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/playlist/songs/my-songs")
+                        .param("deviceId", UUID.randomUUID().toString()).param("page", "-1"))
+                .andExpect(status().isBadRequest());
+        org.mockito.Mockito.verifyNoInteractions(playlistService);
+    }
 }

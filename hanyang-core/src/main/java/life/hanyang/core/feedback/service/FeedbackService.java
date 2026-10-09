@@ -15,7 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 
 @Slf4j
@@ -46,15 +47,14 @@ public class FeedbackService {
         return FeedbackResponse.from(saved);
     }
 
-    public List<FeedbackResponse> getFeedbacks(
+    public Page<FeedbackResponse> getFeedbacks(
             FeedbackCategory category,
             FeedbackType feedbackType,
-            FeedbackStatus status
+            FeedbackStatus status,
+            Pageable pageable
     ) {
-        return feedbackRepository.searchFeedbacks(category, feedbackType, status)
-                .stream()
-                .map(FeedbackResponse::from)
-                .toList();
+        return feedbackRepository.searchFeedbacks(category, feedbackType, status, pageable)
+                .map(FeedbackResponse::from);
     }
 
     public FeedbackResponse getFeedback(UUID id) {
