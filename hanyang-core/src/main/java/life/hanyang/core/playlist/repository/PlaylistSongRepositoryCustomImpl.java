@@ -2,9 +2,6 @@ package life.hanyang.core.playlist.repository;
 
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.CaseBuilder;
-import com.querydsl.core.types.dsl.NumberExpression;
-import com.querydsl.core.types.dsl.StringExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import life.hanyang.core.playlist.domain.Genre;
 import life.hanyang.core.playlist.domain.PlaylistSong;
@@ -16,7 +13,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static life.hanyang.core.playlist.domain.QPlaylistSong.playlistSong;
 import static life.hanyang.core.playlist.domain.QPlaylistSongReaction.playlistSongReaction;
@@ -25,6 +29,7 @@ import static life.hanyang.core.playlist.domain.QPlaylistTrack.playlistTrack;
 @RequiredArgsConstructor
 public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryCustom {
     private final JPAQueryFactory queryFactory;
+    private final EntityManager entityManager;
 
     @Override
     public Page<PlaylistSong> searchSongs(Genre genre, Pageable pageable) {
@@ -84,16 +89,14 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
         OrderSpecifier<?>[] ordering = latest
                 ? new OrderSpecifier<?>[]{playlistSong.createdAt.desc(), playlistSong.id.desc()}
                 : new OrderSpecifier<?>[]{playlistSongReaction.id.count().desc(), playlistSong.createdAt.desc(), playlistSong.id.desc()};
-        List<PlaylistSong> content = queryFactory
-                .selectFrom(playlistSong)
+        var contentQuery = queryFactory.selectFrom(playlistSong)
                 .join(playlistSong.track, playlistTrack).fetchJoin()
-                .leftJoin(playlistSongReaction).on(playlistSongReaction.song.eq(playlistSong))
-                .where(
-                        playlistSong.track.trackId.eq(trackId),
-                        playlistSong.deletedAt.isNull()
-                )
-                .groupBy(playlistSong, playlistTrack)
-                .orderBy(ordering)
+                .where(playlistSong.track.trackId.eq(trackId), playlistSong.deletedAt.isNull());
+        if (!latest) {
+            contentQuery.leftJoin(playlistSongReaction).on(playlistSongReaction.song.eq(playlistSong))
+                    .groupBy(playlistSong, playlistTrack);
+        }
+        List<PlaylistSong> content = contentQuery.orderBy(ordering)
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
@@ -120,136 +123,75 @@ public class PlaylistSongRepositoryCustomImpl implements PlaylistSongRepositoryC
         if (keyword == null || keyword.isBlank()) {
             return searchSongs(null, pageable);
         }
-
-        SpotifySearchExpansion safeExpansion = expansion != null ? expansion : SpotifySearchExpansion.empty();
-        BooleanExpression directMatchCondition = playlistSong.track.title.containsIgnoreCase(keyword)
-                .or(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.containsIgnoreCase(keyword)))
-                .or(playlistSong.comment.containsIgnoreCase(keyword));
-        BooleanExpression matchCondition = directMatchCondition.or(spotifyMatch(safeExpansion));
-
-        NumberExpression<Integer> matchPriority = new CaseBuilder()
-                .when(playlistSong.track.title.equalsIgnoreCase(keyword)).then(1)
-                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.equalsIgnoreCase(keyword))).then(2)
-                .when(playlistSong.track.title.startsWithIgnoreCase(keyword)).then(3)
-                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.startsWithIgnoreCase(keyword))).then(4)
-                .when(playlistSong.track.title.containsIgnoreCase(keyword)).then(5)
-                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> name.containsIgnoreCase(keyword))).then(6)
-                .when(matchesTrackId(safeExpansion.trackIds())).then(7)
-                .when(matchesText(playlistSong.track.title, safeExpansion.titles(), false)).then(8)
-                .when(matchesArtists(safeExpansion.artists())).then(9)
-                .when(playlistSong.comment.containsIgnoreCase(keyword)).then(10)
-                .otherwise(11);
-        NumberExpression<Integer> spotifyTrackRank = rankedTrackId(safeExpansion.trackIds());
-        NumberExpression<Integer> spotifyTitleRank = rankedText(playlistSong.track.title, safeExpansion.titles(), false);
-        NumberExpression<Integer> spotifyArtistRank = rankedArtists(safeExpansion.artists());
-
-        List<PlaylistSong> content = queryFactory
-                .selectFrom(playlistSong)
+        List<String> spotifyTrackIds = expansion == null ? List.of() : expansion.trackIds();
+        String candidates = """
+                WITH matching_tracks AS (
+                    SELECT track_id FROM playlist_tracks WHERE lower(title) LIKE :pattern ESCAPE '!'
+                    UNION
+                    SELECT ta.track_id FROM playlist_artists a
+                    JOIN playlist_track_artists ta ON ta.artist_id = a.id
+                    WHERE lower(a.name) LIKE :pattern ESCAPE '!'
+                    UNION
+                    SELECT t.track_id FROM playlist_tracks t
+                    WHERE lower(t.artist) LIKE :pattern ESCAPE '!'
+                      AND NOT EXISTS (SELECT 1 FROM playlist_track_artists ta WHERE ta.track_id = t.track_id)
+                ), candidates AS (
+                    SELECT s.id, 0 AS priority FROM playlist_songs s
+                    JOIN matching_tracks t ON t.track_id = s.track_id
+                    WHERE s.deleted_at IS NULL
+                    UNION ALL
+                    SELECT id, 0 AS priority FROM playlist_songs
+                    WHERE deleted_at IS NULL AND lower(comment) LIKE :pattern ESCAPE '!'
+                """;
+        if (!spotifyTrackIds.isEmpty()) {
+            candidates += """
+                    UNION ALL
+                    SELECT id, 1 AS priority FROM playlist_songs
+                    WHERE deleted_at IS NULL AND track_id IN (:spotifyTrackIds)
+                    """;
+        }
+        candidates += """
+                ), best_matches AS (
+                    SELECT id, min(priority) AS priority FROM candidates GROUP BY id
+                )
+                """;
+        String pattern = "%" + keyword.toLowerCase(Locale.ROOT)
+                .replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+        // Native SQL avoids the HQL parser explosion and lets each UNION branch
+        // search its own indexed column. Only one page of IDs leaves the database.
+        Query pageQuery = entityManager.createNativeQuery(candidates + """
+                SELECT s.id, count(*) OVER () AS total
+                FROM best_matches b JOIN playlist_songs s ON s.id = b.id
+                ORDER BY b.priority, s.created_at DESC, s.id DESC
+                """).unwrap(org.hibernate.query.NativeQuery.class)
+                .addScalar("id", UUID.class).addScalar("total", Long.class);
+        bindSearchParameters(pageQuery, pattern, spotifyTrackIds);
+        pageQuery.setFirstResult(Math.toIntExact(pageable.getOffset()));
+        pageQuery.setMaxResults(pageable.getPageSize());
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = pageQuery.getResultList();
+        if (rows.isEmpty()) {
+            // An out-of-range page still needs the real total, not zero.
+            long total = 0;
+            if (pageable.getOffset() > 0) {
+                Query countQuery = entityManager.createNativeQuery(candidates + "SELECT count(*) FROM best_matches");
+                bindSearchParameters(countQuery, pattern, spotifyTrackIds);
+                total = ((Number) countQuery.getSingleResult()).longValue();
+            }
+            return new PageImpl<>(List.of(), pageable, total);
+        }
+        List<UUID> ids = rows.stream().map(row -> (UUID) row[0]).toList();
+        Map<UUID, PlaylistSong> songs = queryFactory.selectFrom(playlistSong)
                 .join(playlistSong.track).fetchJoin()
-                .where(
-                        playlistSong.deletedAt.isNull(),
-                        matchCondition
-                )
-                .orderBy(
-                        matchPriority.asc(),
-                        spotifyTrackRank.asc(),
-                        spotifyTitleRank.asc(),
-                        spotifyArtistRank.asc(),
-                        playlistSong.createdAt.desc()
-                )
-                .offset(pageable.getOffset())
-                .limit(pageable.getPageSize())
-                .fetch();
-
-        Long total = queryFactory
-                .select(playlistSong.count())
-                .from(playlistSong)
-                .where(
-                        playlistSong.deletedAt.isNull(),
-                        matchCondition
-                )
-                .fetchOne();
-
-        return new PageImpl<>(content, pageable, total != null ? total : 0L);
+                .where(playlistSong.id.in(ids), playlistSong.deletedAt.isNull()).fetch().stream()
+                .collect(Collectors.toMap(PlaylistSong::getId, Function.identity()));
+        List<PlaylistSong> content = ids.stream().map(songs::get).filter(java.util.Objects::nonNull).toList();
+        return new PageImpl<>(content, pageable, ((Number) rows.get(0)[1]).longValue());
     }
 
-    private BooleanExpression spotifyMatch(SpotifySearchExpansion expansion) {
-        return matchesTrackId(expansion.trackIds())
-                .or(matchesText(playlistSong.track.title, expansion.titles(), false))
-                .or(matchesArtists(expansion.artists()));
-    }
-
-    private BooleanExpression matchesArtists(List<String> names) {
-        return PlaylistArtistSearchExpressions.matches(playlistSong.track, name -> matchesText(name, names, true));
-    }
-
-    private NumberExpression<Integer> rankedArtists(List<String> names) {
-        if (names.isEmpty()) return rankedNever(playlistSong.track.trackId);
-        CaseBuilder.Cases<Integer, NumberExpression<Integer>> cases = new CaseBuilder()
-                .when(PlaylistArtistSearchExpressions.matches(playlistSong.track,
-                        name -> name.containsIgnoreCase(names.get(0)))).then(1);
-        for (int index = 1; index < names.size(); index++) {
-            String value = names.get(index);
-            cases = cases.when(PlaylistArtistSearchExpressions.matches(playlistSong.track,
-                    name -> name.containsIgnoreCase(value))).then(index + 1);
-        }
-        return cases.otherwise(Integer.MAX_VALUE);
-    }
-
-    private BooleanExpression matchesTrackId(List<String> trackIds) {
-        return trackIds.isEmpty()
-                ? alwaysFalse(playlistSong.track.trackId)
-                : playlistSong.track.trackId.in(trackIds);
-    }
-
-    private BooleanExpression matchesText(StringExpression field, List<String> values, boolean contains) {
-        BooleanExpression condition = alwaysFalse(field);
-        for (String value : values) {
-            condition = condition.or(contains ? field.containsIgnoreCase(value) : field.equalsIgnoreCase(value));
-        }
-        return condition;
-    }
-
-    private NumberExpression<Integer> rankedTrackId(List<String> rankedTrackIds) {
-        if (rankedTrackIds.isEmpty()) {
-            return rankedNever(playlistSong.track.trackId);
-        }
-
-        CaseBuilder.Cases<Integer, NumberExpression<Integer>> cases = new CaseBuilder()
-                .when(playlistSong.track.trackId.eq(rankedTrackIds.get(0)))
-                .then(1);
-        for (int index = 1; index < rankedTrackIds.size(); index++) {
-            cases = cases.when(playlistSong.track.trackId.eq(rankedTrackIds.get(index))).then(index + 1);
-        }
-        return cases.otherwise(Integer.MAX_VALUE);
-    }
-
-    private NumberExpression<Integer> rankedText(StringExpression field, List<String> values, boolean contains) {
-        if (values.isEmpty()) {
-            return rankedNever(field);
-        }
-
-        BooleanExpression firstMatch = contains
-                ? field.containsIgnoreCase(values.get(0))
-                : field.equalsIgnoreCase(values.get(0));
-        CaseBuilder.Cases<Integer, NumberExpression<Integer>> cases = new CaseBuilder()
-                .when(firstMatch)
-                .then(1);
-        for (int index = 1; index < values.size(); index++) {
-            BooleanExpression match = contains
-                    ? field.containsIgnoreCase(values.get(index))
-                    : field.equalsIgnoreCase(values.get(index));
-            cases = cases.when(match).then(index + 1);
-        }
-        return cases.otherwise(Integer.MAX_VALUE);
-    }
-
-    private BooleanExpression alwaysFalse(StringExpression field) {
-        return field.isNull().and(field.isNotNull());
-    }
-
-    private NumberExpression<Integer> rankedNever(StringExpression field) {
-        return new CaseBuilder().when(alwaysFalse(field)).then(0).otherwise(Integer.MAX_VALUE);
+    private void bindSearchParameters(Query query, String pattern, List<String> spotifyTrackIds) {
+        query.setParameter("pattern", pattern);
+        if (!spotifyTrackIds.isEmpty()) query.setParameter("spotifyTrackIds", spotifyTrackIds);
     }
 
     @Override

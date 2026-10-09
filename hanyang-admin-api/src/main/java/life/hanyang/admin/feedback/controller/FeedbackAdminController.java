@@ -14,7 +14,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import java.util.UUID;
 
 @RestController
@@ -25,14 +28,18 @@ public class FeedbackAdminController {
 
     private final FeedbackService feedbackService;
 
-    @Operation(summary = "피드백 목록 조회 (카테고리, 유형, 처리상태별 필터)")
+    @Operation(summary = "피드백 목록 조회 (카테고리, 유형, 처리상태별 필터)",
+            description = "최신순 페이지 조회. page는 0부터, size는 1~100(기본 20). data.content에 목록을 반환합니다.")
     @GetMapping
-    public ResponseEntity<ApiResponse<List<FeedbackResponse>>> getFeedbacks(
+    public ResponseEntity<ApiResponse<Page<FeedbackResponse>>> getFeedbacks(
             @RequestParam(required = false) FeedbackCategory category,
             @RequestParam(required = false) FeedbackType feedbackType,
-            @RequestParam(required = false) FeedbackStatus status
+            @RequestParam(required = false) FeedbackStatus status,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size
     ) {
-        List<FeedbackResponse> responses = feedbackService.getFeedbacks(category, feedbackType, status);
+        Page<FeedbackResponse> responses = feedbackService.getFeedbacks(
+                category, feedbackType, status, PageRequest.of(page, size));
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
