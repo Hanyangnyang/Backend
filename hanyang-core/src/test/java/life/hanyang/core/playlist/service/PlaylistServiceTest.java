@@ -77,6 +77,9 @@ class PlaylistServiceTest {
     private PlaylistRegistrationGuard playlistRegistrationGuard;
 
     @Mock
+    private PlaylistRegistrationLock playlistRegistrationLock;
+
+    @Mock
     private PlaylistTrackHourlyPlayRepository playlistTrackHourlyPlayRepository;
 
     @Mock
@@ -144,6 +147,24 @@ class PlaylistServiceTest {
         assertThat(response.artist()).isEqualTo("NewJeans");
         assertThat(response.genres()).containsExactly(Genre.KPOP);
         verify(eventPublisher).publishEvent(new PlaylistTrackRegisteredEvent(request.trackId()));
+        var order = org.mockito.Mockito.inOrder(playlistRegistrationLock, playlistSongRepository, playlistModerationService);
+        order.verify(playlistRegistrationLock).acquireUntilTransactionCompletion(deviceId);
+        order.verify(playlistSongRepository).countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(eq(deviceId), any());
+        order.verify(playlistSongRepository).existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(eq(deviceId), eq(request.trackId()), any());
+        order.verify(playlistModerationService).validateSongContent(any(), any(), any());
+    }
+
+    @Test
+    void createSong_LockConflictSkipsDatabaseAndAi() {
+        UUID deviceId = UUID.randomUUID();
+        PlaylistSongCreateRequest request = new PlaylistSongCreateRequest(
+                "track", "title", "artist", null, "comment", deviceId, Set.of(Genre.KPOP));
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.PLAYLIST_REGISTRATION_IN_PROGRESS))
+                .when(playlistRegistrationLock).acquireUntilTransactionCompletion(deviceId);
+        assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PLAYLIST_REGISTRATION_IN_PROGRESS));
+        verifyNoInteractions(playlistSongRepository, playlistTrackRepository, playlistModerationService);
     }
 
     @Test

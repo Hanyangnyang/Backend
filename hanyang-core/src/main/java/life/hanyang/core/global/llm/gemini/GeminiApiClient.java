@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import java.util.function.BiConsumer;
 
 @Component
 public class GeminiApiClient {
@@ -25,6 +26,10 @@ public class GeminiApiClient {
     }
 
     public String generateContent(String prompt) {
+        return generateContent(prompt, (model, usage) -> {});
+    }
+
+    public String generateContent(String prompt, BiConsumer<String, GeminiApiResponse.UsageMetadata> usageConsumer) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("Gemini API Key가 설정되지 않았습니다.");
         }
@@ -43,6 +48,9 @@ public class GeminiApiClient {
             throw new IllegalStateException("Gemini API 응답이 null입니다.");
         }
 
+        if (response.usageMetadata() != null) {
+            usageConsumer.accept(model, response.usageMetadata());
+        }
         return response.getGeneratedText();
     }
 }

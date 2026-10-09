@@ -19,6 +19,7 @@ public class PlaylistModerationService {
     private final GeminiApiClient geminiApiClient;
     private final JevApiClient jevApiClient;
     private final ObjectMapper objectMapper;
+    private final PlaylistModerationMetrics metrics;
 
     @Value("${api.jev.approval-threshold:0.51}")
     private double approvalThreshold = 0.51;
@@ -103,10 +104,13 @@ public class PlaylistModerationService {
         String acrostic = extractAcrostic(safeComment);
 
         if (safeTitle.isBlank() && safeArtist.isBlank() && safeComment.isBlank()) {
+            metrics.recordResult("skipped", "not_called");
             return true;
         }
 
         String preValidationResult = PRE_VALIDATION_UNAVAILABLE;
+        String jevResult = "error";
+        long jevStartedAt = System.nanoTime();
         try {
             String state = String.format(MODERATION_RULES, escape(safeTitle), escape(safeArtist), escape(safeComment), escape(acrostic));
             double probability = jevApiClient.registrationAllowedProbability(state, JEV_INSTRUCTIONS);
@@ -114,30 +118,45 @@ public class PlaylistModerationService {
                 throw new IllegalStateException("Jev 등록 허용 확률이 유효하지 않습니다.");
             }
             if (probability >= approvalThreshold) {
+                jevResult = "approved";
+                metrics.recordResult(jevResult, "not_called");
                 log.debug("[PlaylistModeration] Jev 검열 통과 - probability: {}", probability);
                 return true;
             }
+            jevResult = "below_threshold";
             preValidationResult = "이 입력은 사전 검증에서 자동 승인 기준을 충족하지 못했습니다.\n"
                     + "등록 허용 추정 확률 (0~1): " + probability;
         } catch (Exception e) {
             log.warn("[PlaylistModeration] Jev 검열 실패, Gemini로 전환 - error: {}", e.getMessage());
+        } finally {
+            metrics.recordCall("jev", jevResult, jevStartedAt);
         }
 
+        long geminiStartedAt = System.nanoTime();
+        String geminiResult = "error";
         try {
             String prompt = String.format(GEMINI_REVIEW_CONTEXT, preValidationResult)
                     + String.format(MODERATION_PROMPT, escape(safeTitle), escape(safeArtist), escape(safeComment), escape(acrostic));
-            String responseText = geminiApiClient.generateContent(prompt);
+            String responseText = geminiApiClient.generateContent(prompt, (model, usage) -> {
+                metrics.recordTokens(model, "input", usage.promptTokenCount());
+                metrics.recordTokens(model, "output", usage.candidatesTokenCount());
+                metrics.recordTokens(model, "thoughts", usage.thoughtsTokenCount());
+                metrics.recordTokens(model, "cached_input", usage.cachedContentTokenCount());
+                metrics.recordTokens(model, "total", usage.totalTokenCount());
+            });
 
             JsonNode root = objectMapper.readTree(extractJson(responseText));
             boolean inappropriate = root.path("inappropriate").asBoolean(false);
 
             if (inappropriate) {
+                geminiResult = "rejected";
                 String reason = root.path("reason").asText("부적절한 표현이 감지되었습니다.");
                 log.warn("[PlaylistModeration] 🚨 유해 코멘트 차단 감지 - title: '{}', artist: '{}', comment: '{}', reason: '{}'",
                         title, artist, comment, reason);
                 throw new BusinessException(reason, ErrorCode.PLAYLIST_INAPPROPRIATE_COMMENT);
             }
 
+            geminiResult = "approved";
             log.debug("[PlaylistModeration] ✅ 코멘트 검열 통과 - title: '{}', artist: '{}'", title, artist);
             return true;
         } catch (BusinessException e) {
@@ -147,6 +166,9 @@ public class PlaylistModerationService {
             log.warn("[PlaylistModeration] ⚠️ Gemini API 검열 오류 발생 (Fail-Open 자동 통과) - title: '{}', artist: '{}', comment: '{}', error: {}",
                     title, artist, comment, e.getMessage());
             return false;
+        } finally {
+            metrics.recordCall("gemini", geminiResult, geminiStartedAt);
+            metrics.recordResult(jevResult, geminiResult);
         }
     }
 
