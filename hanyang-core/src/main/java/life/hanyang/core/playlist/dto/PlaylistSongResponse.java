@@ -42,7 +42,7 @@ public record PlaylistSongResponse(
         @Schema(description = "현재 기기가 이 곡을 좋아요했는지 여부", example = "true")
         boolean isLiked,
 
-        @Schema(description = "10대 이모지 리액션 목록")
+        @Schema(description = "11종 이모지 리액션 목록")
         List<PlaylistReactionItemResponse> reactions,
 
         @Schema(description = "작성 일시 (KST/UTC)", example = "2026-08-27T10:15:30Z")
