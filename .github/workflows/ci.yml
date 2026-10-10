@@ -56,6 +56,7 @@ jobs:
           echo 'DISCORD_ERROR_WEBHOOK_URL=' >> .env
           echo 'FEEDBACK_WEBHOOK_URL=' >> .env
           echo 'PLAYLIST_REPORT_WEBHOOK_URL=' >> .env
+          echo 'PLAYLIST_DAILY_CREATE_LIMIT=${{ secrets.PLAYLIST_DAILY_CREATE_LIMIT || '3' }}' >> .env
           echo 'REDIS_HOST=${{ secrets.REDIS_HOST }}' >> .env
           echo 'REDIS_PORT=${{ secrets.REDIS_PORT }}' >> .env
           echo 'REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}' >> .env
