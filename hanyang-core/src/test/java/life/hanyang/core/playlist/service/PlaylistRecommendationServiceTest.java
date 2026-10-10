@@ -83,7 +83,7 @@ class PlaylistRecommendationServiceTest {
     }
 
     @Test
-    void selectsTwoInterestsAndThreeDiscoveriesWithoutRankingByPostCount() {
+    void selectsAllThreeInterestsBeforeFillingTwoDiscoverySlots() {
         List<Candidate> interest = new ArrayList<>(), discovery = new ArrayList<>();
         List<Signal> signals = new ArrayList<>(); List<TrackArtist> historyArtists = new ArrayList<>();
         for (int i = 1; i <= 7; i++) {
@@ -99,9 +99,34 @@ class PlaylistRecommendationServiceTest {
         when(repository.findDiscoveryCandidates(eq(device), anyList(), anySet())).thenReturn(discovery);
         var result = service.getRecommendations(device);
         assertThat(result.items()).hasSize(5);
-        assertThat(result.items().stream().filter(item -> item.source() == INTEREST)).hasSize(2);
-        assertThat(result.items().stream().filter(item -> item.source() == DISCOVERY)).hasSize(3);
+        assertThat(result.items().stream().filter(item -> item.source() == INTEREST)).hasSize(3);
+        assertThat(result.items().stream().filter(item -> item.source() == DISCOVERY)).hasSize(2);
+        assertThat(result.items().subList(0, 3)).extracting(item -> item.artist().id()).containsExactly(id(1), id(2), id(3));
         assertThat(result.items()).extracting(item -> item.artist().id()).doesNotHaveDuplicates();
+        verifyNoInteractions(charts);
+    }
+
+    @Test
+    void selectsTopFiveInterestsWithoutQueryingDiscoveryOrWeekly() {
+        List<Signal> signals = new ArrayList<>();
+        List<TrackArtist> historyArtists = new ArrayList<>();
+        List<Candidate> candidates = new ArrayList<>();
+        for (int i = 1; i <= 6; i++) {
+            track("interest-" + i, id(i));
+            signals.add(new Signal("interest-" + i, 0, 10 - i));
+            historyArtists.add(new TrackArtist("interest-" + i, id(i)));
+            candidates.add(new Candidate(id(i), "interest-" + i));
+        }
+        when(repository.findSignals(eq(device), any(), any(), any(), any())).thenReturn(signals);
+        when(repository.findArtists(anyList())).thenReturn(historyArtists);
+        when(repository.findInterestCandidates(anyList())).thenReturn(candidates);
+
+        var result = service.getRecommendations(device);
+
+        assertThat(result.items()).extracting(item -> item.artist().id())
+                .containsExactly(id(1), id(2), id(3), id(4), id(5));
+        assertThat(result.items()).extracting(PlaylistRecommendationResponse.Item::source).containsOnly(INTEREST);
+        verify(repository, never()).findDiscoveryCandidates(any(), anyList(), anySet());
         verifyNoInteractions(charts);
     }
 
