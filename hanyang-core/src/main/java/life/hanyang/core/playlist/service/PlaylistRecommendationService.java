@@ -79,17 +79,17 @@ public class PlaylistRecommendationService {
         // Prefer the artist's known tracks; retain up to five alternatives to avoid duplicate collaborations.
         interest.values().forEach(candidates -> candidates.sort(
                 Comparator.comparingDouble((Candidate candidate) -> trackScores.getOrDefault(candidate.trackId(), 0.0)).reversed()));
-        Map<UUID, List<Candidate>> discovery = group(
-                recommendationRepository.findDiscoveryCandidates(deviceId, genres, artistScores.keySet()));
-        List<UUID> discoveryArtists = new ArrayList<>(discovery.keySet());
-        Collections.shuffle(discoveryArtists);
-
         List<Selection> selected = new ArrayList<>();
         Set<UUID> selectedArtists = new HashSet<>();
         Set<String> selectedTracks = new HashSet<>();
-        select(interestArtists, interest, INTEREST, 2, selected, selectedArtists, selectedTracks);
-        select(discoveryArtists, discovery, DISCOVERY, MAX_ITEMS, selected, selectedArtists, selectedTracks);
         select(interestArtists, interest, INTEREST, MAX_ITEMS, selected, selectedArtists, selectedTracks);
+        if (selected.size() < MAX_ITEMS) {
+            Map<UUID, List<Candidate>> discovery = group(
+                    recommendationRepository.findDiscoveryCandidates(deviceId, genres, artistScores.keySet()));
+            List<UUID> discoveryArtists = new ArrayList<>(discovery.keySet());
+            Collections.shuffle(discoveryArtists);
+            select(discoveryArtists, discovery, DISCOVERY, MAX_ITEMS, selected, selectedArtists, selectedTracks);
+        }
 
         if (selected.size() < MAX_ITEMS) {
             // Read the existing latest overall weekly snapshot only. This endpoint never creates a chart.
