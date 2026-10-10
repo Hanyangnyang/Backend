@@ -230,11 +230,11 @@ public class PlaylistController {
     }
 
     @Operation(
-            summary = "이모지 리액션 토글 (9종)",
-            description = "특정 추천글에 9대 이모지 리액션(LOVE, EMOTIONAL, BITTERSWEET, COOL, FIRE, ROCK, DANCE, THUMBS_UP, BEER)을 남기거나 취소합니다.\n\n" +
+            summary = "이모지 리액션 토글 (11종)",
+            description = "특정 추천글에 11종 이모지 리액션(LOVE, EMOTIONAL, BITTERSWEET, COOL, FIRE, ROCK, DANCE, THUMBS_UP, BEER, SURPRISED, ANGRY)을 남기거나 취소합니다.\n\n" +
                     "• 이미 누른 이모지 ➡️ 취소 처리 (`isReacted: false`)\n" +
                     "• 아직 누르지 않은 이모지 ➡️ 추가 처리 (`isReacted: true`)\n" +
-                    "• 응답으로 해당 곡의 9개 이모지 전체 최신 카운트 목록을 반환합니다."
+                    "• 응답으로 해당 곡의 11개 이모지 전체 최신 카운트 목록을 반환합니다."
     )
     @PostMapping("/{id}/reactions")
     public ResponseEntity<ApiResponse<PlaylistReactionToggleResponse>> toggleReaction(

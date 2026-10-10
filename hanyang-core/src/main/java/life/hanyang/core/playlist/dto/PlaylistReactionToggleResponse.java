@@ -17,7 +17,7 @@ public record PlaylistReactionToggleResponse(
         @Schema(description = "토글 후 현재 기기의 반응 여부 (true: 추가됨, false: 취소됨)", example = "true")
         boolean isReacted,
 
-        @Schema(description = "해당 곡의 10대 이모지 전체 최신 카운트 및 내 반응 상태 목록")
+        @Schema(description = "해당 곡의 11종 이모지 전체 최신 카운트 및 내 반응 상태 목록")
         List<PlaylistReactionItemResponse> reactions
 ) {
     public static PlaylistReactionToggleResponse of(

@@ -901,65 +901,71 @@ class PlaylistServiceTest {
         );
     }
 
-    @Test
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = ReactionType.class, names = {"FIRE", "SURPRISED", "ANGRY"})
     @DisplayName("이모지 리액션 추가 성공 (최초 등록)")
-    void toggleReaction_Add_Success() {
+    void toggleReaction_Add_Success(ReactionType reactionType) {
         // given
         UUID songId = UUID.randomUUID();
         UUID deviceId = UUID.randomUUID();
         PlaylistSong song = PlaylistSong.builder().build();
 
         given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-        given(playlistSongReactionRepository.deleteIfPresent(songId, deviceId, ReactionType.FIRE.name()))
+        given(playlistSongReactionRepository.deleteIfPresent(songId, deviceId, reactionType.name()))
                 .willReturn(0);
-        given(playlistSongReactionRepository.insertIfAbsent(songId, deviceId, ReactionType.FIRE.name()))
+        given(playlistSongReactionRepository.insertIfAbsent(songId, deviceId, reactionType.name()))
                 .willReturn(1);
-        List<Object[]> countRows = Collections.singletonList(new Object[]{ReactionType.FIRE, 1L});
+        List<Object[]> countRows = Collections.singletonList(new Object[]{reactionType, 1L});
         given(playlistSongReactionRepository.countReactionsBySongId(songId))
                 .willReturn(countRows);
         given(playlistSongReactionRepository.findUserReactionTypesByDeviceIdAndSongId(deviceId, songId))
-                .willReturn(Set.of(ReactionType.FIRE));
+                .willReturn(Set.of(reactionType));
 
-        PlaylistReactionToggleRequest request = new PlaylistReactionToggleRequest(deviceId, ReactionType.FIRE);
+        PlaylistReactionToggleRequest request = new PlaylistReactionToggleRequest(deviceId, reactionType);
 
         // when
         PlaylistReactionToggleResponse response = playlistService.toggleReaction(songId, request);
 
         // then
         assertThat(response.songId()).isEqualTo(songId);
-        assertThat(response.reactionType()).isEqualTo(ReactionType.FIRE);
+        assertThat(response.reactionType()).isEqualTo(reactionType);
         assertThat(response.isReacted()).isTrue();
-        assertThat(response.reactions()).hasSize(9);
-        PlaylistReactionItemResponse fireItem = response.reactions().stream()
-                .filter(r -> r.type() == ReactionType.FIRE)
+        assertThat(response.reactions()).hasSize(11);
+        PlaylistReactionItemResponse reactionItem = response.reactions().stream()
+                .filter(r -> r.type() == reactionType)
                 .findFirst().orElseThrow();
-        assertThat(fireItem.count()).isEqualTo(1L);
-        assertThat(fireItem.isReacted()).isTrue();
-        verify(playlistSongReactionRepository).insertIfAbsent(songId, deviceId, ReactionType.FIRE.name());
+        assertThat(reactionItem.emoji()).isEqualTo(reactionType.getEmoji());
+        assertThat(response.reactions()).extracting(PlaylistReactionItemResponse::type)
+                .contains(ReactionType.BITTERSWEET, ReactionType.ROCK, ReactionType.DANCE, ReactionType.BEER,
+                        ReactionType.SURPRISED, ReactionType.ANGRY);
+        assertThat(reactionItem.count()).isEqualTo(1L);
+        assertThat(reactionItem.isReacted()).isTrue();
+        verify(playlistSongReactionRepository).insertIfAbsent(songId, deviceId, reactionType.name());
     }
 
-    @Test
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = ReactionType.class, names = {"FIRE", "SURPRISED", "ANGRY"})
     @DisplayName("이모지 리액션 취소 성공 (이미 등록된 경우)")
-    void toggleReaction_Cancel_Success() {
+    void toggleReaction_Cancel_Success(ReactionType reactionType) {
         // given
         UUID songId = UUID.randomUUID();
         UUID deviceId = UUID.randomUUID();
         PlaylistSong song = PlaylistSong.builder().build();
         given(playlistSongRepository.findByIdAndDeletedAtIsNull(songId)).willReturn(Optional.of(song));
-        given(playlistSongReactionRepository.deleteIfPresent(songId, deviceId, ReactionType.FIRE.name()))
+        given(playlistSongReactionRepository.deleteIfPresent(songId, deviceId, reactionType.name()))
                 .willReturn(1);
         given(playlistSongReactionRepository.countReactionsBySongId(songId))
                 .willReturn(Collections.emptyList());
         given(playlistSongReactionRepository.findUserReactionTypesByDeviceIdAndSongId(deviceId, songId))
                 .willReturn(Collections.emptySet());
 
-        PlaylistReactionToggleRequest request = new PlaylistReactionToggleRequest(deviceId, ReactionType.FIRE);
+        PlaylistReactionToggleRequest request = new PlaylistReactionToggleRequest(deviceId, reactionType);
 
         // when
         PlaylistReactionToggleResponse response = playlistService.toggleReaction(songId, request);
 
         // then
         assertThat(response.isReacted()).isFalse();
-        verify(playlistSongReactionRepository).deleteIfPresent(songId, deviceId, ReactionType.FIRE.name());
+        verify(playlistSongReactionRepository).deleteIfPresent(songId, deviceId, reactionType.name());
     }
 }
