@@ -57,7 +57,7 @@ class PlaylistRecommendationRepositoryTest {
             assertThat(signals).contains(new PlaylistRecommendationRepository.Signal("known", 2, 6),
                     new PlaylistRecommendationRepository.Signal("own-only", 0, 6));
             assertThat(signals).hasSize(2);
-            assertThat(repo.findArtists(List.of("known"))).containsExactly(new PlaylistRecommendationRepository.TrackArtist("known", knownArtist));
+            assertThat(repo.findArtists(List.of("known"))).containsExactly(new PlaylistRecommendationRepository.TrackArtist("known", knownArtist, 0));
             assertThat(repo.findGenres(List.of("fresh"))).containsExactly(new PlaylistRecommendationRepository.TrackGenre("fresh", "BAND"));
             assertThat(repo.findDiscoveryCandidates(device, List.of("BAND"), Set.of(knownArtist)))
                     .containsExactly(new PlaylistRecommendationRepository.Candidate(freshArtist, "fresh"));
