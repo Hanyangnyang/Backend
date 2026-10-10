@@ -50,15 +50,15 @@ public class PlaylistRecommendationService {
                 PlaylistRecommendationRepository.Signal::trackId, PlaylistRecommendationRepository.Signal::score));
         List<String> historyTracks = new ArrayList<>(trackScores.keySet());
         var artistLinks = recommendationRepository.findArtists(historyTracks);
-        Map<String, List<UUID>> artistsByTrack = artistLinks.stream().collect(Collectors.groupingBy(
-                PlaylistRecommendationRepository.TrackArtist::trackId,
-                Collectors.mapping(PlaylistRecommendationRepository.TrackArtist::artistId, Collectors.toList())));
+        var artistsByTrack = artistLinks.stream().collect(Collectors.groupingBy(
+                PlaylistRecommendationRepository.TrackArtist::trackId));
         Map<UUID, Double> artistScores = new HashMap<>();
         artistsByTrack.forEach((trackId, artists) -> {
-            var signal = signalsByTrack.get(trackId);
-            // Every participating artist receives the full play score; explicit preferences are shared.
-            double share = signal.playScore() + signal.preferenceScore() / artists.size();
-            artists.forEach(artist -> artistScores.merge(artist, share, Double::sum));
+            // Credit only the first artist, discounting all activity by the collaboration size.
+            var firstArtist = artists.stream().min(Comparator.comparingInt(
+                    PlaylistRecommendationRepository.TrackArtist::artistOrder)).orElseThrow();
+            double share = signalsByTrack.get(trackId).score() / artists.size();
+            artistScores.merge(firstArtist.artistId(), share, Double::sum);
         });
         List<UUID> interestArtists = artistScores.entrySet().stream()
                 .sorted(Map.Entry.<UUID, Double>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
@@ -85,7 +85,8 @@ public class PlaylistRecommendationService {
         select(interestArtists, interest, INTEREST, MAX_ITEMS, selected, selectedArtists, selectedTracks);
         if (selected.size() < MAX_ITEMS) {
             Map<UUID, List<Candidate>> discovery = group(
-                    recommendationRepository.findDiscoveryCandidates(deviceId, genres, artistScores.keySet()));
+                    recommendationRepository.findDiscoveryCandidates(deviceId, genres, artistLinks.stream()
+                            .map(PlaylistRecommendationRepository.TrackArtist::artistId).collect(Collectors.toSet())));
             List<UUID> discoveryArtists = new ArrayList<>(discovery.keySet());
             Collections.shuffle(discoveryArtists);
             select(discoveryArtists, discovery, DISCOVERY, MAX_ITEMS, selected, selectedArtists, selectedTracks);

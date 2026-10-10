@@ -19,7 +19,7 @@ public class PlaylistRecommendationRepository {
     public record Signal(String trackId, double playScore, double preferenceScore) {
         public double score() { return playScore + preferenceScore; }
     }
-    public record TrackArtist(String trackId, UUID artistId) { }
+    public record TrackArtist(String trackId, UUID artistId, int artistOrder) { }
     public record TrackGenre(String trackId, String genre) { }
     public record Candidate(UUID artistId, String trackId) { }
 
@@ -58,10 +58,10 @@ public class PlaylistRecommendationRepository {
     public List<TrackArtist> findArtists(List<String> trackIds) {
         if (trackIds.isEmpty()) return List.of();
         NativeQuery<?> query = entityManager.createNativeQuery("""
-                SELECT track_id, artist_id FROM playlist_track_artists WHERE track_id IN (:trackIds)
-                """).unwrap(NativeQuery.class).addScalar("track_id", String.class).addScalar("artist_id", UUID.class);
+                SELECT track_id, artist_id, artist_order FROM playlist_track_artists WHERE track_id IN (:trackIds)
+                """).unwrap(NativeQuery.class).addScalar("track_id", String.class).addScalar("artist_id", UUID.class).addScalar("artist_order", Integer.class);
         query.setParameter("trackIds", trackIds);
-        return rows(query).stream().map(row -> new TrackArtist((String) row[0], (UUID) row[1])).toList();
+        return rows(query).stream().map(row -> new TrackArtist((String) row[0], (UUID) row[1], ((Number) row[2]).intValue())).toList();
     }
 
     public List<TrackGenre> findGenres(List<String> trackIds) {

@@ -48,38 +48,38 @@ class PlaylistRecommendationServiceTest {
     }
 
     @Test
-    void splitsCollaborationScoresAndAvoidsDuplicateArtistsAndTracks() {
+    void creditsOnlyFirstArtistButReturnsAllTrackArtists() {
         UUID a = id(1), b = id(2), c = id(3);
         track("shared", a, b); track("b-alternative", b); track("solo", c);
         when(repository.findSignals(eq(device), any(), any(), any(), any()))
                 .thenReturn(List.of(new Signal("shared", 0, 6), new Signal("solo", 0, 4)));
         when(repository.findArtists(anyList())).thenReturn(List.of(
-                new TrackArtist("shared", a), new TrackArtist("shared", b), new TrackArtist("solo", c)));
+                new TrackArtist("shared", a, 0), new TrackArtist("shared", b, 1), new TrackArtist("solo", c, 0)));
         when(repository.findGenres(anyList())).thenReturn(List.of(new TrackGenre("shared", "BAND")));
         when(repository.findInterestCandidates(anyList())).thenReturn(List.of(
                 new Candidate(a, "shared"), new Candidate(b, "shared"), new Candidate(b, "b-alternative"), new Candidate(c, "solo")));
         var result = service.getRecommendations(device);
-        assertThat(result.items()).extracting(item -> item.artist().id()).containsExactly(c, a, b);
-        assertThat(result.items()).extracting(item -> item.track().trackId()).containsExactly("solo", "shared", "b-alternative");
+        assertThat(result.items()).extracting(item -> item.artist().id()).containsExactly(c, a);
+        assertThat(result.items()).extracting(item -> item.track().trackId()).containsExactly("solo", "shared");
         assertThat(result.items().get(1).track().artists()).extracting(artist -> artist.id()).containsExactly(a, b);
         assertThat(result.items()).extracting(PlaylistRecommendationResponse.Item::source).containsOnly(INTEREST);
         verify(repository).findDiscoveryCandidates(device, List.of("BAND"), Set.of(a, b, c));
     }
 
     @Test
-    void givesEveryCoartistFullPlayScoreButStillSplitsLikesAndPosts() {
+    void discountsAllActivityAndUsesArtistOrderInsteadOfQueryOrder() {
         UUID a = id(1), b = id(2), c = id(3), d = id(4);
         track("shared", a, b); track("b-alternative", b); track("mid", c); track("low", d);
         when(repository.findSignals(eq(device), any(), any(), any(), any())).thenReturn(List.of(
                 new Signal("shared", 4, 6), new Signal("mid", 0, 8), new Signal("low", 0, 6)));
-        when(repository.findArtists(anyList())).thenReturn(List.of(new TrackArtist("shared", a),
-                new TrackArtist("shared", b), new TrackArtist("mid", c), new TrackArtist("low", d)));
+        when(repository.findArtists(anyList())).thenReturn(List.of(new TrackArtist("shared", b, 1),
+                new TrackArtist("shared", a, 0), new TrackArtist("mid", c, 0), new TrackArtist("low", d, 0)));
         when(repository.findInterestCandidates(anyList())).thenReturn(List.of(new Candidate(a, "shared"),
                 new Candidate(b, "shared"), new Candidate(b, "b-alternative"),
                 new Candidate(c, "mid"), new Candidate(d, "low")));
-        // C=8, A=B=4+6/2=7, D=6. Splitting plays or duplicating preference scores changes this order.
+        // C=8, D=6, A=(4+6)/2=5; B receives no score despite appearing first in query results.
         assertThat(service.getRecommendations(device).items()).extracting(item -> item.artist().id())
-                .containsExactly(c, a, b, d);
+                .containsExactly(c, d, a);
     }
 
     @Test
@@ -90,7 +90,7 @@ class PlaylistRecommendationServiceTest {
             track("t" + i, id(i));
             if (i <= 3) {
                 interest.add(new Candidate(id(i), "t" + i)); signals.add(new Signal("t" + i, 0, 8 - i));
-                historyArtists.add(new TrackArtist("t" + i, id(i)));
+                historyArtists.add(new TrackArtist("t" + i, id(i), 0));
             } else discovery.add(new Candidate(id(i), "t" + i));
         }
         when(repository.findSignals(eq(device), any(), any(), any(), any())).thenReturn(signals);
@@ -114,7 +114,7 @@ class PlaylistRecommendationServiceTest {
         for (int i = 1; i <= 6; i++) {
             track("interest-" + i, id(i));
             signals.add(new Signal("interest-" + i, 0, 10 - i));
-            historyArtists.add(new TrackArtist("interest-" + i, id(i)));
+            historyArtists.add(new TrackArtist("interest-" + i, id(i), 0));
             candidates.add(new Candidate(id(i), "interest-" + i));
         }
         when(repository.findSignals(eq(device), any(), any(), any(), any())).thenReturn(signals);
@@ -154,7 +154,7 @@ class PlaylistRecommendationServiceTest {
         var weeklyFour = track("weekly-4", id(4));
         var weeklyFive = track("weekly-5", id(5));
         when(repository.findSignals(eq(device), any(), any(), any(), any())).thenReturn(List.of(new Signal("familiar", 0, 6)));
-        when(repository.findArtists(anyList())).thenReturn(List.of(new TrackArtist("familiar", id(1))));
+        when(repository.findArtists(anyList())).thenReturn(List.of(new TrackArtist("familiar", id(1), 0)));
         when(repository.findInterestCandidates(anyList())).thenReturn(List.of(new Candidate(id(1), "familiar")));
         when(repository.findDiscoveryCandidates(eq(device), anyList(), anySet())).thenReturn(List.of(new Candidate(id(2), "discovery")));
         when(charts.findLatestOverallChartByChartType(ChartType.WEEKLY)).thenReturn(List.of(
@@ -170,7 +170,7 @@ class PlaylistRecommendationServiceTest {
     void oneInterestAllowsFourDiscoveryCards() {
         track("familiar", id(1));
         when(repository.findSignals(eq(device), any(), any(), any(), any())).thenReturn(List.of(new Signal("familiar", 0, 6)));
-        when(repository.findArtists(anyList())).thenReturn(List.of(new TrackArtist("familiar", id(1))));
+        when(repository.findArtists(anyList())).thenReturn(List.of(new TrackArtist("familiar", id(1), 0)));
         when(repository.findInterestCandidates(anyList())).thenReturn(List.of(new Candidate(id(1), "familiar")));
         List<Candidate> discovery = new ArrayList<>();
         for (int i = 2; i <= 5; i++) { track("new-" + i, id(i)); discovery.add(new Candidate(id(i), "new-" + i)); }
