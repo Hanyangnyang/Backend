@@ -94,6 +94,9 @@ class PlaylistServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock private PlaylistSearchRecorder searchRecorder;
+    @Mock private PlaylistTrackPlayService trackPlayService;
+
     @InjectMocks
     private PlaylistService playlistService;
 
@@ -139,7 +142,7 @@ class PlaylistServiceTest {
         given(playlistSongRepository.countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any())).willReturn(0L);
         given(playlistSongRepository.existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any(), any())).willReturn(false);
         given(playlistTrackRepository.findById(request.trackId())).willReturn(Optional.empty());
-        given(playlistTrackRepository.save(any(PlaylistTrack.class))).willReturn(track);
+        given(playlistTrackRepository.findById(request.trackId())).willReturn(Optional.empty(), Optional.of(track));
         given(playlistSongRepository.save(any(PlaylistSong.class))).willReturn(song);
 
         // when
@@ -477,10 +480,40 @@ class PlaylistServiceTest {
         assertThat(response.title()).isEqualTo("LOVE SONG");
         assertThat(response.artist()).isEqualTo("유다빈밴드");
         assertThat(response.totalSongsCount()).isEqualTo(1L);
+        assertThat(response.totalPlayCount()).isEqualTo(17L);
         assertThat(response.isLiked()).isTrue();
         assertThat(response.songs().getContent()).hasSize(1);
         assertThat(response.songs().getContent()).extracting(PlaylistSongResponse::totalPlayCount)
                 .containsOnly(17L);
+    }
+
+    @Test
+    void trackDetailReturnsPlayCountWithoutRecommendationPosts() {
+        String trackId = "played-only";
+        var track = PlaylistTrack.builder().trackId(trackId).title("title").artist("artist").build();
+        Pageable pageable = PageRequest.of(0, 20);
+        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
+        given(playlistSongRepository.searchSongsByTrackId(trackId, pageable)).willReturn(Page.empty(pageable));
+        given(playlistTrackHourlyPlayRepository.sumPlayCountsByTrackIds(List.of(trackId)))
+                .willReturn(Collections.singletonList(new Object[]{trackId, 12L}));
+
+        var response = playlistService.getTrackDetailAndSongs(trackId, pageable, null);
+
+        assertThat(response.totalPlayCount()).isEqualTo(12L);
+        assertThat(response.totalSongsCount()).isZero();
+        assertThat(response.songs().getContent()).isEmpty();
+    }
+
+    @Test
+    void trackDetailReturnsZeroWithoutPlayHistory() {
+        String trackId = "never-played";
+        var track = PlaylistTrack.builder().trackId(trackId).title("title").artist("artist").build();
+        Pageable pageable = PageRequest.of(0, 20);
+        given(playlistTrackRepository.findById(trackId)).willReturn(Optional.of(track));
+        given(playlistSongRepository.searchSongsByTrackId(trackId, pageable)).willReturn(Page.empty(pageable));
+        given(playlistTrackHourlyPlayRepository.sumPlayCountsByTrackIds(List.of(trackId))).willReturn(List.of());
+
+        assertThat(playlistService.getTrackDetailAndSongs(trackId, pageable, null).totalPlayCount()).isZero();
     }
 
     @Test
@@ -691,6 +724,8 @@ class PlaylistServiceTest {
     @Test
     @DisplayName("음원 재생수 기록 성공")
     void recordTrackPlay_Success() {
+        org.springframework.test.util.ReflectionTestUtils.setField(playlistService, "trackPlayService",
+                new PlaylistTrackPlayService(playlistTrackRepository, playlistTrackHourlyPlayRepository, eventPublisher));
         // given
         String trackId = "track-123";
         given(playlistTrackRepository.existsById(trackId)).willReturn(true);
@@ -706,6 +741,8 @@ class PlaylistServiceTest {
 
     @Test
     void recordTrackPlay_DuplicateDoesNotIncrement() {
+        org.springframework.test.util.ReflectionTestUtils.setField(playlistService, "trackPlayService",
+                new PlaylistTrackPlayService(playlistTrackRepository, playlistTrackHourlyPlayRepository, eventPublisher));
         given(playlistTrackRepository.existsById("track")).willReturn(true);
         playlistService.recordTrackPlay("track", UUID.randomUUID());
         verify(playlistTrackHourlyPlayRepository, org.mockito.Mockito.never()).upsertHourlyPlayCount(any(), any());
@@ -713,6 +750,8 @@ class PlaylistServiceTest {
 
     @Test
     void recordTrackPlay_UsesKoreanDateAndSameInstantForHourlyBucket() {
+        org.springframework.test.util.ReflectionTestUtils.setField(playlistService, "trackPlayService",
+                new PlaylistTrackPlayService(playlistTrackRepository, playlistTrackHourlyPlayRepository, eventPublisher));
         given(playlistTrackRepository.existsById("track")).willReturn(true);
         UUID deviceId = UUID.randomUUID();
         given(playlistTrackHourlyPlayRepository.insertDailyDeviceIfAbsent(eq("track"), eq(deviceId), any())).willReturn(1);
@@ -737,11 +776,41 @@ class PlaylistServiceTest {
         // given
         String trackId = "invalid-track";
         given(playlistTrackRepository.existsById(trackId)).willReturn(false);
+        given(spotifyTrackSearchService.getTrack(trackId)).willThrow(new EntityNotFoundException("존재하지 않는 음원 트랙입니다."));
 
         // when & then
         assertThatThrownBy(() -> playlistService.recordTrackPlay(trackId, UUID.randomUUID()))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("존재하지 않는 음원 트랙입니다.");
+    }
+
+    @Test
+    void recordTrackPlayRegistersUnknownCatalogTrackBeforeCounting() {
+        String trackId = "new-track";
+        UUID deviceId = UUID.randomUUID();
+        var metadata = new SpotifyTrackSearchResponse(trackId, "title", "artist", null, 1, List.of());
+        given(spotifyTrackSearchService.getTrack(trackId)).willReturn(metadata);
+        given(playlistTrackRepository.insertIfAbsent(trackId, "title", "artist", null)).willReturn(1);
+        given(playlistTrackHourlyPlayRepository.insertDailyDeviceIfAbsent(eq(trackId), eq(deviceId), any())).willReturn(1);
+        org.springframework.test.util.ReflectionTestUtils.setField(playlistService, "trackPlayService",
+                new PlaylistTrackPlayService(playlistTrackRepository, playlistTrackHourlyPlayRepository, eventPublisher));
+        playlistService.recordTrackPlay(trackId, deviceId);
+        var order = org.mockito.Mockito.inOrder(spotifyTrackSearchService, playlistTrackRepository, playlistTrackHourlyPlayRepository);
+        order.verify(spotifyTrackSearchService).getTrack(trackId);
+        order.verify(playlistTrackRepository).insertIfAbsent(trackId, "title", "artist", null);
+        order.verify(playlistTrackHourlyPlayRepository).insertDailyDeviceIfAbsent(eq(trackId), eq(deviceId), any());
+        order.verify(playlistTrackHourlyPlayRepository).upsertHourlyPlayCount(eq(trackId), any());
+        verify(eventPublisher).publishEvent(new life.hanyang.core.playlist.event.PlaylistTrackRegisteredEvent(trackId));
+        verify(playlistSongRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void searchHistoryIgnoresPaginationButIncludesEmptyFirstPage() {
+        given(playlistSongRepository.searchSongsWithWeight(any(), any(), any())).willReturn(Page.empty());
+        playlistService.searchSongsWithWeight("", PageRequest.of(1, 20), null);
+        verifyNoInteractions(searchRecorder);
+        playlistService.searchSongsWithWeight("", PageRequest.of(0, 20), null);
+        verify(searchRecorder).record(eq("SONGS"), eq(""), eq(0L), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.isNull());
     }
 
     @Test

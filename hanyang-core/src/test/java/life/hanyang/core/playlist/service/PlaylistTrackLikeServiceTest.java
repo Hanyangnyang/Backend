@@ -61,6 +61,7 @@ class PlaylistTrackLikeServiceTest {
         assertThat(response.likeCount()).isEqualTo(1);
         var order = org.mockito.Mockito.inOrder(playlistTrackRepository, playlistTrackLikeRepository);
         order.verify(playlistTrackRepository).insertIfAbsent(trackId, "Ditto", "NewJeans", "cover");
+        order.verify(playlistTrackRepository).findByIdForUpdate(trackId);
         order.verify(playlistTrackLikeRepository).deleteIfPresent(trackId, deviceId);
         order.verify(playlistTrackLikeRepository).insertIfAbsent(trackId, deviceId);
         order.verify(playlistTrackRepository).incrementLikeCount(trackId);

@@ -113,7 +113,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             LEFT JOIN song_stats ss ON t.track_id = ss.track_id
             LEFT JOIN like_stats ls ON t.track_id = ls.track_id
             LEFT JOIN reaction_stats rs ON t.track_id = rs.track_id
-            WHERE COALESCE(ss.total_posts, 0) > 0
+            WHERE (CAST(:genre AS varchar) IS NULL OR COALESCE(ss.total_posts, 0) > 0)
               AND (
                     COALESCE(ls.likes_24h, 0) * 3
                   + COALESCE(hp.play_24h, 0) * 1
@@ -198,7 +198,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             LEFT JOIN song_stats ss ON t.track_id = ss.track_id
             LEFT JOIN like_stats ls ON t.track_id = ls.track_id
             LEFT JOIN reaction_stats rs ON t.track_id = rs.track_id
-            WHERE COALESCE(ss.total_posts, 0) > 0
+            WHERE (CAST(:genre AS varchar) IS NULL OR COALESCE(ss.total_posts, 0) > 0)
               AND (
                     COALESCE(ls.likes_7d, 0) * 5
                   + COALESCE(wp.play_7d, 0) * 1
@@ -278,7 +278,7 @@ public interface PlaylistTrackHourlyPlayRepository extends JpaRepository<Playlis
             LEFT JOIN song_stats ss ON t.track_id = ss.track_id
             LEFT JOIN like_stats ls ON t.track_id = ls.track_id
             LEFT JOIN reaction_stats rs ON t.track_id = rs.track_id
-            WHERE COALESCE(ss.total_posts, 0) > 0
+            WHERE (CAST(:genre AS varchar) IS NULL OR COALESCE(ss.total_posts, 0) > 0)
               AND (
                     COALESCE(ls.likes_30d, 0) * 5
                   + COALESCE(mp.play_30d, 0) * 1

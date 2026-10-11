@@ -223,10 +223,10 @@ public class PlaylistController {
 
     @ExceptionHandler(SpotifyRateLimitException.class)
     public ResponseEntity<ApiResponse<Void>> handleSpotifyRateLimit(SpotifyRateLimitException exception) {
-        return ResponseEntity.status(ErrorCode.SPOTIFY_RATE_LIMITED.getStatus())
+        return ResponseEntity.status(exception.getErrorCode().getStatus())
                 .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.getRetryAfterSeconds()))
-                .body(ApiResponse.fail(ErrorCode.SPOTIFY_RATE_LIMITED.getCode(),
-                        ErrorCode.SPOTIFY_RATE_LIMITED.getMessage()));
+                .body(ApiResponse.fail(exception.getErrorCode().getCode(),
+                        exception.getErrorCode().getMessage()));
     }
 
     @Operation(

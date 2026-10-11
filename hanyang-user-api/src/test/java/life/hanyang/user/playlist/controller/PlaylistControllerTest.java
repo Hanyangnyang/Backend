@@ -21,11 +21,12 @@ class PlaylistControllerTest {
     @Mock private PlaylistService playlistService;
     @Mock private PlaylistChartQueryService playlistChartQueryService;
 
-    @Test
-    void like_Returns429WithRetryAfter() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void like_Returns429WithRetryAfter(boolean quotaExceeded) throws Exception {
         UUID deviceId = UUID.randomUUID();
         given(playlistService.toggleTrackLike("track-1", deviceId))
-                .willThrow(new SpotifyRateLimitException(17, new RuntimeException()));
+                .willThrow(new SpotifyRateLimitException(17, quotaExceeded, new RuntimeException()));
         var mvc = MockMvcBuilders.standaloneSetup(
                 new PlaylistController(playlistService, playlistChartQueryService)).build();
 
@@ -34,7 +35,7 @@ class PlaylistControllerTest {
                         .content("{\"deviceId\":\"" + deviceId + "\"}"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().string("Retry-After", "17"))
-                .andExpect(jsonPath("$.error.code").value(ErrorCode.SPOTIFY_RATE_LIMITED.getCode()));
+                .andExpect(jsonPath("$.error.code").value((quotaExceeded ? ErrorCode.SPOTIFY_QUOTA_EXCEEDED : ErrorCode.SPOTIFY_RATE_LIMITED).getCode()));
     }
     @Test
     void mySongsRejectsInvalidPageSizesBeforeQuerying() throws Exception {

@@ -62,17 +62,18 @@ class PlaylistCatalogControllerTest {
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE.getCode());
     }
 
-    @Test
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
     @DisplayName("Spotify 요청 제한은 Retry-After 헤더와 공통 429 오류를 반환한다")
-    void searchTracks_ReturnsRetryAfter_WhenRateLimited() {
+    void searchTracks_ReturnsRetryAfter_WhenRateLimited(boolean quotaExceeded) {
         given(playlistCatalogService.searchTracks("악뮤", null))
-                .willThrow(new SpotifyRateLimitException(17, new RuntimeException()));
+                .willThrow(new SpotifyRateLimitException(17, quotaExceeded, new RuntimeException()));
 
         ResponseEntity<?> response = playlistCatalogController.searchTracks("악뮤", null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("17");
         assertThat(((ApiResponse<?>) response.getBody()).getError().getCode())
-                .isEqualTo(ErrorCode.SPOTIFY_RATE_LIMITED.getCode());
+                .isEqualTo((quotaExceeded ? ErrorCode.SPOTIFY_QUOTA_EXCEEDED : ErrorCode.SPOTIFY_RATE_LIMITED).getCode());
     }
 }
