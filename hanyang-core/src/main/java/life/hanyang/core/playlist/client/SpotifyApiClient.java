@@ -107,13 +107,26 @@ public class SpotifyApiClient {
                 if (artist == null || !reference.id().equals(artist.id()) || !StringUtils.hasText(artist.name())) {
                     throw new SpotifyServiceUnavailableException();
                 }
-                String imageUrl = artist.images() == null ? null : artist.images().stream()
-                        .filter(Objects::nonNull).map(SpotifyImage::url)
-                        .filter(StringUtils::hasText).findFirst().orElse(null);
+                String imageUrl = preferredImageUrl(artist.images());
                 artists.add(new SpotifyArtistMetadata(artist.id(), artist.name(), imageUrl));
             }
             // Return only after every artist has been fetched successfully.
             return List.copyOf(artists);
+        });
+    }
+
+    public SpotifyArtistMetadata getArtist(String artistId) {
+        ensureCredentialsConfigured();
+        if (artistId == null || !artistId.matches("[A-Za-z0-9]{22}")) {
+            throw new SpotifyServiceUnavailableException();
+        }
+        return executeWithAccessToken("/artists/{id}", token -> {
+            SpotifyArtist artist = apiClient.get().uri("/artists/{id}", artistId)
+                    .headers(headers -> headers.setBearerAuth(token)).retrieve().body(SpotifyArtist.class);
+            if (artist == null || !artistId.equals(artist.id()) || !StringUtils.hasText(artist.name())) {
+                throw new SpotifyServiceUnavailableException();
+            }
+            return new SpotifyArtistMetadata(artist.id(), artist.name(), preferredImageUrl(artist.images()));
         });
     }
 
@@ -218,14 +231,21 @@ public class SpotifyApiClient {
     }
 
     private String albumArtUrl(SpotifyTrackItem item) {
-        return item.album() == null || item.album().images() == null
-                ? null
-                : item.album().images().stream()
-                        .filter(Objects::nonNull)
-                        .map(SpotifyImage::url)
-                        .filter(StringUtils::hasText)
-                        .findFirst()
-                        .orElse(null);
+        return item.album() == null ? null : preferredImageUrl(item.album().images());
+    }
+
+    private String preferredImageUrl(List<SpotifyImage> images) {
+        if (images == null) return null;
+        // Prefer the supplied size nearest 300px; retain a valid URL if dimensions are absent.
+        return images.stream()
+                .filter(Objects::nonNull)
+                .filter(image -> StringUtils.hasText(image.url()))
+                .min(java.util.Comparator.comparingLong(image -> {
+                    Integer size = image.width() != null && image.width() > 0 ? image.width() : image.height();
+                    return size != null && size > 0 ? Math.abs((long) size - 300) : Long.MAX_VALUE;
+                }))
+                .map(SpotifyImage::url)
+                .orElse(null);
     }
 
     private RuntimeException mapApiException(String operation, RestClientResponseException exception) {
@@ -346,6 +366,6 @@ public class SpotifyApiClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record SpotifyImage(String url) {
+    private record SpotifyImage(String url, Integer width, Integer height) {
     }
 }

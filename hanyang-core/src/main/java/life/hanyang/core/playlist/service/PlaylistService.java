@@ -116,7 +116,9 @@ public class PlaylistService {
 
         // 1-4. 음원 마스터(PlaylistTrack) 조회 또는 신규 생성
         PlaylistTrack track = playlistTrackRepository.findById(request.trackId()).orElseGet(() -> {
-            playlistTrackRepository.insertIfAbsent(request.trackId(), request.title(), request.artist(), request.albumArtUrl());
+            // Use the Spotify-selected image size rather than a client-supplied original URL.
+            SpotifyTrackSearchResponse metadata = spotifyTrackSearchService.getTrack(request.trackId());
+            playlistTrackRepository.insertIfAbsent(request.trackId(), request.title(), request.artist(), metadata.albumArtUrl());
             return playlistTrackRepository.findById(request.trackId()).orElseThrow(() ->
                     new EntityNotFoundException("음원 저장 결과를 찾을 수 없습니다."));
         });

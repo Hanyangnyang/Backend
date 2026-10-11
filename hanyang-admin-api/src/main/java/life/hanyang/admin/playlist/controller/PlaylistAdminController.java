@@ -16,6 +16,9 @@ import life.hanyang.core.playlist.dto.PlaylistSongResponse;
 import life.hanyang.core.playlist.dto.PlaylistArtistBackfillRequest;
 import life.hanyang.core.playlist.dto.PlaylistArtistBackfillResponse;
 import life.hanyang.core.playlist.service.PlaylistArtistSyncService;
+import life.hanyang.core.playlist.service.PlaylistImageRefreshService;
+import life.hanyang.core.playlist.dto.PlaylistImageRefreshRequest;
+import life.hanyang.core.playlist.dto.PlaylistImageRefreshResponse;
 import life.hanyang.core.playlist.service.PlaylistAdminService;
 import life.hanyang.core.playlist.service.PlaylistService;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +43,17 @@ public class PlaylistAdminController {
     private final PlaylistAdminService playlistAdminService;
     private final PlaylistService playlistService;
     private final PlaylistArtistSyncService playlistArtistSyncService;
+    private final PlaylistImageRefreshService playlistImageRefreshService;
+
+    @Operation(summary = "앨범·가수 이미지 300px 갱신", description = "관리자 수동 실행 전용. TRACK/ARTIST를 각각 실행하세요. " +
+            "한 번에 최대 20건이며 기본 예시는 5건입니다. nextAfterId를 afterId에 넣어 scanComplete까지 반복하세요. " +
+            "실패한 Spotify ID는 ids로 재시도합니다. 이미지가 없거나 조회 실패 시 기존 URL을 유지합니다. " +
+            "retryAfterSeconds가 있으면 기다린 뒤 재개하세요. 완료 여부는 조회 완료이며 실패 건 완료를 의미하지 않습니다.")
+    @PostMapping("/images/refresh")
+    public ResponseEntity<ApiResponse<PlaylistImageRefreshResponse>> refreshImages(
+            @Valid @RequestBody PlaylistImageRefreshRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(playlistImageRefreshService.refresh(request)));
+    }
 
     @Operation(summary = "미연결 곡 아티스트 백필", description = "관리자 수동 실행 전용입니다. 요청당 최대 20곡을 처리하며 " +
             "nextAfterTrackId로 다음 구간을 조회합니다. scanComplete는 해당 커서의 스캔 완료를 뜻하며 실패 건 완료를 뜻하지 않습니다. " +
