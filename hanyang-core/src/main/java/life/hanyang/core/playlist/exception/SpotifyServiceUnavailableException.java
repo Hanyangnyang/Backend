@@ -9,6 +9,10 @@ public class SpotifyServiceUnavailableException extends BusinessException {
         super(ErrorCode.SPOTIFY_SERVICE_UNAVAILABLE);
     }
 
+    protected SpotifyServiceUnavailableException(ErrorCode errorCode, Throwable cause) {
+        super(errorCode, cause);
+    }
+
     public SpotifyServiceUnavailableException(Throwable cause) {
         super(ErrorCode.SPOTIFY_SERVICE_UNAVAILABLE, cause);
     }

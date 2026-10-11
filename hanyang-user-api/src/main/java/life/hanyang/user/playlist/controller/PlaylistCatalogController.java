@@ -44,11 +44,11 @@ public class PlaylistCatalogController {
             MusicSearchResponse response = playlistCatalogService.searchTracks(keyword, deviceId);
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (SpotifyRateLimitException exception) {
-            return ResponseEntity.status(ErrorCode.SPOTIFY_RATE_LIMITED.getStatus())
+            return ResponseEntity.status(exception.getErrorCode().getStatus())
                     .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.getRetryAfterSeconds()))
                     .body(ApiResponse.fail(
-                            ErrorCode.SPOTIFY_RATE_LIMITED.getCode(),
-                            ErrorCode.SPOTIFY_RATE_LIMITED.getMessage()
+                            exception.getErrorCode().getCode(),
+                            exception.getErrorCode().getMessage()
                     ));
         } catch (SpotifyServiceUnavailableException exception) {
             return ResponseEntity.status(ErrorCode.SPOTIFY_SERVICE_UNAVAILABLE.getStatus())

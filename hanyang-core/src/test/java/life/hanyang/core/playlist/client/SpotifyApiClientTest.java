@@ -92,6 +92,22 @@ class SpotifyApiClientTest {
     }
 
     @Test
+    void searchTracksDistinguishesQuotaExceeded() {
+        createTokenEndpoint();
+        server.createContext("/v1/search", exchange -> {
+            exchange.getResponseHeaders().set("Retry-After", "120");
+            respond(exchange, 429, "{\"error\":{\"status\":429,\"reason\":\"QUOTA_EXCEEDED\"}}");
+        });
+        assertThatThrownBy(() -> createClient("client-id", "client-secret").searchTracks("악뮤", 8))
+                .isInstanceOf(SpotifyRateLimitException.class)
+                .satisfies(exception -> {
+                    var limit = (SpotifyRateLimitException) exception;
+                    assertThat(limit.getErrorCode()).isEqualTo(life.hanyang.core.global.exception.ErrorCode.SPOTIFY_QUOTA_EXCEEDED);
+                    assertThat(limit.getRetryAfterSeconds()).isEqualTo(120);
+                });
+    }
+
+    @Test
     @DisplayName("Spotify 인증 정보가 없으면 서비스 이용 불가 예외를 반환한다")
     void searchTracks_ThrowsException_WhenCredentialsMissing() {
         SpotifyApiClient client = createClient("", "");

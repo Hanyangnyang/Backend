@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
+@lombok.extern.slf4j.Slf4j
 @Component
 public class SpotifyApiClient {
 
@@ -70,7 +71,7 @@ public class SpotifyApiClient {
 
     public List<SpotifyTrackSearchResponse> searchTracks(String keyword, int limit) {
         ensureCredentialsConfigured();
-        return executeWithAccessToken(accessToken -> mapSearchResults(
+        return executeWithAccessToken("/search", accessToken -> mapSearchResults(
                 fetchTracks(keyword, limit, accessToken)
         ));
     }
@@ -80,7 +81,7 @@ public class SpotifyApiClient {
         if (trackId == null || !trackId.matches("[A-Za-z0-9]{22}")) {
             throw new SpotifyServiceUnavailableException();
         }
-        return executeWithAccessToken(accessToken -> {
+        return executeWithAccessToken("track-artists", accessToken -> {
             // Client credentials require an explicit market. Accept only verified relinks.
             SpotifyTrackItem track = apiClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/tracks/{id}")
@@ -118,7 +119,7 @@ public class SpotifyApiClient {
 
     public SpotifyTrackSearchResponse getTrack(String trackId) {
         ensureCredentialsConfigured();
-        return executeWithAccessToken(accessToken -> {
+        return executeWithAccessToken("/tracks/{id}", accessToken -> {
             SpotifyTrackItem item = apiClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/tracks/{trackId}")
                             .queryParam("market", market).build(trackId))
@@ -155,19 +156,19 @@ public class SpotifyApiClient {
         });
     }
 
-    private <T> T executeWithAccessToken(Function<String, T> request) {
+    private <T> T executeWithAccessToken(String operation, Function<String, T> request) {
         try {
             return request.apply(getAccessToken());
         } catch (RestClientResponseException exception) {
             if (exception.getStatusCode().value() != 401) {
-                throw mapApiException(exception);
+                throw mapApiException(operation, exception);
             }
 
             cachedAccessToken = null;
             try {
                 return request.apply(getAccessToken());
             } catch (RestClientResponseException retryException) {
-                throw mapApiException(retryException);
+                throw mapApiException(operation, retryException);
             } catch (RestClientException retryException) {
                 throw new SpotifyServiceUnavailableException(retryException);
             }
@@ -227,9 +228,22 @@ public class SpotifyApiClient {
                         .orElse(null);
     }
 
-    private RuntimeException mapApiException(RestClientResponseException exception) {
+    private RuntimeException mapApiException(String operation, RestClientResponseException exception) {
         if (exception.getStatusCode().value() == 429) {
-            return new SpotifyRateLimitException(parseRetryAfter(exception), exception);
+            String reason = "RATE_LIMITED";
+            try {
+                SpotifyErrorResponse response = new ObjectMapper().readValue(
+                        exception.getResponseBodyAsString(), SpotifyErrorResponse.class);
+                if (response != null && response.error() != null
+                        && "QUOTA_EXCEEDED".equals(response.error().reason())) {
+                    reason = "QUOTA_EXCEEDED";
+                }
+            } catch (java.io.IOException ignored) {
+                // Missing or malformed bodies still represent an ordinary 429 response.
+            }
+            long retryAfter = parseRetryAfter(exception);
+            log.warn("[SpotifyLimit] reason={}, operation={}, retryAfterSeconds={}", reason, operation, retryAfter);
+            return new SpotifyRateLimitException(retryAfter, "QUOTA_EXCEEDED".equals(reason), exception);
         }
         return new SpotifyServiceUnavailableException(exception);
     }
@@ -321,7 +335,7 @@ public class SpotifyApiClient {
     private record SpotifyErrorResponse(SpotifyError error) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record SpotifyError(String message) {}
+    private record SpotifyError(String message, String reason) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record SpotifyArtist(String id, String name, List<SpotifyImage> images) {

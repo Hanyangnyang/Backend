@@ -60,6 +60,8 @@ public class PlaylistService {
     private final SpotifyTrackSearchService spotifyTrackSearchService;
     private final PlaylistTrackLikeService playlistTrackLikeService;
     private final ApplicationEventPublisher eventPublisher;
+    private final PlaylistSearchRecorder searchRecorder;
+    private final PlaylistTrackPlayService trackPlayService;
 
     @Value("${playlist.registration.daily-create-limit:3}")
     void configureDailyCreateLimit(int dailyCreateLimit) {
@@ -113,15 +115,11 @@ public class PlaylistService {
         playlistRegistrationGuard.checkBlocked(request.deviceId());
 
         // 1-4. 음원 마스터(PlaylistTrack) 조회 또는 신규 생성
-        PlaylistTrack track = playlistTrackRepository.findById(request.trackId())
-                .orElseGet(() -> playlistTrackRepository.save(
-                        PlaylistTrack.builder()
-                                .trackId(request.trackId())
-                                .title(request.title())
-                                .artist(request.artist())
-                                .albumArtUrl(request.albumArtUrl())
-                                .build()
-                ));
+        PlaylistTrack track = playlistTrackRepository.findById(request.trackId()).orElseGet(() -> {
+            playlistTrackRepository.insertIfAbsent(request.trackId(), request.title(), request.artist(), request.albumArtUrl());
+            return playlistTrackRepository.findById(request.trackId()).orElseThrow(() ->
+                    new EntityNotFoundException("음원 저장 결과를 찾을 수 없습니다."));
+        });
 
         PlaylistSong song = PlaylistSong.builder()
                 .track(track)
@@ -203,6 +201,19 @@ public class PlaylistService {
      * 2-2. 추천글 통합 검색 (직접 일치 우선 + Spotify 검색 후보 확장)
      */
     public Page<PlaylistSongResponse> searchSongsWithWeight(String keyword, Pageable pageable, UUID currentDeviceId) {
+        long startedAt = System.nanoTime();
+        try {
+            Page<PlaylistSongResponse> response = searchSongsWithWeightInternal(keyword, pageable, currentDeviceId);
+            if (pageable.getPageNumber() == 0) searchRecorder.record("SONGS", keyword,
+                    response.getTotalElements(), startedAt, null);
+            return response;
+        } catch (RuntimeException exception) {
+            if (pageable.getPageNumber() == 0) searchRecorder.record("SONGS", keyword, 0, startedAt, exception);
+            throw exception;
+        }
+    }
+
+    private Page<PlaylistSongResponse> searchSongsWithWeightInternal(String keyword, Pageable pageable, UUID currentDeviceId) {
         SpotifySearchExpansion expansion = findSpotifyExpansionSafely(keyword);
         Page<PlaylistSong> songPage = playlistSongRepository.searchSongsWithWeight(keyword, expansion, pageable);
         List<PlaylistSong> songs = songPage.getContent();
@@ -311,19 +322,21 @@ public class PlaylistService {
         boolean isLiked = currentDeviceId != null
                 && playlistTrackLikeRepository.existsByTrackTrackIdAndDeviceId(trackId, currentDeviceId);
 
-        Map<String, Long> playCounts = findPlayCounts(songs);
+        long totalPlayCount = playlistTrackHourlyPlayRepository.sumPlayCountsByTrackIds(List.of(trackId))
+                .stream().mapToLong(row -> ((Number) row[1]).longValue()).sum();
+        // 프론트 호환성 유지를 위해 추천글 내부의 totalPlayCount도 유지합니다.
         List<PlaylistSongResponse> responses = songs.stream()
                 .map(song -> PlaylistSongResponse.of(
                         song,
                         reactionMap.getOrDefault(song.getId(), Collections.emptyList()),
                         isLiked,
-                        playCounts.getOrDefault(song.getTrackId(), 0L)
+                        totalPlayCount
                 ))
                 .toList();
 
         Page<PlaylistSongResponse> responsePage = new PageImpl<>(responses, songPage.getPageable(), songPage.getTotalElements());
 
-        return PlaylistTrackDetailResponse.of(track, songPage.getTotalElements(), isLiked, responsePage);
+        return PlaylistTrackDetailResponse.of(track, songPage.getTotalElements(), totalPlayCount, isLiked, responsePage);
     }
 
     /**
@@ -464,35 +477,26 @@ public class PlaylistService {
     /**
      * 7. 음원 재생수 카운트 1 증가 (원자적 1시간 단위 Upsert)
      */
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void recordTrackPlay(String trackId, UUID deviceId) {
         if (deviceId == null) {
             throw new BusinessException("기기 식별자 ID는 필수입니다.", ErrorCode.INVALID_INPUT_VALUE);
         }
-        if (!playlistTrackRepository.existsById(trackId)) {
-            throw new EntityNotFoundException("존재하지 않는 음원 트랙입니다. trackId: " + trackId);
-        }
-
-        Instant now = Instant.now();
-        LocalDate playDate = now.atZone(KST).toLocalDate();
-        if (playlistTrackHourlyPlayRepository.insertDailyDeviceIfAbsent(trackId, deviceId, playDate) == 0) {
-            return;
-        }
-        Instant currentHour = now.truncatedTo(ChronoUnit.HOURS);
-        playlistTrackHourlyPlayRepository.upsertHourlyPlayCount(trackId, currentHour);
-        log.debug("[PlaylistPlay] 음원 재생수 기록 완료 - trackId: {}, playHour: {}", trackId, currentHour);
+        SpotifyTrackSearchResponse metadata = playlistTrackRepository.existsById(trackId)
+                ? null : spotifyTrackSearchService.getTrack(trackId);
+        trackPlayService.record(trackId, deviceId, metadata);
     }
 
     /**
      * 8. 인기 차트 순위 조회 (Redis 캐시 우선 조회 ➡️ DB 스냅샷 ➡️ 비어있을 시 즉시 계산 폴백)
      */
-    @Cacheable(cacheNames = "playlistChart", key = "{'artists-array-v3', #type != null ? #type : T(life.hanyang.core.playlist.domain.ChartType).RISING, null}")
+    @Cacheable(cacheNames = "playlistChart", key = "{'artists-array-v4', #type != null ? #type : T(life.hanyang.core.playlist.domain.ChartType).RISING, null}")
     @Transactional
     public PlaylistChartResponse getChart(ChartType type) {
         return getChart(type, null);
     }
 
-    @Cacheable(cacheNames = "playlistChart", key = "{'artists-array-v3', #type != null ? #type : T(life.hanyang.core.playlist.domain.ChartType).RISING, #genre}")
+    @Cacheable(cacheNames = "playlistChart", key = "{'artists-array-v4', #type != null ? #type : T(life.hanyang.core.playlist.domain.ChartType).RISING, #genre}")
     @Transactional
     public PlaylistChartResponse getChart(ChartType type, Genre genre) {
         ChartType chartType = (type != null) ? type : ChartType.RISING;

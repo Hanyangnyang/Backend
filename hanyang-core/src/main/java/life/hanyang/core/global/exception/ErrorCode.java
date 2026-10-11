@@ -27,7 +27,8 @@ public enum ErrorCode {
     PLAYLIST_REGISTRATION_IN_PROGRESS(HttpStatus.CONFLICT, "PL007", "이미 곡 등록을 처리 중입니다. 잠시 후 다시 시도해 주세요."),
     PLAYLIST_REGISTRATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "PL008", "등록 잠금을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."),
     SPOTIFY_SERVICE_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "PL004", "현재 음원 검색 서비스를 이용할 수 없습니다."),
-    SPOTIFY_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "PL005", "요청이 많이 몰렸습니다. 잠시 후 다시 검색해주세요.");
+    SPOTIFY_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "PL005", "요청이 많이 몰렸습니다. 잠시 후 다시 검색해주세요."),
+    SPOTIFY_QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "PL006", "Spotify API 사용량 한도를 초과했습니다.");
 
     private final HttpStatus status;
     private final String code;
