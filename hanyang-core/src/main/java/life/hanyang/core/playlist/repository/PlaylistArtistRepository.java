@@ -27,4 +27,12 @@ public interface PlaylistArtistRepository extends JpaRepository<PlaylistArtist, 
             """, nativeQuery = true)
     void upsert(@Param("id") UUID id, @Param("spotifyArtistId") String spotifyArtistId,
                 @Param("name") String name, @Param("imageUrl") String imageUrl);
+    @Query("SELECT e.spotifyArtistId FROM PlaylistArtist e WHERE e.spotifyArtistId > :afterId ORDER BY e.spotifyArtistId")
+    List<String> findImageRefreshIds(@Param("afterId") String afterId, org.springframework.data.domain.Pageable pageable);
+
+    @Modifying
+    @Query("UPDATE PlaylistArtist e SET e.imageUrl = :url, e.updatedAt = :updatedAt WHERE e.spotifyArtistId = :id AND (e.imageUrl IS NULL OR e.imageUrl <> :url)")
+    int updateImageUrl(@Param("id") String id, @Param("url") String url,
+                       @Param("updatedAt") java.time.Instant updatedAt);
+
 }

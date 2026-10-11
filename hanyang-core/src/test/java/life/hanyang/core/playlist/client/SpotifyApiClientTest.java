@@ -133,6 +133,29 @@ class SpotifyApiClientTest {
     }
 
     @Test
+    void getTrack_SelectsNearest300pxAndIgnoresInvalidImages() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/track-1", exchange -> respond(exchange, 200, """
+                {"id":"track-1","is_playable":true,"name":"song","artists":[{"name":"artist"}],
+                 "album":{"images":[null,{"url":"large","width":640,"height":640},
+                 {"url":"","width":300},{"url":"unknown"},
+                 {"url":"medium","width":300,"height":300},{"url":"small","width":64}]}}
+                """));
+        assertThat(createClient("client", "secret").getTrack("track-1").albumArtUrl()).isEqualTo("medium");
+    }
+
+    @Test
+    void getTrack_UsesNearestAvailableSizeWhen300pxIsAbsent() {
+        createTokenEndpoint();
+        server.createContext("/v1/tracks/track-1", exchange -> respond(exchange, 200, """
+                {"id":"track-1","is_playable":true,"name":"song","artists":[{"name":"artist"}],
+                 "album":{"images":[{"url":"large","width":640},
+                 {"url":"medium","height":320},{"url":"small","width":64}]}}
+                """));
+        assertThat(createClient("client", "secret").getTrack("track-1").albumArtUrl()).isEqualTo("medium");
+    }
+
+    @Test
     void getTrack_NotFound() {
         createTokenEndpoint();
         server.createContext("/v1/tracks/missing", exchange -> respond(exchange, 404, "{}"));
@@ -214,6 +237,22 @@ class SpotifyApiClientTest {
     }
 
     @Test
+    void getArtist_Selects300pxAndRejectsMismatchedId() {
+        createTokenEndpoint();
+        server.createContext("/v1/artists/000000000000000000000B", exchange -> respond(exchange, 200, """
+                {"id":"000000000000000000000B","name":"artist","images":[
+                {"url":"large","width":640},{"url":"medium","width":300},{"url":"small","width":64}]}
+                """));
+        server.createContext("/v1/artists/000000000000000000000A", exchange -> respond(exchange, 200, """
+                {"id":"000000000000000000000B","name":"artist","images":[]}
+                """));
+        var client = createClient("client", "secret");
+        assertThat(client.getArtist("000000000000000000000B").imageUrl()).isEqualTo("medium");
+        assertThatThrownBy(() -> client.getArtist("000000000000000000000A"))
+                .isInstanceOf(SpotifyServiceUnavailableException.class);
+    }
+
+    @Test
     void getTrackArtists_PreservesAllArtistsAndOrder() {
         createTokenEndpoint();
         server.createContext("/v1/tracks/0000000000000000000001", exchange -> {
@@ -228,7 +267,7 @@ class SpotifyApiClientTest {
         server.createContext("/v1/artists/000000000000000000000B", exchange -> {
             assertThat(exchange.getRequestHeaders().getFirst("Accept-Language")).isEqualTo("ko-KR,ko;q=0.9");
             respond(exchange, 200, """
-                    {"id":"000000000000000000000B", "name":"가수 B", "images":[{"url":"https://i.scdn.co/image/artist"}]}
+                    {"id":"000000000000000000000B", "name":"가수 B", "images":[{"url":"large","width":640},{"url":"https://i.scdn.co/image/artist","width":300},{"url":"small","width":64}]}
                     """);
         });
         server.createContext("/v1/artists/000000000000000000000A", exchange -> {

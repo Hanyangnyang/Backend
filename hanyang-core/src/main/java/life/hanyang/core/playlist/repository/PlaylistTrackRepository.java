@@ -45,4 +45,12 @@ public interface PlaylistTrackRepository extends JpaRepository<PlaylistTrack, St
 
     @Query("SELECT t.likeCount FROM PlaylistTrack t WHERE t.trackId = :trackId")
     Optional<Integer> getLikeCount(@Param("trackId") String trackId);
+    @Query("SELECT e.trackId FROM PlaylistTrack e WHERE e.trackId > :afterId ORDER BY e.trackId")
+    List<String> findImageRefreshIds(@Param("afterId") String afterId, org.springframework.data.domain.Pageable pageable);
+
+    @Modifying
+    @Query("UPDATE PlaylistTrack e SET e.albumArtUrl = :url, e.updatedAt = :updatedAt WHERE e.trackId = :id AND (e.albumArtUrl IS NULL OR e.albumArtUrl <> :url)")
+    int updateImageUrl(@Param("id") String id, @Param("url") String url,
+                       @Param("updatedAt") java.time.Instant updatedAt);
+
 }

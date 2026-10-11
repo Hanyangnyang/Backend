@@ -143,6 +143,8 @@ class PlaylistServiceTest {
         given(playlistSongRepository.existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(any(), any(), any())).willReturn(false);
         given(playlistTrackRepository.findById(request.trackId())).willReturn(Optional.empty());
         given(playlistTrackRepository.findById(request.trackId())).willReturn(Optional.empty(), Optional.of(track));
+        given(spotifyTrackSearchService.getTrack(request.trackId())).willReturn(
+                new SpotifyTrackSearchResponse(request.trackId(), request.title(), request.artist(), "spotify-300px", 1, List.of()));
         given(playlistSongRepository.save(any(PlaylistSong.class))).willReturn(song);
 
         // when
@@ -152,12 +154,43 @@ class PlaylistServiceTest {
         assertThat(response.title()).isEqualTo("Ditto");
         assertThat(response.artist()).isEqualTo("NewJeans");
         assertThat(response.genres()).containsExactly(Genre.KPOP);
+        verify(playlistTrackRepository).insertIfAbsent(request.trackId(), request.title(), request.artist(), "spotify-300px");
         verify(eventPublisher).publishEvent(new PlaylistTrackRegisteredEvent(request.trackId()));
         var order = org.mockito.Mockito.inOrder(playlistRegistrationLock, playlistSongRepository, playlistModerationService);
         order.verify(playlistRegistrationLock).acquireUntilTransactionCompletion(deviceId);
         order.verify(playlistSongRepository).countByDeviceIdAndCreatedAtAfterAndDeletedAtIsNull(eq(deviceId), any());
         order.verify(playlistSongRepository).existsByDeviceIdAndTrackTrackIdAndCreatedAtAfterAndDeletedAtIsNull(eq(deviceId), eq(request.trackId()), any());
         order.verify(playlistModerationService).validateSongContent(any(), any(), any());
+    }
+
+    @Test
+    void createSong_SpotifyFailureDoesNotSaveTrackOrPost() {
+        var request = new PlaylistSongCreateRequest("new-track", "title", "artist", "client-original",
+                "comment", UUID.randomUUID(), Set.of(Genre.KPOP));
+        given(playlistTrackRepository.findById(request.trackId())).willReturn(Optional.empty());
+        given(spotifyTrackSearchService.getTrack(request.trackId())).willThrow(new SpotifyServiceUnavailableException());
+
+        assertThatThrownBy(() -> playlistService.createSong(request, "127.0.0.1"))
+                .isInstanceOf(SpotifyServiceUnavailableException.class);
+        verify(playlistTrackRepository, org.mockito.Mockito.never()).insertIfAbsent(any(), any(), any(), any());
+        verify(playlistSongRepository, org.mockito.Mockito.never()).save(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void createSong_ExistingTrackDoesNotFetchSpotifyOrOverwriteImage() {
+        var request = new PlaylistSongCreateRequest("stored-track", "title", "artist", "client-original",
+                "comment", UUID.randomUUID(), Set.of(Genre.KPOP));
+        var track = PlaylistTrack.builder().trackId(request.trackId()).title("title").artist("artist")
+                .albumArtUrl("stored-image").build();
+        given(playlistTrackRepository.findById(request.trackId())).willReturn(Optional.of(track));
+        given(playlistSongRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        var response = playlistService.createSong(request, "127.0.0.1");
+
+        assertThat(response.albumArtUrl()).isEqualTo("stored-image");
+        verifyNoInteractions(spotifyTrackSearchService);
+        verify(playlistTrackRepository, org.mockito.Mockito.never()).insertIfAbsent(any(), any(), any(), any());
     }
 
     @Test

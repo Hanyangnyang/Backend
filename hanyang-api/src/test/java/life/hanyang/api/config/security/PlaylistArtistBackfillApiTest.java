@@ -45,6 +45,7 @@ class PlaylistArtistBackfillApiTest {
     @MockitoBean PlaylistAdminService adminService;
     @MockitoBean PlaylistService playlistService;
     @MockitoBean PlaylistArtistSyncService syncService;
+    @MockitoBean life.hanyang.core.playlist.service.PlaylistImageRefreshService imageService;
 
     @BeforeEach
     void authenticateTokens() {
@@ -89,6 +90,31 @@ class PlaylistArtistBackfillApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.failedTrackIds[0]").value("failed"))
                 .andExpect(jsonPath("$.data.nextAfterTrackId").value("failed"))
+                .andExpect(jsonPath("$.data.retryAfterSeconds").value(17));
+    }
+
+    @Test
+    void imageRefreshRequiresAdminAndValidatesBatch() throws Exception {
+        String body = "{\"target\":\"ARTIST\",\"limit\":5}";
+        mvc.perform(post("/api/v1/admin/playlist/images/refresh").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/admin/playlist/images/refresh").header("Authorization", "Bearer user")
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/admin/playlist/images/refresh").header("Authorization", "Bearer admin")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"target\":\"ARTIST\",\"limit\":21}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(imageService);
+    }
+
+    @Test
+    void imageRefreshReturnsSwaggerCursorAndFailures() throws Exception {
+        when(imageService.refresh(any())).thenReturn(new life.hanyang.core.playlist.dto.PlaylistImageRefreshResponse(
+                2, 1, 0, List.of("failed"), "cursor", false, 17L));
+        mvc.perform(post("/api/v1/admin/playlist/images/refresh").header("Authorization", "Bearer admin")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"target\":\"TRACK\",\"limit\":5}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.updated").value(1))
+                .andExpect(jsonPath("$.data.nextAfterId").value("cursor"))
+                .andExpect(jsonPath("$.data.failedIds[0]").value("failed"))
                 .andExpect(jsonPath("$.data.retryAfterSeconds").value(17));
     }
 

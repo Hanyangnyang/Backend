@@ -306,6 +306,36 @@ class PlaylistArtistReadTest {
         }
     }
 
+    @Test
+    void imageRefreshQueriesChangeOnlyImagesAndSkipUnchangedUrls() throws Exception {
+        try (SessionFactory factory = factory()) {
+            EntityManager em = factory.createEntityManager();
+            try {
+                em.getTransaction().begin();
+                var storedTrack = track(em, "track-image", "legacy-name");
+                var storedArtist = artist(em, "artist-image", "artist-name");
+                em.flush();
+                for (Class<?> repository : List.of(PlaylistTrackRepository.class, PlaylistArtistRepository.class)) {
+                    String id = repository == PlaylistTrackRepository.class ? "track-image" : "artist-image";
+                    String query = repository.getMethod("updateImageUrl", String.class, String.class, Instant.class)
+                            .getAnnotation(Query.class).value();
+                    assertThat(em.createQuery(query).setParameter("id", id).setParameter("url", "300px")
+                            .setParameter("updatedAt", Instant.now()).executeUpdate()).isEqualTo(1);
+                    assertThat(em.createQuery(query).setParameter("id", id).setParameter("url", "300px")
+                            .setParameter("updatedAt", Instant.now()).executeUpdate()).isZero();
+                }
+                em.refresh(storedTrack);
+                em.refresh(storedArtist);
+                assertThat(storedTrack.getAlbumArtUrl()).isEqualTo("300px");
+                assertThat(storedTrack.getTitle()).isEqualTo("track-image");
+                assertThat(storedTrack.getArtist()).isEqualTo("legacy-name");
+                assertThat(storedArtist.getImageUrl()).isEqualTo("300px");
+                assertThat(storedArtist.getName()).isEqualTo("artist-name");
+                em.getTransaction().rollback();
+            } finally { em.close(); }
+        }
+    }
+
     private SessionFactory factory() {
         return new Configuration().addAnnotatedClass(PlaylistTrack.class).addAnnotatedClass(PlaylistArtist.class)
                 .addAnnotatedClass(PlaylistTrackArtist.class).addAnnotatedClass(PlaylistSong.class)
