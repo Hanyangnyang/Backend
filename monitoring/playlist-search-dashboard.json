@@ -1,0 +1,138 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    },
+    {
+      "name": "DS_LOKI",
+      "label": "Loki",
+      "type": "datasource",
+      "pluginId": "loki",
+      "pluginName": "Loki"
+    }
+  ],
+  "title": "하냥냥 플레이리스트 검색",
+  "uid": "hanyang-playlist-search",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": [
+    "hanyang",
+    "playlist"
+  ],
+  "timezone": "Asia/Seoul",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "검색 요청 수 / 초",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (source, outcome) (rate(playlist_search_requests_total[$__rate_interval]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "검색 평균 응답시간 (초)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (source) (rate(playlist_search_duration_seconds_sum[$__rate_interval])) / sum by (source) (rate(playlist_search_duration_seconds_count[$__rate_interval]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "인기 검색어 (상위 10개)",
+      "type": "table",
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (keyword) (count_over_time({service_name=\"hanyang-api\"} |= \"[PlaylistSearchEvent]\" | regexp \"\\\\[PlaylistSearchEvent\\\\] (?P<payload>\\\\{.*\\\\})\" | line_format \"{{.payload}}\" | json | __error__=\"\" | keyword!=\"\" [$__range])))",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "검색 실패 로그",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service_name=\"hanyang-api\"} |= \"[PlaylistSearchEvent]\" | regexp \"\\\\[PlaylistSearchEvent\\\\] (?P<payload>\\\\{.*\\\\})\" | line_format \"{{.payload}}\" | json | __error__=\"\" | outcome=\"FAILURE\"",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "instant": false
+        }
+      ]
+    }
+  ]
+}

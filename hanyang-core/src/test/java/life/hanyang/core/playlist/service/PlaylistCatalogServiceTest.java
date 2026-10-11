@@ -38,6 +38,8 @@ class PlaylistCatalogServiceTest {
     @Mock
     private PlaylistArtistRepository playlistArtistRepository;
 
+    @Mock private PlaylistSearchRecorder searchRecorder;
+
     @InjectMocks
     private PlaylistCatalogService playlistCatalogService;
 

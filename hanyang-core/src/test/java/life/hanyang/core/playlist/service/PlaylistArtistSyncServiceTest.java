@@ -58,7 +58,7 @@ class PlaylistArtistSyncServiceTest {
         PlaylistArtist artistB = mock(PlaylistArtist.class);
         when(client.getTrackArtists(TRACK)).thenReturn(List.of(
                 new SpotifyArtistMetadata(B, "B", "photo"), new SpotifyArtistMetadata(A, "A", "")));
-        when(tracks.findByIdForArtistSync(TRACK)).thenReturn(Optional.of(track));
+        when(tracks.findByIdForUpdate(TRACK)).thenReturn(Optional.of(track));
         when(artists.findBySpotifyArtistId(A)).thenReturn(Optional.of(artistA));
         when(artists.findBySpotifyArtistId(B)).thenReturn(Optional.of(artistB));
 
@@ -68,7 +68,7 @@ class PlaylistArtistSyncServiceTest {
         order.verify(client).getTrackArtists(TRACK);
         order.verify(transactions).getTransaction(argThat(definition ->
                 definition.getPropagationBehavior() == TransactionDefinition.PROPAGATION_REQUIRES_NEW));
-        order.verify(tracks).findByIdForArtistSync(TRACK);
+        order.verify(tracks).findByIdForUpdate(TRACK);
         order.verify(artists).upsert(any(), eq(A), eq("A"), isNull());
         order.verify(artists).findBySpotifyArtistId(A);
         order.verify(artists).upsert(any(), eq(B), eq("B"), eq("photo"));
@@ -93,7 +93,7 @@ class PlaylistArtistSyncServiceTest {
     void concurrentCompletionIsRecheckedAfterTrackLock() {
         when(links.existsByTrackTrackId(TRACK)).thenReturn(false, true);
         when(client.getTrackArtists(TRACK)).thenReturn(List.of(new SpotifyArtistMetadata(A, "A", null)));
-        when(tracks.findByIdForArtistSync(TRACK)).thenReturn(Optional.of(mock(PlaylistTrack.class)));
+        when(tracks.findByIdForUpdate(TRACK)).thenReturn(Optional.of(mock(PlaylistTrack.class)));
         assertThat(service.syncMissingTrack(TRACK)).isFalse();
         verifyNoInteractions(artists);
         verify(links, never()).saveAllAndFlush(any());
@@ -111,7 +111,7 @@ class PlaylistArtistSyncServiceTest {
     @Test
     void linkFailureRollsBackEntireArtistWrite() {
         when(client.getTrackArtists(TRACK)).thenReturn(List.of(new SpotifyArtistMetadata(A, "A", null)));
-        when(tracks.findByIdForArtistSync(TRACK)).thenReturn(Optional.of(mock(PlaylistTrack.class)));
+        when(tracks.findByIdForUpdate(TRACK)).thenReturn(Optional.of(mock(PlaylistTrack.class)));
         when(artists.findBySpotifyArtistId(A)).thenReturn(Optional.of(mock(PlaylistArtist.class)));
         when(links.saveAllAndFlush(any())).thenThrow(new IllegalStateException("write failed"));
         assertThatThrownBy(() -> service.syncMissingTrack(TRACK)).isInstanceOf(IllegalStateException.class);

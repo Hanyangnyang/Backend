@@ -34,7 +34,7 @@ class PlaylistArtistMappingTest {
                 assertThat(repository.findTrackIdsWithoutArtists("", PageRequest.of(0, 1))).containsExactly("b");
                 assertThat(repository.findTrackIdsWithoutArtists("b", PageRequest.of(0, 20))).containsExactly("c");
                 assertThat(repository.findTrackIdsWithoutArtists("c", PageRequest.of(0, 20))).isEmpty();
-                assertThat(repository.findByIdForArtistSync("a")).isPresent();
+                assertThat(repository.findByIdForUpdate("a")).isPresent();
                 em.getTransaction().rollback();
             } finally {
                 em.close();

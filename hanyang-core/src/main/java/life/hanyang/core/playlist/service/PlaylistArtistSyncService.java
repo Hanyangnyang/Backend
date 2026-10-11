@@ -108,7 +108,7 @@ public class PlaylistArtistSyncService {
         List<SpotifyArtistMetadata> metadata = spotifyApiClient.getTrackArtists(trackId);
         validateMetadata(metadata);
         return Boolean.TRUE.equals(writeTransaction.execute(status -> {
-            PlaylistTrack track = trackRepository.findByIdForArtistSync(trackId).orElseThrow();
+            PlaylistTrack track = trackRepository.findByIdForUpdate(trackId).orElseThrow();
             // Serialize concurrent registration/backfill attempts for the same track.
             if (linkRepository.existsByTrackTrackId(trackId)) return false;
 

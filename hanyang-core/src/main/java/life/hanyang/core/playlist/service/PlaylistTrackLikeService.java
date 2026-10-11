@@ -30,6 +30,9 @@ public class PlaylistTrackLikeService {
             }
         }
 
+        // Serialize all toggles for a track; the row also protects its aggregate counter.
+        playlistTrackRepository.findByIdForUpdate(trackId);
+
         boolean isLiked;
         if (playlistTrackLikeRepository.deleteIfPresent(trackId, deviceId) > 0) {
             // [좋아요 취소]

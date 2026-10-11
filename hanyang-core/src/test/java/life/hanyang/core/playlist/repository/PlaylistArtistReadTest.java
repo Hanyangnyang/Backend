@@ -43,7 +43,7 @@ class PlaylistArtistReadTest {
                 PlaylistSongReport report = PlaylistSongReport.builder().song(post).reason("reason").build();
                 ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
                 for (Object response : List.of(PlaylistSongResponse.of(post),
-                        PlaylistTrackDetailResponse.of(loaded, 0, false, new PageImpl<>(List.of(), PageRequest.of(0, 20), 0)),
+                        PlaylistTrackDetailResponse.of(loaded, 0, 0, false, new PageImpl<>(List.of(), PageRequest.of(0, 20), 0)),
                         PlaylistTrackLikeResponse.of(loaded), PlaylistSongReportResponse.from(report),
                         PlaylistChartItemResponse.from(1, loaded))) {
                     var json = mapper.valueToTree(response);

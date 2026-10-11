@@ -16,7 +16,7 @@ public interface PlaylistTrackRepository extends JpaRepository<PlaylistTrack, St
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT t FROM PlaylistTrack t WHERE t.trackId = :trackId")
-    Optional<PlaylistTrack> findByIdForArtistSync(@Param("trackId") String trackId);
+    Optional<PlaylistTrack> findByIdForUpdate(@Param("trackId") String trackId);
 
     @Query("""
             SELECT t.trackId FROM PlaylistTrack t

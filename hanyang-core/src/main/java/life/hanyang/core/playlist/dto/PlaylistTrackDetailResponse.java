@@ -22,6 +22,9 @@ public record PlaylistTrackDetailResponse(
         @Schema(description = "해당 곡에 달린 총 추천글 수", example = "3")
         long totalSongsCount,
 
+        @Schema(description = "해당 곡의 누적 재생 수. 추천글이 없어도 반환", example = "12")
+        long totalPlayCount,
+
         @Schema(description = "해당 곡의 좋아요 수", example = "298")
         int likeCount,
 
@@ -37,6 +40,7 @@ public record PlaylistTrackDetailResponse(
     public static PlaylistTrackDetailResponse of(
             PlaylistTrack track,
             long totalSongsCount,
+            long totalPlayCount,
             boolean isLiked,
             Page<PlaylistSongResponse> songs
     ) {
@@ -46,6 +50,7 @@ public record PlaylistTrackDetailResponse(
                 track.getArtist(),
                 track.getAlbumArtUrl(),
                 totalSongsCount,
+                totalPlayCount,
                 track.getLikeCount() != null ? track.getLikeCount() : 0,
                 isLiked,
                 songs,

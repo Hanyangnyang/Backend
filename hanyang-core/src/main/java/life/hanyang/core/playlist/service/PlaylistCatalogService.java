@@ -25,12 +25,25 @@ public class PlaylistCatalogService {
     private final PlaylistSongRepository playlistSongRepository;
     private final PlaylistTrackLikeRepository playlistTrackLikeRepository;
     private final PlaylistArtistRepository playlistArtistRepository;
+    private final PlaylistSearchRecorder searchRecorder;
 
     public MusicSearchResponse searchTracks(String keyword) {
         return searchTracks(keyword, null);
     }
 
     public MusicSearchResponse searchTracks(String keyword, UUID deviceId) {
+        long startedAt = System.nanoTime();
+        try {
+            MusicSearchResponse response = searchTracksInternal(keyword, deviceId);
+            searchRecorder.record("CATALOG", keyword, response.tracks().size(), startedAt, null);
+            return response;
+        } catch (RuntimeException exception) {
+            searchRecorder.record("CATALOG", keyword, 0, startedAt, exception);
+            throw exception;
+        }
+    }
+
+    private MusicSearchResponse searchTracksInternal(String keyword, UUID deviceId) {
         List<SpotifyTrackSearchResponse> tracks = spotifyTrackSearchService.searchTracks(
                 keyword,
                 SpotifyTrackSearchService.DEFAULT_SEARCH_LIMIT
