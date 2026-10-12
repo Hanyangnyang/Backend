@@ -16,6 +16,7 @@ public enum Genre {
     POP("POP"),
     JPOP("J-POP"),
     OST("OST"),
+    EDM("EDM"),
     OTHER("기타");
 
     private final String description;
