@@ -80,7 +80,9 @@ else
   docker exec nginx nginx -s reload
 fi
 
-if ! docker exec nginx nginx -T 2>&1 | grep -Fq "proxy_pass http://hanyang-api-$next_color:8080;"; then
+# grep -q의 조기 종료는 pipefail 환경에서 앞 명령의 SIGPIPE를 실패로 처리할 수 있다.
+if ! docker exec nginx nginx -T 2>&1 | grep -F "proxy_pass http://hanyang-api-$next_color:8080;" >/dev/null; then
+  printf 'Nginx configuration dump or upstream verification failed for %s; rolling back.\n' "$next_service" >&2
   printf '%s\n' "$previous_upstream" > "$UPSTREAM_FILE"
   if [[ "$nginx_recreate_required" == true ]]; then
     docker compose --profile blue-green up -d --no-deps --force-recreate nginx || true
@@ -94,6 +96,7 @@ fi
 
 if ! curl -fsSk --resolve api.hanyang.life:443:127.0.0.1 \
   --max-time 10 https://api.hanyang.life/api/v1/shuttle >/dev/null; then
+  printf 'API probe through Nginx failed for %s; rolling back.\n' "$next_service" >&2
   printf '%s\n' "$previous_upstream" > "$UPSTREAM_FILE"
   if [[ "$nginx_recreate_required" == true ]]; then
     docker compose --profile blue-green up -d --no-deps --force-recreate nginx
