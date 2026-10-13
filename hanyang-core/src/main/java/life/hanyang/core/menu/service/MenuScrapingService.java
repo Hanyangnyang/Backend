@@ -132,14 +132,8 @@ public class MenuScrapingService {
             throw new IllegalStateException("학식 페이지에서 메뉴 영역을 찾지 못했습니다.");
         }
         for (Element group : doc.select(".menu-group")) {
-            validateMenuGroup(group);
+            MealType mealType = validateMenuGroup(group);
             int menuCountBeforeGroup = menus.size();
-            Element titleElement = group.selectFirst(".menu-group__title");
-            if (titleElement == null) {
-                throw new IllegalStateException("학식 메뉴의 식사 구분을 찾지 못했습니다.");
-            }
-
-            MealType mealType = MealType.fromTitle(titleElement.text());
             for (Element item : group.select(".menu-item, .menu-card-v")) {
                 Element nameElement = item.selectFirst(".menu-item__name, .menu-card-v__name");
                 if (nameElement == null || nameElement.text().isBlank()) {
@@ -192,11 +186,10 @@ public class MenuScrapingService {
         return menus;
     }
 
-    private void validateMenuGroup(Element group) {
+    private MealType validateMenuGroup(Element group) {
         Element title = group.selectFirst(".menu-group__title");
-        if (title == null || !List.of("조식", "중식", "석식").contains(title.text().trim())) {
-            throw new IllegalStateException("학식 메뉴의 식사 구분을 인식하지 못했습니다.");
-        }
+        MealType mealType = MealType.findFromTitle(title == null ? null : title.text())
+                .orElseThrow(() -> new IllegalStateException("학식 메뉴의 식사 구분을 인식하지 못했습니다."));
         // 인식된 카드 수만 검사하면 혼합된 새 구조의 카드를 조용히 누락할 수 있다.
         // 알려진 컨테이너의 모든 자식을 검사한다. 정상 구조로 잘린 HTML까지 감지할 수는 없다.
         for (Element child : group.children()) {
@@ -216,6 +209,7 @@ public class MenuScrapingService {
                 throw new IllegalStateException("학식 메뉴 그룹에 알 수 없는 구조가 있습니다.");
             }
         }
+        return mealType;
     }
 
     Map<String, String> parseOperatingHours(Document doc) {

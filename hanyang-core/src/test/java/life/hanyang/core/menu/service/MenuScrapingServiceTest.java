@@ -18,6 +18,45 @@ class MenuScrapingServiceTest {
     private final MenuScrapingService service = new MenuScrapingService(null, null, null);
 
     @Test
+    @DisplayName("기존 카드와 현재 카드의 운영시간이 붙은 식사 제목을 인식한다")
+    void parseDecoratedMealTitles() {
+        for (String cardClass : List.of("menu-item", "menu-card-v")) {
+            for (MealType type : MealType.values()) {
+                Document document = Jsoup.parse("""
+                        <div class="menu-group">
+                          <div class="menu-group__title">%s (11:30~13:30)</div>
+                          <div class="%s">
+                            <div class="%s__name">메뉴</div>
+                            <div class="%s__desc">쌀밥</div>
+                            <span class="%s__price">4,500원</span>
+                          </div>
+                        </div>
+                        """.formatted(type.getApiValue(), cardClass, cardClass, cardClass, cardClass));
+                var menus = service.parseMenus(document);
+                assertEquals(1, menus.size());
+                assertEquals(type, menus.get(0).mealType());
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("식사명이 없는 제목은 중식 기본값으로 저장하지 않는다")
+    void rejectUnknownMealTitle() {
+        for (String title : List.of("", "운영시간 (11:30~13:30)", "간식")) {
+            Document document = Jsoup.parse("""
+                    <div class="menu-group"><div class="menu-group__title">%s</div>
+                      <div class="menu-item"><div class="menu-item__name">메뉴</div>
+                        <div class="menu-item__desc">쌀밥</div><span class="menu-item__price">4,500원</span>
+                      </div>
+                    </div>
+                    """.formatted(title));
+            assertThrows(IllegalStateException.class, () -> service.parseMenus(document));
+        }
+        assertEquals(MealType.LUNCH, MealType.fromTitle("알 수 없는 제목"));
+        assertEquals(MealType.LUNCH, MealType.fromTitle(null));
+    }
+
+    @Test
     @DisplayName("인식 가능한 카드와 알 수 없는 카드가 섞인 부분 수집은 거부한다")
     void rejectPartiallyMigratedGroups() {
         String validCard = """
