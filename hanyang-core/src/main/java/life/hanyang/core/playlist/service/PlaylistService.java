@@ -51,6 +51,7 @@ public class PlaylistService {
     private final PlaylistSongRepository playlistSongRepository;
     private final PlaylistTrackLikeRepository playlistTrackLikeRepository;
     private final PlaylistSongReactionRepository playlistSongReactionRepository;
+    private final PlaylistNotificationService playlistNotificationService;
     private final PlaylistSongReportRepository playlistSongReportRepository;
     private final PlaylistModerationService playlistModerationService;
     private final PlaylistRegistrationGuard playlistRegistrationGuard;
@@ -370,6 +371,7 @@ public class PlaylistService {
             if (playlistSongReactionRepository.insertIfAbsent(
                     songId, request.deviceId(), request.reactionType().name()) > 0) {
                 isReacted = true;
+                playlistNotificationService.firstReaction(song, request.deviceId());
             } else {
                 isReacted = true;
             }

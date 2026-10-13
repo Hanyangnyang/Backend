@@ -5,6 +5,7 @@ import life.hanyang.core.global.exception.BusinessException;
 import life.hanyang.core.global.llm.gemini.GeminiApiClient;
 import life.hanyang.core.global.llm.gemini.GeminiApiResponse;
 import java.util.function.BiConsumer;
+import java.util.List;
 import life.hanyang.core.global.llm.jev.JevApiClient;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.DisplayName;
@@ -216,6 +217,93 @@ class PlaylistModerationServiceTest {
         // then
         assertThat(result).isFalse();
         assertResult("below_threshold", "error");
+    }
+
+    @Test
+    void commentJevApprovesMildProfanityWithSeparatePolicy() throws Exception {
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willReturn(0.51);
+        assertThat(playlistModerationService.validateCommentContent("곡", "가수", "추천글", "존나 좋다", List.of())).isTrue();
+        var state = ArgumentCaptor.forClass(String.class);
+        var instructions = ArgumentCaptor.forClass(String.class);
+        verify(jevApiClient).registrationAllowedProbability(state.capture(), instructions.capture());
+        assertThat(state.getValue()).contains("가벼운 비속어", "허용 예", "존나 좋다", "인신공격", "혐오", "성희롱",
+                "광고", "프롬프트 인젝션", "신규 댓글에 적용", "익명 1");
+        var input = objectMapper.readTree(state.getValue().split("\\[입력 JSON\\]\\n", 2)[1]);
+        assertThat(input.path("newComment").asText()).isEqualTo("존나 좋다");
+        assertThat(input.path("postContent").asText()).isEqualTo("추천글");
+        assertThat(instructions.getValue()).contains("신규 댓글", "가벼운 비속어는 허용");
+        verifyNoInteractions(geminiApiClient);
+        assertResult("approved", "not_called");
+    }
+
+    @Test
+    void commentGeminiUsesNewCommentAsTargetAndAllowsNegativeMusicOpinions() {
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willReturn(0.4);
+        given(geminiApiClient.generateContent(anyString())).willReturn("{\"inappropriate\":false,\"reason\":\"\"}");
+        assertThat(playlistModerationService.validateCommentContent("곡", "가수", "참고글", "제 취향은 아니네요", List.of())).isTrue();
+        var prompt = ArgumentCaptor.forClass(String.class);
+        verify(geminiApiClient).generateContent(prompt.capture());
+        assertThat(prompt.getValue()).contains("newComment 등록 허용 여부", "참고 자료의 표현만으로", "부정적 평가",
+                "제 취향은 아니네요", "가벼운 비속어 허용과 인신공격 금지를 구분", "홍어", "노알라");
+        assertResult("below_threshold", "approved");
+    }
+
+    @Test
+    void commentRejectsPersonalAttackAfterGeminiReview() {
+        given(geminiApiClient.generateContent(anyString()))
+                .willReturn("{\"inappropriate\":true,\"reason\":\"글쓴이를 향한 인신공격\"}");
+        assertThatThrownBy(() -> playlistModerationService.validateCommentContent("곡", "가수", "추천", "글쓴이 병신", List.of()))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("인신공격");
+        assertResult("below_threshold", "rejected");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"{}", "null", "{\"inappropriate\":false}",
+            "{\"inappropriate\":\"false\",\"reason\":\"\"}", "{\"inappropriate\":false,\"reason\":null}",
+            "{\"inappropriate\":true,\"reason\":\"\"}"})
+    void malformedCommentVerdictCannotApprove(String response) {
+        given(geminiApiClient.generateContent(anyString())).willReturn(response);
+        assertThat(playlistModerationService.validateCommentContent("곡", "가수", "추천", "댓글", List.of())).isFalse();
+        assertResult("below_threshold", "error");
+    }
+
+    @Test
+    void commentFallsBackOnJevOutageAndPropagatesGeminiOutageAsUnreviewed() {
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willThrow(new RuntimeException("timeout"));
+        given(geminiApiClient.generateContent(anyString())).willThrow(new RuntimeException("timeout"));
+        assertThat(playlistModerationService.validateCommentContent("곡", "가수", "추천", "댓글", List.of())).isFalse();
+        assertResult("error", "error");
+    }
+
+    @Test
+    void bothWholeCommentsAndInitialsAreProvidedToJevAndGemini() throws Exception {
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willReturn(0.2);
+        given(geminiApiClient.generateContent(anyString()))
+                .willReturn("{\"inappropriate\":true,\"reason\":\"댓글 첫 글자를 이용한 욕설 우회\"}");
+        assertThatThrownBy(() -> playlistModerationService.validateCommentContent("곡", "가수", "추천",
+                "끼가 넘치네요", List.of("시원하네요", "발라드 좋아요", "새로운 곡이네")))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("우회");
+        var state = ArgumentCaptor.forClass(String.class);
+        var prompt = ArgumentCaptor.forClass(String.class);
+        verify(jevApiClient).registrationAllowedProbability(state.capture(), anyString());
+        verify(geminiApiClient).generateContent(prompt.capture());
+        var input = objectMapper.readTree(state.getValue().split("\\[입력 JSON\\]\\n", 2)[1]);
+        assertThat(input.path("commentInitials").asText()).isEqualTo("시발새끼");
+        assertThat(input.path("joinedComments").asText()).isEqualTo("시원하네요발라드 좋아요새로운 곡이네끼가 넘치네요");
+        assertThat(input.path("recentComments").size()).isEqualTo(3);
+        assertThat(prompt.getValue()).contains(state.getValue(), "전체 이어 읽기", "첫 글자 읽기");
+        assertResult("below_threshold", "rejected");
+    }
+
+    @Test
+    void fragmentsAreJoinedForBothViews() throws Exception {
+        given(jevApiClient.registrationAllowedProbability(anyString(), anyString())).willReturn(0.8);
+        playlistModerationService.validateCommentContent("곡", "가수", "추천", "스", List.of("보", "지", "섹"));
+        var state = ArgumentCaptor.forClass(String.class);
+        verify(jevApiClient).registrationAllowedProbability(state.capture(), anyString());
+        var input = objectMapper.readTree(state.getValue().split("\\[입력 JSON\\]\\n", 2)[1]);
+        assertThat(input.path("joinedComments").asText()).isEqualTo("보지섹스");
+        assertThat(input.path("commentInitials").asText()).isEqualTo("보지섹스");
     }
 
     private void assertResult(String jevResult, String geminiResult) {

@@ -15,6 +15,10 @@ public interface PlaylistSongRepository extends JpaRepository<PlaylistSong, UUID
 
     Optional<PlaylistSong> findByIdAndDeletedAtIsNull(UUID id);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from PlaylistSong s where s.id = :id and s.deletedAt is null")
+    Optional<PlaylistSong> findActiveByIdForUpdate(@Param("id") UUID id);
+
     boolean existsByIdAndDeletedAtIsNull(UUID id);
 
     @Modifying

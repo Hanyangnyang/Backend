@@ -68,6 +68,9 @@ class PlaylistServiceTest {
     private PlaylistSongReactionRepository playlistSongReactionRepository;
 
     @Mock
+    private PlaylistNotificationService playlistNotificationService;
+
+    @Mock
     private PlaylistSongReportRepository playlistSongReportRepository;
 
     @Mock
@@ -1043,6 +1046,7 @@ class PlaylistServiceTest {
         assertThat(reactionItem.count()).isEqualTo(1L);
         assertThat(reactionItem.isReacted()).isTrue();
         verify(playlistSongReactionRepository).insertIfAbsent(songId, deviceId, reactionType.name());
+        verify(playlistNotificationService).firstReaction(song, deviceId);
     }
 
     @org.junit.jupiter.params.ParameterizedTest

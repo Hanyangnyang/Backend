@@ -20,6 +20,9 @@ public enum ErrorCode {
     BAD_CREDENTIALS(HttpStatus.UNAUTHORIZED, "A003", "아이디 또는 비밀번호가 일치하지 않습니다."),
 
     // 플레이리스트 에러
+    PLAYLIST_COMMENT_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "PL009", "댓글은 1분에 최대 5개까지 작성할 수 있습니다."),
+    PLAYLIST_AUTH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "PL010", "사용자 인증을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+    PLAYLIST_COMMENT_MODERATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "PL011", "댓글 내용을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."),
     PLAYLIST_DAILY_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "PL001", "오늘 추천 가능한 곡 수를 초과했습니다."),
     PLAYLIST_DUPLICATE_SONG_IN_WEEK(HttpStatus.BAD_REQUEST, "PL002", "최근 7일 이내에 이미 추천한 곡입니다. 다른 곡을 추천해 주세요."),
     PLAYLIST_INAPPROPRIATE_COMMENT(HttpStatus.BAD_REQUEST, "PL003", "부적절하거나 비속어가 포함된 코멘트는 등록할 수 없습니다."),

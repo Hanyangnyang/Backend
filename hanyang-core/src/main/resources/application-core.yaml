@@ -36,7 +36,17 @@ spring:
       lettuce:
         shutdown-timeout: 100ms
 
+supabase:
+  auth:
+    url: ${SUPABASE_URL:}
+    anon-key: ${SUPABASE_ANON_KEY:}
+
 playlist:
+  notification:
+    firebase:
+      project-id: ${FIREBASE_PROJECT_ID:}
+      client-email: ${FIREBASE_CLIENT_EMAIL:}
+      private-key: ${FIREBASE_PRIVATE_KEY:}
   registration:
     daily-create-limit: ${PLAYLIST_DAILY_CREATE_LIMIT:3}
     failure-window: ${PLAYLIST_REGISTRATION_FAILURE_WINDOW:1h}
