@@ -132,6 +132,7 @@ public class MenuScrapingService {
             throw new IllegalStateException("학식 페이지에서 메뉴 영역을 찾지 못했습니다.");
         }
         for (Element group : doc.select(".menu-group")) {
+            validateMenuGroup(group);
             int menuCountBeforeGroup = menus.size();
             Element titleElement = group.selectFirst(".menu-group__title");
             if (titleElement == null) {
@@ -153,6 +154,10 @@ public class MenuScrapingService {
                 }
 
                 Element descriptionElement = item.selectFirst(".menu-item__desc, .menu-card-v__desc");
+                Element priceElement = item.selectFirst(".menu-item__price, .menu-card-v__price");
+                if (mainDish.isBlank() || descriptionElement == null || priceElement == null) {
+                    throw new IllegalStateException("학식 메뉴 카드의 필수 정보를 읽지 못했습니다.");
+                }
                 if (descriptionElement != null) {
                     Arrays.stream(descriptionElement.html().split("(?i)<br\\s*/?>"))
                             .map(Jsoup::parse)
@@ -163,8 +168,10 @@ public class MenuScrapingService {
                             .forEach(menuItems::add);
                 }
 
-                Element priceElement = item.selectFirst(".menu-item__price, .menu-card-v__price");
-                Integer price = priceElement == null ? null : MenuParserUtils.parsePrice(priceElement.text());
+                Integer price = MenuParserUtils.parsePrice(priceElement.text());
+                if (price == null) {
+                    throw new IllegalStateException("학식 메뉴 가격을 읽지 못했습니다.");
+                }
                 String rawMenu = String.join(" ", rawName,
                         descriptionElement == null ? "" : descriptionElement.text(),
                         priceElement == null ? "" : priceElement.text()).trim();
@@ -183,6 +190,32 @@ public class MenuScrapingService {
             }
         }
         return menus;
+    }
+
+    private void validateMenuGroup(Element group) {
+        Element title = group.selectFirst(".menu-group__title");
+        if (title == null || !List.of("조식", "중식", "석식").contains(title.text().trim())) {
+            throw new IllegalStateException("학식 메뉴의 식사 구분을 인식하지 못했습니다.");
+        }
+        // 인식된 카드 수만 검사하면 혼합된 새 구조의 카드를 조용히 누락할 수 있다.
+        // 알려진 컨테이너의 모든 자식을 검사한다. 정상 구조로 잘린 HTML까지 감지할 수는 없다.
+        for (Element child : group.children()) {
+            if (child.hasClass("menu-group__title")) {
+                continue;
+            }
+            if (child.hasClass("menu-grid-2col")) {
+                if (child.children().isEmpty()) {
+                    throw new IllegalStateException("학식 메뉴 컨테이너가 비어 있습니다.");
+                }
+                for (Element card : child.children()) {
+                    if (!card.hasClass("menu-card-v") && !card.hasClass("menu-item")) {
+                        throw new IllegalStateException("학식 메뉴 컨테이너에 알 수 없는 카드 구조가 있습니다.");
+                    }
+                }
+            } else if (!child.hasClass("menu-item") && !child.hasClass("menu-card-v")) {
+                throw new IllegalStateException("학식 메뉴 그룹에 알 수 없는 구조가 있습니다.");
+            }
+        }
     }
 
     Map<String, String> parseOperatingHours(Document doc) {

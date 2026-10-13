@@ -21,14 +21,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.never;
-import static org.mockito.ArgumentMatchers.any;
 
 class MenuSaveServiceTest {
 
     @Test
-    @DisplayName("일부 메뉴만 수집되어도 누락된 기존 메뉴를 삭제하지 않는다")
-    void preserveOmittedMenusWhenCollectionIsPartial() {
+    @DisplayName("검증된 식단으로 갱신하고 원본에서 철회된 일반 메뉴만 삭제한다")
+    void replaceMenusAfterValidatedCollection() {
         CafeteriaRepository cafeteriaRepository = mock(CafeteriaRepository.class);
         MenuRepository menuRepository = mock(MenuRepository.class);
         MenuSaveService service = new MenuSaveService(cafeteriaRepository, menuRepository,
@@ -37,19 +35,22 @@ class MenuSaveServiceTest {
         LocalDate date = LocalDate.of(2026, 10, 14);
         Menu first = new Menu(cafeteria, date, MealType.LUNCH, 0, "메뉴 A", "메뉴 A", 4500);
         Menu omitted = new Menu(cafeteria, date, MealType.LUNCH, 1, "메뉴 B", "메뉴 B", 6500);
+        Menu overridden = new Menu(cafeteria, date, MealType.DINNER, 0, "메뉴 C", "메뉴 C", 6500);
+        overridden.updateDisplayMenu("관리자 메뉴");
         when(cafeteriaRepository.findByCode(CafeteriaCode.RE12)).thenReturn(Optional.of(cafeteria));
         when(menuRepository.findByCafeteriaAndDateAndTypeAndDisplayOrder(cafeteria, date, MealType.LUNCH, 0))
                 .thenReturn(Optional.of(first));
         when(menuRepository.findByCafeteriaAndDate(cafeteria, date))
-                .thenReturn(List.of(first, omitted));
+                .thenReturn(List.of(first, omitted, overridden));
 
         service.saveCafeteriaAndMenus(new MenuCrawlResultDto(CafeteriaCode.RE12, date, Map.of(),
                 List.of(new MenuCrawlResultDto.MenuDetailDto(MealType.LUNCH, "새 메뉴 A", "새 메뉴 A", 5000))));
 
         verify(menuRepository).save(first);
-        verify(menuRepository, never()).deleteAll(any());
+        verify(menuRepository).deleteAll(List.of(omitted));
         assertEquals("새 메뉴 A", first.getDisplayMenu());
         assertEquals("메뉴 B", omitted.getDisplayMenu());
+        assertEquals("관리자 메뉴", overridden.getDisplayMenu());
     }
 
     @Test

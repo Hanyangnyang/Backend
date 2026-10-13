@@ -18,6 +18,42 @@ class MenuScrapingServiceTest {
     private final MenuScrapingService service = new MenuScrapingService(null, null, null);
 
     @Test
+    @DisplayName("인식 가능한 카드와 알 수 없는 카드가 섞인 부분 수집은 거부한다")
+    void rejectPartiallyMigratedGroups() {
+        String validCard = """
+                <div class="menu-card-v">
+                  <div class="menu-card-v__name">메뉴 A</div>
+                  <div class="menu-card-v__desc">쌀밥</div>
+                  <span class="menu-card-v__price">4,500원</span>
+                </div>
+                """;
+        for (String contents : List.of(
+                validCard + "<div class='unknown-card'>메뉴 B</div>",
+                "<div class='menu-grid-2col'>" + validCard + "<div class='unknown-card'>메뉴 B</div></div>",
+                validCard + "<div class='menu-card-v'><div class='menu-card-v__name'>메뉴 B</div></div>")) {
+            Document document = Jsoup.parse("<div class='menu-group'><div class='menu-group__title'>중식</div>"
+                    + contents + "</div>");
+            assertThrows(IllegalStateException.class, () -> service.parseMenus(document));
+        }
+    }
+
+    @Test
+    @DisplayName("뒷 식사 그룹의 파싱 실패도 전체 식단 수집을 거부한다")
+    void rejectPartialMeals() {
+        Document document = Jsoup.parse("""
+                <div class="menu-group"><div class="menu-group__title">중식</div>
+                  <div class="menu-item"><div class="menu-item__name">메뉴 A</div>
+                    <div class="menu-item__desc">쌀밥</div><span class="menu-item__price">4,500원</span>
+                  </div>
+                </div>
+                <div class="menu-group"><div class="menu-group__title">석식</div>
+                  <div class="unknown-card">메뉴 B</div>
+                </div>
+                """);
+        assertThrows(IllegalStateException.class, () -> service.parseMenus(document));
+    }
+
+    @Test
     @DisplayName("현재 세로형 메뉴 카드에서 메뉴와 가격을 읽는다")
     void parseVerticalMenuCards() {
         Document document = Jsoup.parse("""
