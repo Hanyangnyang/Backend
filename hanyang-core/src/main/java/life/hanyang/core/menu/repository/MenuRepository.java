@@ -16,6 +16,8 @@ import java.util.Optional;
 @Repository
 public interface MenuRepository extends JpaRepository<Menu, Long> {
 
+    boolean existsByDate(LocalDate date);
+
     Optional<Menu> findByCafeteriaAndDateAndTypeAndDisplayOrder(Cafeteria cafeteria, LocalDate date, MealType type, Integer displayOrder);
 
     List<Menu> findByCafeteriaAndDate(Cafeteria cafeteria, LocalDate date);

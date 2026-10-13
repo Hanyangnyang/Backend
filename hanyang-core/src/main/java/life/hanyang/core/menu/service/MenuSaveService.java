@@ -76,6 +76,7 @@ public class MenuSaveService {
             orderCounter.put(mealType, currentOrder + 1);
         }
 
+        // 호출자는 전체 메뉴 구조 검증 후, 또는 명시적인 미등록 응답일 때만 저장한다.
         List<Menu> staleMenus = menuRepository.findByCafeteriaAndDate(cafeteria, dto.date()).stream()
                 .filter(menu -> !menu.isOverridden())
                 .filter(menu -> !scrapedPositions.contains(new MenuPosition(menu.getType(), menu.getDisplayOrder())))
