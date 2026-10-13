@@ -9,6 +9,7 @@ import life.hanyang.core.auth.SupabaseUserResolver;
 import life.hanyang.core.global.response.ApiResponse;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.service.PlaylistCommentService;
+import life.hanyang.core.playlist.service.PlaylistCommentReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +26,16 @@ import java.util.UUID;
 public class PlaylistCommentController {
     private final PlaylistCommentService comments;
     private final SupabaseUserResolver users;
+    private final PlaylistCommentReportService reports;
+
+    @PostMapping("/{commentId}/reports")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "댓글 신고", description = "Supabase Bearer 토큰 필수. 사유 최대 500자. 같은 사용자의 같은 댓글 중복 신고는 409를 반환합니다.")
+    public ApiResponse<PlaylistCommentReportReceipt> report(@PathVariable UUID songId, @PathVariable UUID commentId,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @Valid @RequestBody PlaylistCommentReportRequest request) {
+        return ApiResponse.success(reports.report(songId, commentId, users.required(authorization), request));
+    }
 
     @GetMapping
     @Operation(summary = "추천글 댓글 조회", description = "작성 시간 오름차순. 인증 토큰이 있으면 isMine을 계산하며, 없으면 false입니다. 글쓴이는 POST_AUTHOR, 나머지는 ANONYMOUS와 고정 anonymousNumber로 구분합니다.")

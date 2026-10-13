@@ -15,6 +15,7 @@ public interface PlaylistCommentRepository extends JpaRepository<PlaylistComment
     Optional<PlaylistComment> findFirstBySongIdAndDeviceIdOrderByCreatedAtAscIdAsc(UUID songId, UUID deviceId);
     Optional<PlaylistComment> findByIdAndSongIdAndDeletedAtIsNull(UUID id, UUID songId);
     List<PlaylistComment> findTop20BySongIdAndDeviceIdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(UUID songId, UUID deviceId);
+    Optional<PlaylistComment> findByIdAndSongId(UUID id, UUID songId);
     @Query("select coalesce(max(c.anonymousNumber), 0) from PlaylistComment c where c.songId = :songId")
     int maxAnonymousNumber(UUID songId);
     long countByDeviceIdAndCreatedAtAfter(UUID deviceId, Instant since);

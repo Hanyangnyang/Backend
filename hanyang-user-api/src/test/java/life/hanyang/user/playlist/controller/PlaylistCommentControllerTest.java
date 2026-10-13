@@ -4,6 +4,7 @@ import life.hanyang.core.auth.SupabaseUserResolver;
 import life.hanyang.core.global.exception.*;
 import life.hanyang.core.playlist.dto.*;
 import life.hanyang.core.playlist.service.PlaylistCommentService;
+import life.hanyang.core.playlist.service.PlaylistCommentReportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,13 +22,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PlaylistCommentControllerTest {
     @Mock PlaylistCommentService comments;
     @Mock SupabaseUserResolver users;
+    @Mock PlaylistCommentReportService reports;
     MockMvc mvc;
     final UUID song = UUID.randomUUID();
     final UUID author = UUID.randomUUID();
     String path;
 
     @BeforeEach void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(new PlaylistCommentController(comments, users))
+        mvc = MockMvcBuilders.standaloneSetup(new PlaylistCommentController(comments, users, reports))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
         path = "/api/v1/playlist/songs/" + song + "/comments";
     }
@@ -76,4 +78,36 @@ class PlaylistCommentControllerTest {
         verify(comments).delete(song, comment, author);
     }
 
+    @Test void reportUsesAuthenticatedIdentityAndReturnsReceiptWithoutSnapshot() throws Exception {
+        UUID comment = UUID.randomUUID();
+        when(users.required("Bearer fake")).thenReturn(author);
+        when(reports.report(eq(song), eq(comment), eq(author), any()))
+                .thenReturn(new PlaylistCommentReportReceipt(UUID.randomUUID(), life.hanyang.core.playlist.domain.ReportStatus.PENDING, Instant.now()));
+        mvc.perform(post(path + "/" + comment + "/reports").header("Authorization", "Bearer fake")
+                        .contentType("application/json").content("{\"reason\":\"욕설\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.contentSnapshot").doesNotExist())
+                .andExpect(jsonPath("$.data.reporterDeviceId").doesNotExist());
+    }
+
+    @Test void duplicateReportIs409AndMissingAuthenticationIs401() throws Exception {
+        UUID comment = UUID.randomUUID();
+        when(users.required("Bearer fake")).thenReturn(author);
+        when(reports.report(eq(song), eq(comment), eq(author), any())).thenThrow(new BusinessException(ErrorCode.DUPLICATE_RESOURCE));
+        mvc.perform(post(path + "/" + comment + "/reports").header("Authorization", "Bearer fake")
+                        .contentType("application/json").content("{\"reason\":\"욕설\"}"))
+                .andExpect(status().isConflict());
+        when(users.required(null)).thenThrow(new BusinessException(ErrorCode.UNAUTHORIZED));
+        mvc.perform(post(path + "/" + comment + "/reports").contentType("application/json").content("{\"reason\":\"욕설\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test void reportRejectsBlankAndOversizeReasons() throws Exception {
+        for (String reason : new String[]{" ", "가".repeat(501)}) {
+            mvc.perform(post(path + "/" + UUID.randomUUID() + "/reports").contentType("application/json")
+                            .content("{\"reason\":\"" + reason + "\"}"))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(users, reports);
+    }
 }

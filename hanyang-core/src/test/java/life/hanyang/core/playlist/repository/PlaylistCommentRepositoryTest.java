@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.*;
 
 class PlaylistCommentRepositoryTest {
     private org.hibernate.SessionFactory factory() {
-        return new Configuration().addAnnotatedClass(PlaylistComment.class)
+        return new Configuration().addAnnotatedClass(PlaylistComment.class).addAnnotatedClass(PlaylistCommentReport.class)
                 .setProperty("hibernate.connection.driver_class", "org.h2.Driver")
                 .setProperty("hibernate.connection.url", "jdbc:h2:mem:comments-" + UUID.randomUUID() + ";MODE=PostgreSQL")
                 .setProperty("hibernate.physical_naming_strategy", "org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy")
@@ -49,4 +49,45 @@ class PlaylistCommentRepositoryTest {
         }
     }
 
+    @Test void reportsRetainSnapshotAndOnlyPendingReportsAreResolved() {
+        try (var factory = factory(); var em = factory.createEntityManager()) {
+            em.getTransaction().begin();
+            var comment = new PlaylistComment(UUID.randomUUID(), UUID.randomUUID(), 1, "원래 댓글");
+            em.persist(comment);
+            var pending = new PlaylistCommentReport(comment, UUID.randomUUID(), "욕설");
+            var dismissed = new PlaylistCommentReport(comment, UUID.randomUUID(), "욕설");
+            dismissed.process(ReportStatus.DISMISSED, "이상 없음");
+            em.persist(pending);
+            em.persist(dismissed);
+            em.flush();
+            var repo = new JpaRepositoryFactory(em).getRepository(PlaylistCommentReportRepository.class);
+            assertThat(repo.findSongIdByReportId(pending.getId())).contains(comment.getSongId());
+            assertThat(repo.existsByCommentIdAndReporterDeviceId(comment.getId(), pending.getReporterDeviceId())).isTrue();
+            assertThat(repo.findAllByStatusOrderByCreatedAtDescIdDesc(ReportStatus.PENDING, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(1);
+            comment.delete();
+            em.flush();
+            repo.resolvePendingByCommentId(comment.getId(), ReportStatus.REVIEWED, "삭제", Instant.now(), ReportStatus.PENDING);
+            em.clear();
+            assertThat(repo.findById(pending.getId()).orElseThrow().getStatus()).isEqualTo(ReportStatus.REVIEWED);
+            assertThat(repo.findById(dismissed.getId()).orElseThrow().getStatus()).isEqualTo(ReportStatus.DISMISSED);
+            var response = life.hanyang.core.playlist.dto.PlaylistCommentReportResponse.of(repo.findById(pending.getId()).orElseThrow());
+            assertThat(response.contentSnapshot()).isEqualTo("원래 댓글");
+            assertThat(response.commentDeleted()).isTrue();
+            em.getTransaction().rollback();
+        }
+    }
+
+    @Test void databaseRejectsDuplicateReporterForSameComment() {
+        try (var factory = factory(); var em = factory.createEntityManager()) {
+            em.getTransaction().begin();
+            var comment = new PlaylistComment(UUID.randomUUID(), UUID.randomUUID(), 1, "댓글");
+            UUID reporter = UUID.randomUUID();
+            em.persist(comment);
+            em.persist(new PlaylistCommentReport(comment, reporter, "욕설"));
+            em.flush();
+            em.persist(new PlaylistCommentReport(comment, reporter, "다시 신고"));
+            assertThatThrownBy(em::flush).isInstanceOf(jakarta.persistence.PersistenceException.class);
+            em.getTransaction().rollback();
+        }
+    }
 }
