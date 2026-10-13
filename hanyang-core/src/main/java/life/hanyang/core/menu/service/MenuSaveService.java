@@ -13,11 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -50,12 +48,10 @@ public class MenuSaveService {
 
         // MealType별 순서(displayOrder) 카운터
         Map<MealType, Integer> orderCounter = new HashMap<>();
-        Set<MenuPosition> scrapedPositions = new HashSet<>();
 
         for (MenuCrawlResultDto.MenuDetailDto menuDto : dto.menus()) {
             MealType mealType = menuDto.mealType();
             int currentOrder = orderCounter.getOrDefault(mealType, 0);
-            scrapedPositions.add(new MenuPosition(mealType, currentOrder));
 
             Optional<Menu> existingOpt = menuRepository.findByCafeteriaAndDateAndTypeAndDisplayOrder(
                     cafeteria, dto.date(), mealType, currentOrder
@@ -76,12 +72,15 @@ public class MenuSaveService {
             orderCounter.put(mealType, currentOrder + 1);
         }
 
-        List<Menu> staleMenus = menuRepository.findByCafeteriaAndDate(cafeteria, dto.date()).stream()
-                .filter(menu -> !menu.isOverridden())
-                .filter(menu -> !scrapedPositions.contains(new MenuPosition(menu.getType(), menu.getDisplayOrder())))
-                .toList();
-        menuRepository.deleteAll(staleMenus);
+        // 일부 카드만 읽힌 HTML도 정상 응답처럼 보일 수 있어, 수집에서 빠진 메뉴는 삭제하지 않는다.
+        // 개별 철회 메뉴가 남을 수 있다. 완전한 식단을 보장하는 원본 계약이 생기면 정리를 재검토한다.
+        // 호출자는 명시적인 일간 식단 미등록 응답을 확인했을 때만 빈 목록을 전달한다.
+        if (dto.menus().isEmpty()) {
+            List<Menu> staleMenus = menuRepository.findByCafeteriaAndDate(cafeteria, dto.date()).stream()
+                    .filter(menu -> !menu.isOverridden())
+                    .toList();
+            menuRepository.deleteAll(staleMenus);
+        }
     }
 
-    private record MenuPosition(MealType mealType, Integer displayOrder) {}
 }
