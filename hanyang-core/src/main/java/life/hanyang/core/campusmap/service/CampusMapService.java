@@ -41,13 +41,15 @@ public class CampusMapService {
 
     @Transactional
     public BuildingResponse createBuilding(BuildingRequest r) {
-        importBuildings(List.of(r));
-        return getBuilding(r.id());
+        BuildingRequest resolved = resolveBuildingId(r);
+        importBuildings(List.of(resolved));
+        return getBuilding(resolved.id());
     }
 
     @Transactional
-    public ImportResult importBuildings(List<BuildingRequest> requests) {
-        requireList(requests);
+    public ImportResult importBuildings(List<BuildingRequest> rawRequests) {
+        requireList(rawRequests);
+        List<BuildingRequest> requests = rawRequests.stream().map(this::resolveBuildingId).toList();
         Set<String> buildingIds = new HashSet<>();
         Set<String> spaceIds = new HashSet<>();
         for (BuildingRequest r : requests) {
@@ -83,15 +85,16 @@ public class CampusMapService {
     }
 
     private void synchronizeOpenSpaces(CampusBuilding b, List<OpenSpaceRequest> requests) {
+        List<OpenSpaceRequest> resolvedRequests = requests.stream().map(this::resolveSpaceId).toList();
         Map<String, OpenSpace> existing = b.getOpenSpaces().stream()
                 .collect(Collectors.toMap(OpenSpace::getId, s -> s));
         Set<String> ids = new HashSet<>();
-        for (OpenSpaceRequest s : requests) unique(ids, s.id());
+        for (OpenSpaceRequest s : resolvedRequests) unique(ids, s.id());
         Set<String> newIds = new HashSet<>(ids);
         newIds.removeAll(existing.keySet());
         rejectExistingIds(newIds, spaces::findExistingIds);
         b.getOpenSpaces().removeIf(s -> !ids.contains(s.getId()));
-        for (OpenSpaceRequest r : requests) {
+        for (OpenSpaceRequest r : resolvedRequests) {
             OpenSpace current = existing.get(r.id());
             if (current == null) b.addOpenSpace(newSpace(r, b));
             else current.update(r.name(), r.floor(), r.hint());
@@ -100,10 +103,11 @@ public class CampusMapService {
 
     @Transactional
     public OpenSpaceResponse createOpenSpace(String buildingId, OpenSpaceRequest r) {
-        validate(r);
+        OpenSpaceRequest resolved = resolveSpaceId(r);
+        validate(resolved);
         CampusBuilding b = building(buildingId);
-        if (spaces.existsById(r.id())) duplicate(r.id());
-        OpenSpace s = newSpace(r, b);
+        if (spaces.existsById(resolved.id())) duplicate(resolved.id());
+        OpenSpace s = newSpace(resolved, b);
         b.addOpenSpace(s);
         buildings.flush();
         return OpenSpaceResponse.from(s);
@@ -119,13 +123,15 @@ public class CampusMapService {
 
     @Transactional
     public SmokingAreaResponse createSmokingArea(SmokingAreaRequest r) {
-        importSmokingAreas(List.of(r));
-        return getSmokingArea(r.id());
+        SmokingAreaRequest resolved = resolveSmokingAreaId(r);
+        importSmokingAreas(List.of(resolved));
+        return getSmokingArea(resolved.id());
     }
 
     @Transactional
-    public ImportResult importSmokingAreas(List<SmokingAreaRequest> requests) {
-        requireList(requests);
+    public ImportResult importSmokingAreas(List<SmokingAreaRequest> rawRequests) {
+        requireList(rawRequests);
+        List<SmokingAreaRequest> requests = rawRequests.stream().map(this::resolveSmokingAreaId).toList();
         Set<String> ids = new HashSet<>();
         for (SmokingAreaRequest r : requests) {
             validate(r); unique(ids, r.id());
@@ -164,13 +170,15 @@ public class CampusMapService {
 
     @Transactional
     public ParkingLotResponse createParkingLot(ParkingLotRequest r) {
-        importParkingLots(List.of(r));
-        return getParkingLot(r.id());
+        ParkingLotRequest resolved = resolveParkingLotId(r);
+        importParkingLots(List.of(resolved));
+        return getParkingLot(resolved.id());
     }
 
     @Transactional
-    public ParkingImportResult importParkingLots(List<ParkingLotRequest> requests) {
-        requireList(requests);
+    public ParkingImportResult importParkingLots(List<ParkingLotRequest> rawRequests) {
+        requireList(rawRequests);
+        List<ParkingLotRequest> requests = rawRequests.stream().map(this::resolveParkingLotId).toList();
         Set<String> ids = new HashSet<>();
         for (ParkingLotRequest r : requests) {
             validate(r); unique(ids, r.id());
@@ -195,6 +203,41 @@ public class CampusMapService {
 
     private ParkingLot parkingLot(String id) {
         return parkingLots.findById(id).orElseThrow(() -> new EntityNotFoundException("주차장이 없습니다: " + id));
+    }
+
+    private BuildingRequest resolveBuildingId(BuildingRequest r) {
+        String id = (r.id() != null && !r.id().isBlank())
+                ? r.id().trim()
+                : generateId("bld");
+        List<OpenSpaceRequest> resolvedSpaces = r.openSpaces() == null ? null
+                : r.openSpaces().stream().map(this::resolveSpaceId).toList();
+        return new BuildingRequest(id, r.buildingNumber(), r.name(), r.englishName(), r.aliases(),
+                r.campus(), r.coordinates(), r.description(), r.primaryColleges(), resolvedSpaces, r.facilities(), r.imageUrl());
+    }
+
+    private OpenSpaceRequest resolveSpaceId(OpenSpaceRequest r) {
+        String id = (r.id() != null && !r.id().isBlank())
+                ? r.id().trim()
+                : generateId("space");
+        return r.withId(id);
+    }
+
+    private SmokingAreaRequest resolveSmokingAreaId(SmokingAreaRequest r) {
+        String id = (r.id() != null && !r.id().isBlank())
+                ? r.id().trim()
+                : generateId("smoking");
+        return r.withId(id);
+    }
+
+    private ParkingLotRequest resolveParkingLotId(ParkingLotRequest r) {
+        String id = (r.id() != null && !r.id().isBlank())
+                ? r.id().trim()
+                : generateId("parking");
+        return r.withId(id);
+    }
+
+    private String generateId(String prefix) {
+        return prefix + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
     }
 
     private CampusBuilding building(String id) { return buildings.findById(id).orElseThrow(() -> new EntityNotFoundException("건물이 없습니다: " + id)); }
