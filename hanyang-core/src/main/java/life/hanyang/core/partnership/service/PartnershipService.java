@@ -7,10 +7,12 @@ import life.hanyang.core.partnership.dto.MerchantCreateWithPartnershipsRequest;
 import life.hanyang.core.partnership.dto.PartnershipDetailDto;
 import life.hanyang.core.partnership.dto.PartnershipDetailResponse;
 import life.hanyang.core.partnership.dto.PartnershipUpdateDto;
+import life.hanyang.core.partnership.dto.MerchantExportResponse;
 import life.hanyang.core.partnership.repository.MerchantRepository;
 import life.hanyang.core.partnership.repository.PartnershipRepository;
 import life.hanyang.core.global.exception.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Validator;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -25,13 +27,22 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class PartnershipService {
     private final MerchantRepository merchantRepository;
+    private final Validator validator;
     private final PartnershipRepository partnershipRepository;
 
+
+    public List<MerchantExportResponse> exportMerchants() {
+        return merchantRepository.findAllForExport().stream().map(MerchantExportResponse::from).toList();
+    }
 
     //DB 테이블(Merchant, Partnership) 전체 초기화 후 전달받은 데이터 적재
     @Transactional
     @CacheEvict(cacheNames = {"partnership", "merchant"}, allEntries = true)
     public void resetAndLoadPartnerships(List<MerchantCreateWithPartnershipsRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            throw new IllegalArgumentException("등록할 업체 목록은 비어 있을 수 없습니다.");
+        }
+        requests.forEach(this::validate);
         // 1. 기존 테이블 데이터를 FK 역순으로 지우기
         partnershipRepository.deleteAllInBatch();
         merchantRepository.deleteAllInBatch();
@@ -43,6 +54,7 @@ public class PartnershipService {
             // 2. 부모 Merchant 빌드
             Merchant merchant = Merchant.builder()
                     .storeName(request.storeName())
+                    .representativeMenus(request.representativeMenus())
                     .merchantCategory(request.category())
                     .emoji(request.emoji())
                     .isActive(request.isActive())
@@ -63,6 +75,7 @@ public class PartnershipService {
                         .isActive(partDto.getPeriod().getIsActive())
                         .conditions(partDto.getConditions())
                         .sourceUrl(partDto.getSourceUrl())
+                        .photoOrder(partDto.getPhotoOrder())
                         .build();
 
                 // 연관관계 편의 메서드 호출
@@ -75,7 +88,7 @@ public class PartnershipService {
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(cacheNames = "partnership", key = "'available'")
+    @Cacheable(cacheNames = "partnership", key = "'available:representative-menus:v1'")
     public List<PartnershipDetailResponse> getAvailablePartnerships() {
         List<Merchant> merchants = merchantRepository.findAllWithPartnerships();
         LocalDate today = LocalDate.now();
@@ -106,6 +119,7 @@ public class PartnershipService {
                 .isActive(request.getPeriod().getIsActive())
                 .conditions(request.getConditions())
                 .sourceUrl(request.getSourceUrl())
+                .photoOrder(request.getPhotoOrder())
                 .build();
 
         merchant.addPartnership(partnership);
@@ -143,4 +157,12 @@ public class PartnershipService {
             partnership.changeMerchant(newMerchant);
         }
     }
+    private void validate(Object request) {
+        if (request == null) throw new IllegalArgumentException("업체 항목은 null일 수 없습니다.");
+        var errors = validator.validate(request);
+        if (!errors.isEmpty()) throw new IllegalArgumentException(errors.stream()
+                .map(e -> e.getPropertyPath() + ": " + e.getMessage()).sorted()
+                .collect(java.util.stream.Collectors.joining(", ")));
+    }
+
 }

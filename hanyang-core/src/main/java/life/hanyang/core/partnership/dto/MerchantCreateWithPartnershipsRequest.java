@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import life.hanyang.core.partnership.domain.MerchantCategory;
 
 import java.util.List;
@@ -30,6 +31,8 @@ public record MerchantCreateWithPartnershipsRequest(
         String kakaoPlaceId,
 
         @Valid
-        List<PartnershipDetailDto> partnerships
+        List<PartnershipDetailDto> partnerships,
+
+        List<@NotBlank(message = "메뉴명은 공백일 수 없습니다.") @Size(max = 100, message = "메뉴명은 100자 이하여야 합니다.") String> representativeMenus
 ) {
 }

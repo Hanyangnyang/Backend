@@ -16,4 +16,5 @@ public class PartnershipDetailDto {
     private PartnershipPeriodDto period;
     private String conditions;
     private String sourceUrl;
+    private Integer photoOrder;
 }
