@@ -206,6 +206,7 @@ public class CampusMapService {
     }
 
     private BuildingRequest resolveBuildingId(BuildingRequest r) {
+        requireItem(r);
         String id = (r.id() != null && !r.id().isBlank())
                 ? r.id().trim()
                 : generateId("bld");
@@ -216,6 +217,7 @@ public class CampusMapService {
     }
 
     private OpenSpaceRequest resolveSpaceId(OpenSpaceRequest r) {
+        requireItem(r);
         String id = (r.id() != null && !r.id().isBlank())
                 ? r.id().trim()
                 : generateId("space");
@@ -223,6 +225,7 @@ public class CampusMapService {
     }
 
     private SmokingAreaRequest resolveSmokingAreaId(SmokingAreaRequest r) {
+        requireItem(r);
         String id = (r.id() != null && !r.id().isBlank())
                 ? r.id().trim()
                 : generateId("smoking");
@@ -230,6 +233,7 @@ public class CampusMapService {
     }
 
     private ParkingLotRequest resolveParkingLotId(ParkingLotRequest r) {
+        requireItem(r);
         String id = (r.id() != null && !r.id().isBlank())
                 ? r.id().trim()
                 : generateId("parking");
@@ -248,8 +252,11 @@ public class CampusMapService {
     private static void requireList(List<?> values) {
         if (values == null || values.isEmpty()) throw new IllegalArgumentException("등록할 JSON 배열은 비어 있을 수 없습니다.");
     }
-    private void validate(Object value) {
+    private static void requireItem(Object value) {
         if (value == null) throw new IllegalArgumentException("배열 항목은 null일 수 없습니다.");
+    }
+    private void validate(Object value) {
+        requireItem(value);
         var errors = validator.validate(value);
         if (!errors.isEmpty()) throw new IllegalArgumentException(errors.stream()
                 .map(e -> e.getPropertyPath() + ": " + e.getMessage()).sorted().collect(Collectors.joining(", ")));
