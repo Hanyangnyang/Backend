@@ -297,6 +297,36 @@ class CampusMapPersistenceTest {
     }
 
     @Test
+    void registrationPreservesExplicitResourceIdsIncludingWhitespace() {
+        assertThat(service.createBuilding(building(" building-101 ", "101", List.of())).id())
+                .isEqualTo(" building-101 ");
+        assertThat(service.createOpenSpace(" building-101 ", space(" space-1 ")).id())
+                .isEqualTo(" space-1 ");
+        assertThat(service.createSmokingArea(new SmokingAreaRequest(" smoking-1 ", "흡연장",
+                SmokingAreaType.AREA, Campus.ANSAN, new Coordinates(null, null), true, null, null)).id())
+                .isEqualTo(" smoking-1 ");
+        assertThat(service.createParkingLot(parking(" parking-1 ", 1)).id())
+                .isEqualTo(" parking-1 ");
+    }
+
+    @Test
+    void buildingSynchronizationPreservesExplicitSpaceIdsIncludingWhitespace() {
+        service.createBuilding(building("building-101", "101", List.of(space(" space-1 "))));
+        service.createBuilding(building("building-102", "102", List.of(space("space-1"))));
+
+        var updated = service.updateBuilding("building-101", building("building-101", "101",
+                List.of(new OpenSpaceRequest(" space-1 ", "수정된 공간", "2층", null))));
+
+        assertThat(updated.openSpaces()).extracting(OpenSpaceResponse::id).containsExactly(" space-1 ");
+        assertThat(service.getBuilding("building-101").openSpaces())
+                .extracting(OpenSpaceResponse::id).containsExactly(" space-1 ");
+        assertThat(service.getBuilding("building-102").openSpaces())
+                .extracting(OpenSpaceResponse::id).containsExactly("space-1");
+        assertThat(spaces.count()).isEqualTo(2);
+        assertThat(spaces.findById(" space-1 ").orElseThrow().getName()).isEqualTo("수정된 공간");
+    }
+
+    @Test
     void omittedSpacesArePreservedButExplicitEmptyArrayDeletesThem() {
         service.createBuilding(building("building-101", "101", List.of(space("space-01"))));
         service.updateBuilding("building-101", building("building-101", "101", null));
