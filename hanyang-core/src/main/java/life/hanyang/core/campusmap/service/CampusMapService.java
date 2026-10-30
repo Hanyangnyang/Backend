@@ -208,7 +208,7 @@ public class CampusMapService {
     private BuildingRequest resolveBuildingId(BuildingRequest r) {
         requireItem(r);
         String id = (r.id() != null && !r.id().isBlank())
-                ? r.id().trim()
+                ? r.id()
                 : generateId("bld");
         List<OpenSpaceRequest> resolvedSpaces = r.openSpaces() == null ? null
                 : r.openSpaces().stream().map(this::resolveSpaceId).toList();
@@ -219,7 +219,7 @@ public class CampusMapService {
     private OpenSpaceRequest resolveSpaceId(OpenSpaceRequest r) {
         requireItem(r);
         String id = (r.id() != null && !r.id().isBlank())
-                ? r.id().trim()
+                ? r.id()
                 : generateId("space");
         return r.withId(id);
     }
@@ -227,7 +227,7 @@ public class CampusMapService {
     private SmokingAreaRequest resolveSmokingAreaId(SmokingAreaRequest r) {
         requireItem(r);
         String id = (r.id() != null && !r.id().isBlank())
-                ? r.id().trim()
+                ? r.id()
                 : generateId("smoking");
         return r.withId(id);
     }
@@ -235,7 +235,7 @@ public class CampusMapService {
     private ParkingLotRequest resolveParkingLotId(ParkingLotRequest r) {
         requireItem(r);
         String id = (r.id() != null && !r.id().isBlank())
-                ? r.id().trim()
+                ? r.id()
                 : generateId("parking");
         return r.withId(id);
     }
