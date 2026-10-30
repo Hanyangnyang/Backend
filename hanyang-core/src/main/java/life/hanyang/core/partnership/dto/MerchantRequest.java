@@ -2,6 +2,8 @@ package life.hanyang.core.partnership.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import java.util.List;
 import life.hanyang.core.partnership.domain.Merchant;
 import life.hanyang.core.partnership.domain.MerchantCategory;
 
@@ -16,7 +18,8 @@ public record MerchantRequest(
         Double latitude,
         Double longitude,
         String fullAddress,
-        String kakaoPlaceId
+        String kakaoPlaceId,
+        List<@NotBlank(message = "메뉴명은 공백일 수 없습니다.") @Size(max = 100, message = "메뉴명은 100자 이하여야 합니다.") String> representativeMenus
     ) {
     public Merchant toEntity() {
         return Merchant.builder()
@@ -27,6 +30,7 @@ public record MerchantRequest(
                 .latitude(this.latitude)
                 .longitude(this.longitude)
                 .fullAddress(this.fullAddress)
+                .representativeMenus(this.representativeMenus)
                 .kakaoPlaceId(this.kakaoPlaceId)
                 .build();
     }

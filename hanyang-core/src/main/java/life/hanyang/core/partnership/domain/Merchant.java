@@ -35,6 +35,17 @@ public class Merchant {
         partnership.setMerchant(this); // 자식 객체에도 부모 객체를 주입합니다.
     }
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+    @Column(name = "representative_menus", nullable = false, columnDefinition = "text array")
+    private List<String> representativeMenus = new ArrayList<>();
+
+    public void updateRepresentativeMenus(List<String> menus) {
+        if (menus == null) return;
+        List<String> replacement = new ArrayList<>(menus);
+        representativeMenus.clear();
+        representativeMenus.addAll(replacement);
+    }
+
     @Enumerated(EnumType.STRING)
     @Column(name = "category", nullable = false)
     private MerchantCategory merchantCategory;
@@ -63,7 +74,7 @@ public class Merchant {
     private String kakaoPlaceId;
 
     @Builder
-    public Merchant(String storeName, MerchantCategory merchantCategory, Boolean isActive, String emoji, Double latitude, Double longitude, String fullAddress, String kakaoPlaceId) {
+    public Merchant(String storeName, MerchantCategory merchantCategory, Boolean isActive, String emoji, Double latitude, Double longitude, String fullAddress, String kakaoPlaceId, List<String> representativeMenus) {
         this.storeName = storeName;
         this.merchantCategory = merchantCategory;
         this.isActive = isActive == null || isActive;
@@ -72,6 +83,7 @@ public class Merchant {
         this.longitude = longitude;
         this.fullAddress = fullAddress;
         this.kakaoPlaceId = kakaoPlaceId;
+        updateRepresentativeMenus(representativeMenus);
     }
 
     public void update(String storeName, MerchantCategory merchantCategory, Boolean isActive, String emoji, Double latitude, Double longitude, String fullAddress, String kakaoPlaceId) {

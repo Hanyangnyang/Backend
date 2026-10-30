@@ -1,0 +1,2 @@
+ALTER TABLE merchant
+    ADD COLUMN representative_menus TEXT ARRAY NOT NULL DEFAULT CAST(ARRAY[] AS TEXT ARRAY);

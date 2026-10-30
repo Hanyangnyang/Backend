@@ -1,6 +1,7 @@
 package life.hanyang.admin.partnership.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,6 +14,9 @@ import life.hanyang.core.partnership.dto.PartnershipUpdateDto;
 import life.hanyang.core.partnership.service.PartnershipService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +32,20 @@ import java.util.List;
 public class PartnershipAdminController {
     private final PartnershipService partnershipService;
     private final ObjectMapper objectMapper;
+
+    @Operation(summary = "전체 업체·제휴 정보를 JSON 파일로 내보냅니다.",
+            description = "비활성·만료 데이터와 대표 메뉴도 포함합니다. reset-reload에 다시 입력 가능한 snake_case JSON 배열입니다. 성공 응답은 ApiResponse로 감싸지 않습니다. ID와 수정시각은 포함하지 않습니다.")
+    @GetMapping(value = "/export", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<byte[]> exportData() throws JsonProcessingException {
+        byte[] json = objectMapper.writerWithDefaultPrettyPrinter()
+                .writeValueAsBytes(partnershipService.exportMerchants());
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename("merchants-partnerships.json").build().toString())
+                .cacheControl(CacheControl.noStore())
+                .body(json);
+    }
 
     @Operation(summary = "기존의 제휴 정보를 전부 삭제 하고, 입력한 JSON 파일에 있는 정보를 추가합니다.")
     @PostMapping(value = "reset-reload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

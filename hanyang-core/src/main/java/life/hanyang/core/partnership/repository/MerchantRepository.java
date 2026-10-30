@@ -10,5 +10,8 @@ public interface MerchantRepository extends JpaRepository<Merchant, Long> {
     @Query("SELECT DISTINCT m FROM Merchant m LEFT JOIN FETCH m.partnerships"
             + " WHERE m.isActive = true")
     List<Merchant> findAllWithPartnerships();
+    @Query("SELECT DISTINCT m FROM Merchant m LEFT JOIN FETCH m.partnerships ORDER BY m.merchantId")
+    List<Merchant> findAllForExport();
+
     Long countByMerchantIdIn(List<Long> merchantIds);
 }
