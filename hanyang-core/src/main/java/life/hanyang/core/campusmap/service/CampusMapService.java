@@ -152,7 +152,15 @@ public class CampusMapService {
     }
 
     @Transactional
-    public void deleteBuilding(String id) { buildings.delete(building(id)); }
+    public void deleteBuilding(String id) {
+        CampusBuilding building = building(id);
+        // Preserve building references even for removed/deleted printers and their report history.
+        Long count = entityManager.createQuery("select count(p) from Printer p where p.building.id = :id", Long.class)
+                .setParameter("id", id).getSingleResult();
+        if (count > 0) throw new BusinessException(ErrorCode.BUILDING_HAS_PRINTERS);
+        buildings.delete(building);
+        buildings.flush();
+    }
     @Transactional
     public void deleteSmokingArea(String id) { smokingAreas.delete(smokingArea(id)); }
     @Transactional
