@@ -12,6 +12,9 @@ import life.hanyang.core.printer.domain.*;
 import life.hanyang.core.printer.dto.PrinterDto.*;
 import life.hanyang.core.printer.repository.*;
 import life.hanyang.core.printer.service.PrinterService;
+import life.hanyang.core.printer.event.PrinterReportCreatedEvent;
+import org.springframework.test.context.event.RecordApplicationEvents;
+import org.springframework.test.context.event.ApplicationEvents;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +46,7 @@ import static org.assertj.core.api.Assertions.*;
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = PrinterPersistenceTest.Config.class)
+@RecordApplicationEvents
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class PrinterPersistenceTest {
     @Configuration
@@ -55,6 +59,7 @@ class PrinterPersistenceTest {
         @Bean ObjectMapper objectMapper() { return new ObjectMapper().findAndRegisterModules(); }
     }
     @Autowired PrinterService service;
+    @Autowired ApplicationEvents events;
     @Autowired CampusMapService campusService;
     @Autowired CampusBuildingRepository buildings;
     @Autowired PrinterRepository printers;
@@ -342,6 +347,28 @@ class PrinterPersistenceTest {
                 assertThat(result.getContent()).allSatisfy(r -> assertThat(expected).extracting(ReportDetail::id).contains(r.id()));
             }
         }
+    }
+
+    @Test
+    void publishesNewAndUpdateReportEventsWithPersistedIdsAndValidatedDetails() throws Exception {
+        var added = service.reportNew(new NewReportRequest(deviceId, input(), "신규 프린터 확인"));
+        var p = service.create(input());
+        var updated = service.reportUpdate(p.id(), new UpdateReportRequest(deviceId, p.version(), changes("{\"removed\":true}"), "철거 확인"));
+        var notifications = events.stream(PrinterReportCreatedEvent.class).toList();
+        assertThat(notifications).hasSize(2);
+        assertThat(notifications.get(0).reportId()).isEqualTo(added.reportId());
+        assertThat(notifications.get(0).printerId()).isNull();
+        assertThat(notifications.get(0).type()).isEqualTo(PrinterReportType.NEW);
+        assertThat(notifications.get(0).buildingName()).isEqualTo("건물 b-1");
+        assertThat(notifications.get(0).detailLocation()).isEqualTo("1층 로비");
+        assertThat(notifications.get(1).reportId()).isEqualTo(updated.reportId());
+        assertThat(notifications.get(1).printerId()).isEqualTo(p.id());
+        assertThat(notifications.get(1).type()).isEqualTo(PrinterReportType.UPDATE);
+        assertThat(mapper.readTree(notifications.get(1).proposal()).path("removed").asBoolean()).isTrue();
+        assertThat(notifications.get(1).description()).isEqualTo("철거 확인");
+        assertThatThrownBy(() -> service.reportUpdate(p.id(), new UpdateReportRequest(deviceId, p.version(), changes("{}"), null)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(events.stream(PrinterReportCreatedEvent.class).count()).isEqualTo(2);
     }
 
     @Test
