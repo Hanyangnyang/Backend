@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.regex.Matcher;
@@ -41,6 +42,17 @@ public class MenuScrapingService {
      * CompletableFuture 기반 병렬 스크래핑 수행
      */
     public CompletableFuture<Void> scrapeCafeterias(List<CafeteriaCode> codes, LocalDate startDate, LocalDate endDate) {
+        return scrapeCafeterias(codes, startDate, endDate, false);
+    }
+
+    /** 당일 반복 갱신은 일시적인 빈 응답으로 기존 식단을 삭제하지 않는다. */
+    public CompletableFuture<Void> scrapeTodayMenus(LocalDate today) {
+        Objects.requireNonNull(today, "오늘 날짜는 필수입니다.");
+        return scrapeCafeterias(null, today, today, true);
+    }
+
+    private CompletableFuture<Void> scrapeCafeterias(List<CafeteriaCode> codes, LocalDate startDate,
+                                                    LocalDate endDate, boolean preserveExistingOnEmpty) {
         List<CafeteriaCode> targetCodes = (codes == null || codes.isEmpty())
                 ? List.of(CafeteriaCode.values())
                 : codes;
@@ -77,7 +89,7 @@ public class MenuScrapingService {
             for (CafeteriaCode code : targetCodes) {
                 CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                     try {
-                        scrapeSingleCafeteriaForDate(code, date);
+                        scrapeSingleCafeteriaForDate(code, date, preserveExistingOnEmpty);
                     } catch (Exception e) {
                         log.error("Failed to scrape cafeteria [{}] for date [{}]: {}",
                                 code.getDefaultName(), date, e.getMessage(), e);
@@ -95,7 +107,7 @@ public class MenuScrapingService {
                 });
     }
 
-    private void scrapeSingleCafeteriaForDate(CafeteriaCode code, LocalDate date) {
+    private void scrapeSingleCafeteriaForDate(CafeteriaCode code, LocalDate date, boolean preserveExistingOnEmpty) {
         String dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE);
         String url = String.format(BASE_URL_PATTERN, code.getFacilityId(), dateStr);
 
@@ -107,6 +119,11 @@ public class MenuScrapingService {
 
             Map<String, String> hours = parseOperatingHours(doc);
             List<MenuCrawlResultDto.MenuDetailDto> menus = parseMenus(doc);
+
+            if (preserveExistingOnEmpty && menus.isEmpty()) {
+                log.warn("당일 식단 갱신 건너뜀: 빈 응답으로 기존 메뉴 보존. cafeteria={}, date={}", code.getCode(), dateStr);
+                return;
+            }
 
             MenuCrawlResultDto saveDto = new MenuCrawlResultDto(code, date, hours, menus);
             menuSaveService.saveCafeteriaAndMenus(saveDto);
