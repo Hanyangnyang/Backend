@@ -14,6 +14,11 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.TreeSet;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.support.CronExpression;
 import java.time.ZoneId;
 import java.util.concurrent.CompletableFuture;
 
@@ -111,6 +116,63 @@ class MenuSchedulerTest {
         LocalDate checkedToday = dates.getAllValues().get(0);
         assertTrue(checkedToday.equals(before) || checkedToday.equals(after));
         assertEquals(checkedToday.plusDays(1), dates.getAllValues().get(1));
+    }
+
+    @Test
+    void todayRefreshSchedulesExactlyTwentyFiveRunsFrom0645Through1845() throws Exception {
+        var date = LocalDate.of(2026, 11, 7); // 주말도 실행
+        var times = new TreeSet<LocalTime>();
+        for (String name : new String[]{"scheduleTodayMenuRefreshAtFortyFive", "scheduleTodayMenuRefreshAtFifteen"}) {
+            var scheduled = MenuScheduler.class.getMethod(name).getAnnotation(Scheduled.class);
+            assertNotNull(scheduled);
+            assertEquals("Asia/Seoul", scheduled.zone());
+            var expression = CronExpression.parse(scheduled.cron());
+            LocalDateTime next = expression.next(date.atStartOfDay().minusSeconds(1));
+            while (next != null && next.toLocalDate().equals(date)) {
+                assertTrue(times.add(next.toLocalTime()), "중복 실행 시각");
+                next = expression.next(next);
+            }
+        }
+        assertEquals(25, times.size());
+        var expected = java.util.stream.IntStream.range(0, 25)
+                .mapToObj(i -> LocalTime.of(6, 45).plusMinutes(i * 30L)).toList();
+        assertEquals(expected, times.stream().toList());
+    }
+
+    @Test
+    void todayRefreshUsesKoreanTodayAndSkipsBothSchedulesUntilCompletion() {
+        var completion = new CompletableFuture<Void>();
+        when(scrapingService.scrapeTodayMenus(any())).thenReturn(completion);
+        var before = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        scheduler.scheduleTodayMenuRefreshAtFortyFive();
+        scheduler.scheduleTodayMenuRefreshAtFifteen();
+        var after = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        var dates = org.mockito.ArgumentCaptor.forClass(LocalDate.class);
+        verify(scrapingService).scrapeTodayMenus(dates.capture());
+        assertTrue(dates.getValue().equals(before) || dates.getValue().equals(after));
+        verifyNoInteractions(holidayService, menuRepository);
+        completion.complete(null);
+        scheduler.scheduleTodayMenuRefreshAtFifteen();
+        verify(scrapingService, times(2)).scrapeTodayMenus(any());
+    }
+
+    @Test
+    void failedTodayRefreshReleasesOverlapGuard() {
+        var completion = new CompletableFuture<Void>();
+        when(scrapingService.scrapeTodayMenus(any())).thenReturn(completion, CompletableFuture.completedFuture(null));
+        scheduler.scheduleTodayMenuRefreshAtFortyFive();
+        completion.completeExceptionally(new IllegalStateException("수집 작업 실패"));
+        scheduler.scheduleTodayMenuRefreshAtFifteen();
+        verify(scrapingService, times(2)).scrapeTodayMenus(any());
+    }
+
+    @Test
+    void synchronousTodayRefreshFailureAlsoReleasesOverlapGuard() {
+        when(scrapingService.scrapeTodayMenus(any())).thenThrow(new IllegalStateException("실행기 거부"))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        assertDoesNotThrow(scheduler::scheduleTodayMenuRefreshAtFortyFive);
+        scheduler.scheduleTodayMenuRefreshAtFifteen();
+        verify(scrapingService, times(2)).scrapeTodayMenus(any());
     }
 
     private void weekday(LocalDate date) {

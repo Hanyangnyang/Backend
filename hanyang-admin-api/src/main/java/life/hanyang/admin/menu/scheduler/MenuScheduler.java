@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Component
@@ -21,6 +22,7 @@ public class MenuScheduler {
     private final MenuScrapingService menuScrapingService;
     private final HolidayService holidayService;
     private final MenuRepository menuRepository;
+    private final AtomicBoolean todayRefreshRunning = new AtomicBoolean();
 
     // 매일 01:00 (어제 ~ 7일 뒤 식단 자동 스크래핑)
     @Scheduled(cron = "0 0 1 * * *", zone = "Asia/Seoul")
@@ -39,6 +41,39 @@ public class MenuScheduler {
             log.info("[MenuScheduler] 식단 자동 스크래핑 요청 완료");
         } catch (Exception e) {
             log.error("[MenuScheduler] 식단 자동 스크래핑 중 오류 발생: {}", e.getMessage(), e);
+        }
+    }
+
+    // 매일 06:45~18:45, 30분 간격. 각 메서드에 단일 @Scheduled를 두어 활성 배포 색상 검사도 적용한다.
+    @Scheduled(cron = "0 45 6-18 * * *", zone = "Asia/Seoul")
+    public void scheduleTodayMenuRefreshAtFortyFive() {
+        refreshTodayMenus();
+    }
+
+    @Scheduled(cron = "0 15 7-18 * * *", zone = "Asia/Seoul")
+    public void scheduleTodayMenuRefreshAtFifteen() {
+        refreshTodayMenus();
+    }
+
+    private void refreshTodayMenus() {
+        if (!todayRefreshRunning.compareAndSet(false, true)) {
+            log.warn("[MenuScheduler] 이전 당일 식단 갱신이 진행 중이므로 이번 실행을 건너뜁니다.");
+            return;
+        }
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        log.info("[MenuScheduler] 당일 식단 갱신 시작: date={}", today);
+        try {
+            menuScrapingService.scrapeTodayMenus(today).whenComplete((ignored, error) -> {
+                todayRefreshRunning.set(false);
+                if (error != null) {
+                    log.error("[MenuScheduler] 당일 식단 갱신 작업 실패: date={}", today, error);
+                } else {
+                    log.info("[MenuScheduler] 당일 식단 갱신 작업 종료: date={}", today);
+                }
+            });
+        } catch (Exception error) {
+            todayRefreshRunning.set(false);
+            log.error("[MenuScheduler] 당일 식단 갱신 요청 실패: date={}", today, error);
         }
     }
 
