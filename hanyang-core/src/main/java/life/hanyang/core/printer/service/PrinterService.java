@@ -14,6 +14,8 @@ import life.hanyang.core.global.exception.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import life.hanyang.core.printer.event.PrinterReportCreatedEvent;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 
@@ -30,6 +32,7 @@ public class PrinterService {
     private final EntityManager entityManager;
     private final ObjectMapper mapper;
     private final Validator validator;
+    private final ApplicationEventPublisher eventPublisher;
 
     public Page<Response> list(Campus campus, String buildingId, int page, int size) {
         return list(campus, buildingId, false, page, size);
@@ -76,13 +79,14 @@ public class PrinterService {
     public Receipt reportNew(NewReportRequest request) {
         validate(request);
         Input input = normalized(request.printer());
-        building(input.buildingId());
+        CampusBuilding building = building(input.buildingId());
         // Keep omitted booleans absent: a report must not claim a status the reporter did not supply.
         ObjectNode proposal = mapper.valueToTree(input);
         if (input.broken() == null) proposal.remove("broken");
         if (input.removed() == null) proposal.remove("removed");
         var report = reports.save(new PrinterReport(PrinterReportType.NEW, null, request.reporterDeviceId(),
                 proposal.toString(), null, null, clean(request.description())));
+        publishReportCreated(report, building, input.detailLocation());
         return new Receipt(report.getId(), report.getStatus());
     }
 
@@ -97,7 +101,14 @@ public class PrinterService {
         if (mapper.valueToTree(input(printer)).equals(mapper.valueToTree(proposed))) invalid("변경된 정보가 없습니다.");
         var report = reports.save(new PrinterReport(PrinterReportType.UPDATE, printer, request.reporterDeviceId(),
                 changes.toString(), mapper.valueToTree(input(printer)).toString(), printer.getVersion(), clean(request.description())));
+        publishReportCreated(report, printer.getBuilding(), printer.getDetailLocation());
         return new Receipt(report.getId(), report.getStatus());
+    }
+
+    private void publishReportCreated(PrinterReport report, CampusBuilding building, String detailLocation) {
+        eventPublisher.publishEvent(new PrinterReportCreatedEvent(report.getId(), report.getType(),
+                report.getPrinter() == null ? null : report.getPrinter().getId(), building.getCampus(),
+                building.getName(), detailLocation, report.getProposal(), report.getDescription()));
     }
 
     public Page<ReportSummary> listReports(PrinterReportStatus status, PrinterReportType type, int page, int size) {
