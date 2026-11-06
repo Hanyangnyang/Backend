@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.*;
         "spring.jpa.properties.hibernate.generate_statistics=true",
         "spring.jpa.properties.hibernate.session.events.log=false",
         "spring.sql.init.mode=always",
-        "spring.sql.init.schema-locations=file:../database/migrations/20261001_create_campus_map.sql,file:../database/migrations/20261001_create_campus_parking_lots.sql"
+        "spring.sql.init.schema-locations=file:../database/migrations/20261001_create_campus_map.sql,file:../database/migrations/20261001_create_campus_parking_lots.sql,file:../database/migrations/20261106_create_printers.sql"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = CampusMapPersistenceTest.Config.class)
@@ -51,7 +51,7 @@ import static org.assertj.core.api.Assertions.*;
 class CampusMapPersistenceTest {
     @Configuration
     @EnableAutoConfiguration
-    @EntityScan(basePackageClasses = CampusBuilding.class)
+    @EntityScan(basePackageClasses = {CampusBuilding.class, life.hanyang.core.printer.domain.Printer.class})
     @EnableJpaRepositories(basePackageClasses = CampusBuildingRepository.class)
     @Import(CampusMapService.class)
     static class Config {

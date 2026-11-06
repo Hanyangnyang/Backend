@@ -19,6 +19,9 @@ public enum ErrorCode {
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "A002", "접근 권한이 없습니다."),
     BAD_CREDENTIALS(HttpStatus.UNAUTHORIZED, "A003", "아이디 또는 비밀번호가 일치하지 않습니다."),
 
+    PRINTER_CONFLICT(HttpStatus.CONFLICT, "PT001", "프린터 정보 또는 제보 상태가 변경되었습니다."),
+    BUILDING_HAS_PRINTERS(HttpStatus.CONFLICT, "PT002", "프린터 이력이 연결된 건물은 삭제할 수 없습니다."),
+
     // 플레이리스트 에러
     PLAYLIST_DAILY_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "PL001", "오늘 추천 가능한 곡 수를 초과했습니다."),
     PLAYLIST_DUPLICATE_SONG_IN_WEEK(HttpStatus.BAD_REQUEST, "PL002", "최근 7일 이내에 이미 추천한 곡입니다. 다른 곡을 추천해 주세요."),
