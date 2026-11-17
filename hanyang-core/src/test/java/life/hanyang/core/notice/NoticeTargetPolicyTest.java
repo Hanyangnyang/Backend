@@ -24,6 +24,20 @@ class NoticeTargetPolicyTest {
     }
 
     @Test
+    void readContextAcceptsUnknownOrRemovedSelectionsWithoutCatalogLookup() {
+        policy.validateContext("transport", Map.of("transportType", "cityBus", "stationId", "new-station"));
+        policy.validateContext("campusMap", Map.of("category", "building", "buildingId", "removed-building"));
+        policy.validateContext("menu", Map.of("newChip", "new-value"));
+        verifyNoInteractions(buildings);
+        assertThatThrownBy(() -> policy.validateContext("menu", Map.of("", "value")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> policy.validateContext("menu", Map.of("chip", " ")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> policy.validateContext("menu", Map.of("chip", "a".repeat(101))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void rejectsUnknownPagesKeysValuesEmptyArraysAndInvalidRouteCombination() {
         List<TargetInput> invalid = List.of(
                 new TargetInput("unknown", Map.of()),

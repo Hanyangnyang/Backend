@@ -43,14 +43,14 @@ public class NoticeTargetPolicy {
     public void validateContext(String page, Map<String, String> context) {
         validatePage(page);
         if (context == null || context.size() > 10) throw new IllegalArgumentException("잘못된 공지 선택 상태입니다.");
-        Map<String, List<String>> conditions = new HashMap<>();
+        // Read-side context can outlive catalog entries or arrive from a newer frontend.
+        // Preserve unknown values: the database must still evaluate every stored condition.
         context.forEach((key, value) -> {
-            if (value == null) throw new IllegalArgumentException("조건 값은 필수입니다.");
-            conditions.put(key, List.of(value));
+            if (key == null || !key.matches("[a-zA-Z][a-zA-Z0-9]{0,49}")
+                    || value == null || value.isBlank() || value.length() > 100) {
+                throw new IllegalArgumentException("공지 선택 상태의 형식 또는 길이가 올바르지 않습니다.");
+            }
         });
-        List<CampusBuilding> knownBuildings = context.containsKey("buildingId")
-                ? buildings.findById(context.get("buildingId")).map(List::of).orElseGet(List::of) : List.of();
-        validateConditions(page, conditions, knownBuildings);
     }
 
     private void validateConditions(String page, Map<String, List<String>> conditions, List<CampusBuilding> knownBuildings) {

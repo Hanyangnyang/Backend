@@ -30,12 +30,13 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 // Run with NOTICE_POSTGRES_TEST=true and a disposable PostgreSQL server on localhost:55439,
-// database=postgres, user=notice_test (trust auth). This test resets ONLY notice_integration_test.
+// database=postgres, user=notice_test; password is NOTICE_POSTGRES_TEST_PASSWORD (default: trust auth).
+// This test resets ONLY notice_integration_test. CI provisions a dedicated disposable service.
 @EnabledIfEnvironmentVariable(named = "NOTICE_POSTGRES_TEST", matches = "true")
 @DataJpaTest(showSql = false, properties = {
         "spring.datasource.url=jdbc:postgresql://127.0.0.1:55439/postgres?currentSchema=notice_integration_test",
         "spring.datasource.driver-class-name=org.postgresql.Driver",
-        "spring.datasource.username=notice_test", "spring.datasource.password=",
+        "spring.datasource.username=notice_test", "spring.datasource.password=${NOTICE_POSTGRES_TEST_PASSWORD:}",
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.properties.hibernate.default_schema=notice_integration_test",
         "spring.jpa.properties.hibernate.generate_statistics=true",
@@ -93,6 +94,17 @@ class NoticePostgresTest {
         assertThat(user.list("transport", Map.of("transportType", "schoolShuttle", "stationId", "jungang"), 0, 10))
                 .extracting(UserResponse::content).doesNotContain("중앙역 버스");
         assertThat(user.list("menu", Map.of(), 0, 10)).extracting(UserResponse::id).containsExactly(multiple.id());
+    }
+
+    @Test
+    void unsupportedContextValuesDoNotHidePageWideNoticesOrBroadenSpecificTargets() {
+        var general = publish("교통 전체", all("transport"));
+        publish("중앙역만", new TargetInput("transport", Map.of("stationId", List.of("jungang"))));
+        assertThat(user.list("transport", Map.of("stationId", "new-station", "newChip", "new-value"), 0, 10))
+                .extracting(UserResponse::id).containsExactly(general.id());
+        var mapGeneral = publish("지도 전체", all("campusMap"));
+        assertThat(user.list("campusMap", Map.of("category", "building", "buildingId", "removed-building"), 0, 10))
+                .extracting(UserResponse::id).containsExactly(mapGeneral.id());
     }
 
     @Test
