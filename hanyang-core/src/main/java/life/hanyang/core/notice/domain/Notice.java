@@ -44,5 +44,7 @@ public class Notice {
         this.enabled = enabled;
         this.publishedAt = publishedAt;
         this.expiresAt = expiresAt;
+        // Target replacement is part of a notice edit even when its scalar fields are unchanged.
+        this.updatedAt = Instant.now();
     }
 }

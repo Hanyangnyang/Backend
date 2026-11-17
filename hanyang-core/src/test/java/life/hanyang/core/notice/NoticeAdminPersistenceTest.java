@@ -99,6 +99,16 @@ class NoticeAdminPersistenceTest {
     }
 
     @Test
+    void targetOnlyEditUpdatesNoticeTimestampWithoutChangingPublicationTime() {
+        var created = service.create(input("공지", List.of(target("menu"))));
+        var updated = service.update(created.id(), input("공지", List.of(target("transport"))));
+        assertThat(updated.targets()).extracting(TargetResponse::page).containsExactly("transport");
+        assertThat(updated.updatedAt()).isAfter(created.updatedAt());
+        assertThat(updated.publishedAt()).isEqualTo(created.publishedAt());
+        assertThat(service.get(created.id()).updatedAt()).isEqualTo(updated.updatedAt());
+    }
+
+    @Test
     void validatesAllRequiredInputsAndPagination() {
         assertThatThrownBy(() -> service.create(new Input(" ", true, PUBLISHED, null, List.of(target("menu")))))
                 .isInstanceOf(IllegalArgumentException.class);
