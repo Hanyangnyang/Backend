@@ -71,6 +71,15 @@ class NoticeTargetPolicyTest {
     }
 
     @Test
+    void acceptsWebsiteMapChipsAndPreservesExistingIdentifiers() {
+        for (String category : List.of("all", "food", "cafe", "openspace", "printer", "smoking",
+                "building", "parking", "pub", "play", "life", "smokingArea", "parkingLot")) {
+            policy.validateTargets(List.of(new TargetInput("campusMap", Map.of("category", List.of(category)))));
+        }
+        verifyNoInteractions(buildings);
+    }
+
+    @Test
     void rejectsBlankContentAndInvalidPublicationWindow() {
         Instant now = Instant.parse("2026-11-17T00:00:00Z");
         assertThatThrownBy(() -> new Notice(" \n ", true, now, null)).isInstanceOf(IllegalArgumentException.class);

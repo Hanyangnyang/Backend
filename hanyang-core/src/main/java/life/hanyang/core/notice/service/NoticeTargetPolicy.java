@@ -98,7 +98,13 @@ public class NoticeTargetPolicy {
                             .map(r -> new Option(r.name(), r.name())).toList())));
             case "campusMap" -> new PageOption(page, "캠퍼스맵", List.of(
                     new ConditionOption("category", "지도 분류", List.of(new Option("building", "건물"),
-                            new Option("smokingArea", "흡연구역"), new Option("parkingLot", "주차장"))),
+                            new Option("all", "전체 칩"), new Option("food", "음식점"),
+                            new Option("cafe", "카페"), new Option("openspace", "오픈스페이스"),
+                            new Option("printer", "프린터"), new Option("smoking", "흡연장"),
+                            new Option("parking", "주차장"), new Option("pub", "술집"),
+                            new Option("play", "놀거리"), new Option("life", "생활"),
+                            new Option("smokingArea", "흡연구역 (기존 식별자)"),
+                            new Option("parkingLot", "주차장 (기존 식별자)"))),
                     new ConditionOption("campus", "캠퍼스", List.of(new Option("ANSAN", "ERICA"), new Option("SEOUL", "서울"))),
                     new ConditionOption("buildingId", "건물", knownBuildings.stream()
                             .sorted(Comparator.comparing(CampusBuilding::getId))
