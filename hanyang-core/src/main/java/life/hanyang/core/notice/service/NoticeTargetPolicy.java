@@ -13,15 +13,19 @@ import java.util.*;
 @RequiredArgsConstructor
 public class NoticeTargetPolicy {
     private final CampusBuildingRepository buildings;
-    private static final Set<String> PAGES = Set.of("menu", "transport", "campusMap");
+    private static final Set<String> PAGES = Set.of("menu", "transport", "news", "campusMap", "gym", "playlist", "clubs", "instagram");
 
     public void validatePage(String page) {
         if (page == null || !PAGES.contains(page)) throw new IllegalArgumentException("지원하지 않는 공지 페이지입니다.");
     }
 
     public List<PageOption> options() {
-        return List.of(pageOptions("menu", List.of()), pageOptions("transport", List.of()),
-                pageOptions("campusMap", buildings.findAll()));
+        return List.of(pageOptions("menu", List.of()),
+                new PageOption("transport", "셔틀-지하철", pageOptions("transport", List.of()).conditions().stream()
+                        .filter(c -> Set.of("transportType", "shuttleStop").contains(c.key())).toList()),
+                pageOptions("news", List.of()), new PageOption("campusMap", "캠퍼스맵", List.of()),
+                pageOptions("gym", List.of()), pageOptions("playlist", List.of()),
+                pageOptions("clubs", List.of()), pageOptions("instagram", List.of()));
     }
 
     public void validateTargets(List<TargetInput> targets) {
@@ -68,6 +72,9 @@ public class NoticeTargetPolicy {
                 throw new IllegalArgumentException("허용되지 않는 공지 조건 또는 값입니다: " + key);
             }
         });
+        if (conditions.containsKey("shuttleStop") && !List.of("schoolShuttle").equals(conditions.get("transportType"))) {
+            throw new IllegalArgumentException("출발지 칩은 학교 셔틀을 선택해야 합니다.");
+        }
         if (conditions.containsKey("shuttleRoute")
                 && !List.of("schoolShuttle").equals(conditions.get("transportType"))) {
             throw new IllegalArgumentException("셔틀 노선 조건은 학교 셔틀을 선택해야 합니다.");
@@ -93,6 +100,8 @@ public class NoticeTargetPolicy {
             case "transport" -> new PageOption(page, "교통", List.of(
                     new ConditionOption("transportType", "교통수단", List.of(
                             new Option("schoolShuttle", "학교 셔틀"), new Option("cityBus", "일반버스"))),
+                    new ConditionOption("shuttleStop", "출발지", List.of("기숙사", "셔틀콕", "한대앞", "셔틀콕 건너편", "예술인", "중앙역").stream()
+                            .map(stop -> new Option(stop, stop)).toList()),
                     new ConditionOption("stationId", "정류장", List.of(new Option("jungang", "중앙역"))),
                     new ConditionOption("shuttleRoute", "셔틀 노선", Arrays.stream(ShuttleRoute.values())
                             .map(r -> new Option(r.name(), r.name())).toList())));
@@ -103,6 +112,11 @@ public class NoticeTargetPolicy {
                     new ConditionOption("buildingId", "건물", knownBuildings.stream()
                             .sorted(Comparator.comparing(CampusBuilding::getId))
                             .map(b -> new Option(b.getId(), b.getName())).toList())));
+            case "news" -> new PageOption(page, "소식", List.of());
+            case "gym" -> new PageOption(page, "체대 헬스장", List.of());
+            case "playlist" -> new PageOption(page, "에리카 플레이리스트", List.of());
+            case "clubs" -> new PageOption(page, "중앙동아리", List.of());
+            case "instagram" -> new PageOption(page, "학교 인스타그램", List.of());
             default -> throw new IllegalArgumentException("지원하지 않는 공지 페이지입니다.");
         };
     }

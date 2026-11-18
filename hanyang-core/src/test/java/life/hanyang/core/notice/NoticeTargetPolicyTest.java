@@ -16,6 +16,27 @@ class NoticeTargetPolicyTest {
     private final NoticeTargetPolicy policy = new NoticeTargetPolicy(buildings);
 
     @Test
+    void simplifiedCatalogIncludesAllPagesAndShuttleDepartureChipsWithoutBuildingQuery() {
+        var options = policy.options();
+        assertThat(options).extracting(o -> o.page()).containsExactly(
+                "menu", "transport", "news", "campusMap", "gym", "playlist", "clubs", "instagram");
+        assertThat(options.get(3).conditions()).isEmpty();
+        assertThat(options.get(1).conditions()).extracting(c -> c.key()).containsExactly("transportType", "shuttleStop");
+        for (String stop : List.of("기숙사", "셔틀콕", "한대앞", "셔틀콕 건너편", "예술인", "중앙역")) {
+            policy.validateTargets(List.of(new TargetInput("transport", Map.of(
+                    "transportType", List.of("schoolShuttle"), "shuttleStop", List.of(stop)))));
+        }
+        for (String page : List.of("news", "gym", "playlist", "clubs", "instagram")) {
+            policy.validateTargets(List.of(new TargetInput(page, Map.of())));
+            policy.validateContext(page, Map.of());
+        }
+        assertThatThrownBy(() -> policy.validateTargets(List.of(new TargetInput("transport", Map.of(
+                "transportType", List.of("cityBus"), "shuttleStop", List.of("중앙역"))))))
+                .isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(buildings);
+    }
+
+    @Test
     void allowsPageWideAndKnownMultiValueConditionsWithoutDatabaseReads() {
         policy.validateTargets(List.of(new TargetInput("transport", Map.of()),
                 new TargetInput("menu", Map.of("cafeteriaCode", List.of("re11", "re12")))));
