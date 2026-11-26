@@ -27,8 +27,8 @@ public class AsyncConfig {
     @Bean(name = "scrapingTaskExecutor")
     public Executor scrapingTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(3);
-        executor.setMaxPoolSize(3);
+        executor.setCorePoolSize(7);
+        executor.setMaxPoolSize(7);
         executor.setQueueCapacity(5000);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setThreadNamePrefix("scraping-");
