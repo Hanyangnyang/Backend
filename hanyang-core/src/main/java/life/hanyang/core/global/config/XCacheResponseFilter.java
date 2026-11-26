@@ -21,7 +21,7 @@ public class XCacheResponseFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
-            Object cacheStatus = request.getAttribute(CustomXCacheRedisCache.X_CACHE_ATTRIBUTE);
+            Object cacheStatus = request.getAttribute(CustomXCacheCaffeineCache.X_CACHE_ATTRIBUTE);
             if (cacheStatus != null && !response.isCommitted()) {
                 response.setHeader("X-Cache", cacheStatus.toString());
             }
